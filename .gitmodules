@@ -1,0 +1,3 @@
+[submodule "ak-schema"]
+	path = ak-schema
+	url = https://github.com/airr-knowledge/ak-schema.git
