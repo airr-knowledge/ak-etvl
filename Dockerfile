@@ -31,4 +31,4 @@ RUN pip install airr
 RUN mkdir /ak-etvl
 COPY . /ak-etvl
 
-#RUN cd /ak-etvl && make install
+RUN cd /ak-etvl/ak-schema && make install
