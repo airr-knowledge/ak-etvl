@@ -29,3 +29,8 @@ Build custom image or pull published images:
 * `docker pull airrknowledge/ak-schema:tag`: pull published container for specific tagged version.
 * `docker pull airrknowledge/ak-schema`: pull published container with latest code.
 
+Within the docker container, run the etvl scripts
+
+* `make iedb_tcr`
+* `make adc_chain`
+

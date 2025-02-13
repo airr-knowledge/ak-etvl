@@ -12,10 +12,16 @@
 import dataclasses
 import click
 import csv
+import json
 
+from linkml_runtime.utils.schemaview import SchemaView
+
+from linkml_runtime.linkml_model.meta import EnumDefinition, PermissibleValue, SchemaDefinition
 from linkml_runtime.dumpers import yaml_dumper, json_dumper, tsv_dumper
 from ak_schema import *
 from ak_schema_utils import *
+
+ak_schema_view = SchemaView("ak-schema/project/linkml/ak_schema.yaml")
 
 prefixes = {
     'iedb_reference': 'http://www.iedb.org/reference/',
@@ -73,34 +79,43 @@ def read_double_header(path):
 def convert(tcell_path, tcr_path, yaml_path):
     """Convert an input TCell and TCR TSV file to YAML."""
 
+    #for c in ak_schema_view.all_classes():
+        #print(type(c))
+        #class_view = ak_schema_view.get_class(c)
+        #print(c)
+        #print(class_view)
+
+    #for c in ak_schema_view.all_slots():
+        #print(type(c))
+        #print(c)
+
+    #print(ak_schema_view.all_classes().keys())
+    #r = [c for c in ak_schema_view.all_classes().keys() if ak_schema_view.is_relationship(c)][0:20]
+    #print(r)
+
+    Investigation_class = ak_schema_view.get_class('Investigation')
+    #print(Investigation_class)
+    #print(Investigation_class.slots)
+    #for a in Investigation_class.slots:
+    #    print(a)
+    #    a_slot = ak_schema_view.get_slot(a)
+    #    if a_slot.multivalued:
+    #        print(a_slot)
+    #        print(a_slot.name, "is multivalued")
+
+    #investigations = ak_schema_view.get_slot('investigations')
+    #print(investigations)
+    #print(investigations.range)
+
     # First read the TCell table into a list
     # of two-level dictionaries
     # using the first and second header rows.
+    #tcell_rows = []
     tcell_rows = read_double_header(tcell_path)
     tcr_rows = read_double_header(tcr_path)
 
-#     ref_id = id(tcell_rows[0]['Reference']['IEDB IRI'])
-# 
-#     investigation = Investigation(
-#         akc_id(),
-#         name=tcell_rows[0]['Reference']['Title'],
-#         description=None
-#     )
-#     reference = Reference(
-#         f"PMID:{tcell_rows[0]['Reference']['PMID']}",
-#         sources=[f"PMID:{tcell_rows[0]['Reference']['PMID']}"],
-#         investigations=[investigation.akc_id],
-#         title=tcell_rows[0]['Reference']['Title'],
-#         authors=tcell_rows[0]['Reference']['Authors'].split('; '),
-#         issue=None,
-#         journal=tcell_rows[0]['Reference']['Journal'],
-#         month=None,
-#         year=tcell_rows[0]['Reference']['Date'],
-#         pages=None,
-#     )
+    # singleton container, initially empty
     container = AIRRKnowledgeCommons(
-#        investigations=[investigation],
-#        references=[reference]
     )
 
     # For each row in the TCell table, generate:
@@ -142,6 +157,7 @@ def convert(tcell_path, tcr_path, yaml_path):
             )
             container.investigations[investigation.akc_id] = investigation
             container.references[reference.source_uri] = reference
+            investigation.documents.append(reference)
 
         assay_id = row['Assay ID']['IEDB IRI'].split('/')[-1]
         arm = StudyArm(
@@ -167,6 +183,7 @@ def convert(tcell_path, tcr_path, yaml_path):
             geolocation=None
             # geolocation=row['Host']['Geolocation']
         )
+        investigation.participants.append(participant)
         life_event_1 = LifeEvent(
             akc_id(),
             name=f'1st in vivo immune exposure event of assay {assay_id}',
@@ -260,6 +277,7 @@ def convert(tcell_path, tcr_path, yaml_path):
             value=row['Assay']['Qualitative Measurement'],
             unit=None
         )
+        investigation.assays.append(assay)
         dataset = Dataset(
             akc_id(),
             name=f'dataset 1 about assay {assay_id}',
@@ -279,6 +297,7 @@ def convert(tcell_path, tcr_path, yaml_path):
             organism=row['Host']['Name'],
             experiment_type=curie(row['Assay']['IRI']) # TODO: use label
         )
+        investigation.conclusions.append(conclusion)
 
         container.study_arms[arm.akc_id] = arm
         container.study_events[study_event.akc_id] = study_event
@@ -303,24 +322,214 @@ def convert(tcell_path, tcr_path, yaml_path):
         row_cnt += 1
         if row_cnt % 1000 == 0:
             print(f"Processed {row_cnt} rows from {tcell_path}")
-        #if row_cnt == 5000:
-        #    break
+#        if row_cnt == 2000:
+#           break
 
-    yaml_dumper.dump(container, yaml_path)
+    #yaml_dumper.dump(container, yaml_path)
 
-    # Write everything to TSV
+    # Write outputs
     container_fields = [x.name for x in dataclasses.fields(container)]
+
+    akc_container = ak_schema_view.get_class('AIRRKnowledgeCommons')
+    #print(akc_container)
+    #print(akc_container.attributes)
+    #for a in akc_container.attributes:
+    #    print(a)
+    #    a_slot = ak_schema_view.get_slot(a)
+    #    if a_slot.multivalued:
+    #        print(a_slot)
+    #        print(a_slot.name, "is multivalued")
+    #        with open(f'/iedb_data/iedb_tsv/{a_slot.name}.csv', 'w') as f:
+    #            # range is a class
+    #            pass
+
+    #investigations = ak_schema_view.get_slot('investigations')
+    #print(investigations)
+    #print(investigations.range)
+
+    # CSV for SQL DDL
+    # we use the copy commannd for postgresql to load each table
+    #for container_field in container_fields:
+    #    container_slot = ak_schema_view.get_slot(container_field)
+    #    print(container_slot)
+    #    print(container_slot.range)
+
+    # Write everything to JSONL
     for container_field in container_fields:
-        rows = list(container[container_field].values())
-        if len(rows) < 1:
-            continue
-        with open(f'/iedb_data/iedb_tsv/{container_field}.tsv', 'w') as f:
-            fieldnames = [x.name for x in dataclasses.fields(rows[0])]
-            w = csv.DictWriter(f, fieldnames, delimiter='\t', lineterminator='\n')
+        with open(f'/iedb_data/iedb_jsonl/{container_field}.jsonl', 'w') as f:
+            for key in container[container_field]:
+                s = json.loads(json_dumper.dumps(container[container_field][key]))
+                doc = {}
+                doc[container_field] = s
+                f.write(json.dumps(doc))
+                f.write('\n')
+
+    # Write everything to TSV and CSV
+    for container_field in container_fields:
+        #if container_field in [ 'investigations', 'references' ]:
+        if container_field in container_fields:
+            rows = list(container[container_field].values())
+            if len(rows) < 1:
+                continue
+            container_slot = ak_schema_view.get_slot(container_field)
+            print(container_slot)
+            tname = container_slot.range
+            fname = tname + '.csv'
+            print("saving", container_field, "into CSV file:", fname)
+            with open(f'/iedb_data/iedb_tsv/{fname}', 'w') as f:
+                fieldnames = [x.name for x in dataclasses.fields(rows[0])]
+                flatnames = [ n for n in fieldnames if ak_schema_view.get_slot(n).multivalued != True ]
+                print(fieldnames)
+                print(flatnames)
+                for fn in flatnames:
+                    fn_slot = ak_schema_view.get_slot(fn)
+                    print(fn_slot)
+                w = csv.DictWriter(f, flatnames, lineterminator='\n', extrasaction='ignore')
+                w.writeheader()
+                for row in rows:
+                    w.writerow(row.__dict__)
+
+    # CSV relationships
+    # TODO: would be better to iterate over linkml metadata, to handle all
+    # instead we hard-code in a simple way
+    def write_relationship(class_name, class_obj, range_name, is_foreign=False):
+        with open(f'/iedb_data/iedb_tsv/{class_name}_{range_name}.csv', 'w') as f:
+            if is_foreign:
+                flatnames = [ class_name + '_akc_id', range_name + '_source_uri' ]
+            else:
+                flatnames = [ class_name + '_akc_id', range_name + '_akc_id' ]
+            w = csv.DictWriter(f, flatnames, lineterminator='\n', extrasaction='ignore')
             w.writeheader()
-            for row in rows:
-                w.writerow(row.__dict__)
+            for i_id in class_obj:
+                i = class_obj[i_id]
+                for p in i[range_name]:
+                    if is_foreign:
+                        f.write(i.akc_id + ',' + p.source_uri + '\n')
+                    else:
+                        f.write(i.akc_id + ',' + p.akc_id + '\n')
+
+
+    # investigation relationships
+    write_relationship('Investigation', container.investigations, 'participants')
+    write_relationship('Investigation', container.investigations, 'assays')
+    write_relationship('Investigation', container.investigations, 'conclusions')
+    write_relationship('Investigation', container.investigations, 'documents', True)
+
+#    with open(f'/iedb_data/iedb_tsv/Investigation_participants.csv', 'w') as f:
+#        flatnames = [ 'Investigation_akc_id', 'participants_akc_id' ]
+#        w = csv.DictWriter(f, flatnames, lineterminator='\n', extrasaction='ignore')
+#        w.writeheader()
+#        for i_id in container.investigations:
+#            i = container.investigations[i_id]
+            #print(i)
+#            for p in i.participants:
+                #print(p)
+                #p = i.participants[p_id]
+                #print(i.name + '_' + p.name)
+                #print(i.akc_id, p.akc_id)
+#                f.write(i.akc_id + ', ' + p.akc_id + '\n')
+
+#                    if container_slot_class.name == 'Reference':
+#                                    f.write(row.source_uri + ', ' + row.source_uri + '\n')
+#                                else:
+#                                    f.write(row.akc_id + ', ' + row.akc_id + '\n')
+
+#            if container_slot.multivalued:
+#                print(container_slot.name, "is multivalued")
+#                print(container_slot.range)
+#                container_slot_class = ak_schema_view.get_class(container_slot.range)
+                #print(container_slot_class)
+                # now loop through the slots of container_slot_class
+#                for csc_slot in container_slot_class.slots:
+#                    csc_slot_meta = ak_schema_view.get_slot(csc_slot)
+#                    if csc_slot_meta.name == 'simulations':
+#                        continue
+#                    if csc_slot_meta.name == 'documents':
+#                        continue
+#                    if csc_slot_meta.name == 'sources':
+#                        continue
+#                    if csc_slot_meta.multivalued:
+#                        tname = container_slot_class.name + '_' + csc_slot_meta.name
+#                        fname = tname + '.csv'
+#                        print(csc_slot_meta.name, "is multivalued, generating relationship:", tname)
+#                        #print(container_slot_class.name, 'and', csc_slot_meta.name)
+#                        print(container_slot_class)
+#                        print(csc_slot_meta)
+#                        print(fname)
+#                        if csc_slot_meta.name == 'specimen_processing':
+#                            continue
+#                        if tname == 'Reference_investigations':
+#                            continue
+#                        if tname == 'Reference_authors':
+#                            continue
+#                        if tname == 'Reference_sources':
+#                            continue
+#                        rel_rows = list(container[csc_slot_meta.name].values())
+#                        print(len(rel_rows))
+#                        print(rows)
+#                        with open(f'/iedb_data/iedb_tsv/{fname}', 'w') as f:
+#                            flatnames = [ container_slot_class.name + '_akc_id', csc_slot_meta.name + '_akc_id' ]
+#                            w = csv.DictWriter(f, flatnames, lineterminator='\n', extrasaction='ignore')
+#                            w.writeheader()
+#                            for row in rel_rows:
+#                                if container_slot_class.name == 'Reference':
+#                                    f.write(row.source_uri + ', ' + row.source_uri + '\n')
+#                                else:
+#                                    f.write(row.akc_id + ', ' + row.akc_id + '\n')
+
+                    #range_name = container_slot.range.name
+        #print(container_slot)
+        #print(container_slot.range)
+#            range_name = container_slot.range.name
+#        print(range_name)
+
+        # get data values as list
+#        rows = list(container[container_field].values())
+#        if len(rows) < 1:
+#            continue
+
+#        with open(f'/iedb_data/iedb_tsv/{range_name}.tsv', 'w') as f:
+#            fieldnames = [x.name for x in dataclasses.fields(rows[0])]
+            #print(fieldnames)
+            #print(type(rows))
+#            w = csv.DictWriter(f, fieldnames, delimiter='\t', lineterminator='\n')
+#            w.writeheader()
+#            for row in rows:
+                # handle list differently
+                #if container_field == 'investigations':
+#                for fn in fieldnames:
+                    #print(fn, type(row[fn]))
+#                    if isinstance(row[fn], list):
+#                        rn = container_field
+                        #print(fn, "is a list, generating relation")
+#                        relation_slot = ak_schema_view.get_slot(fn)
+                        #print(relation_slot)
+
+                        #print(relation_slot.range)
+#                        if relation_slot.range is not None:
+#                            print(relation_slot.range + "_" + fn)
+                    #print(type(row.__dict__))
+#                w.writerow(row.__dict__)
+
+#        rows = list(container[container_field].values())
+#        if len(rows) < 1:
+#            continue
+#        with open(f'/iedb_data/iedb_tsv/{container_field}.csv', 'w') as f:
+#            fieldnames = [x.name for x in dataclasses.fields(rows[0])]
+#            w = csv.DictWriter(f, fieldnames, lineterminator='\n')
+#            w.writeheader()
+#            for row in rows:
+#                w.writerow(row.__dict__)
 
 
 if __name__ == "__main__":
+    # in notebook https://github.com/linkml/linkml-runtime/blob/main/notebooks/SchemaView_BioLink.ipynb
+    ak_schema_view.imports_closure()
+    print(len(ak_schema_view.all_classes()), len(ak_schema_view.all_slots()), len(ak_schema_view.all_subsets()))
+
+    #for c in view.all_classes():
+    #    print(c)
+    #print(SchemaDefinition)
+    #schema = SchemaDefinition(id='example_schema', name='example_schema')
+    #print(schema)
     convert()
