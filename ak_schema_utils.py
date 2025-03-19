@@ -2,6 +2,7 @@
 import dataclasses
 import click
 import csv
+import json
 import airr
 import os
 import sys
@@ -10,8 +11,32 @@ import hashlib
 import itertools
 import uuid
 
+from linkml_runtime.utils.schemaview import SchemaView
+from linkml_runtime.linkml_model.meta import EnumDefinition, PermissibleValue, SchemaDefinition
 from linkml_runtime.dumpers import yaml_dumper, json_dumper, tsv_dumper
+
 from ak_schema import *
+
+ak_schema_view = SchemaView("ak-schema/project/linkml/ak_schema.yaml")
+
+prefixes = {
+    'iedb_reference': 'http://www.iedb.org/reference/',
+    'iedb_epitope': 'http://www.iedb.org/epitope/',
+    'iedb_assay': 'http://www.iedb.org/assay/',
+    'iedb_receptor': 'http://www.iedb.org/receptor/',
+    'OBI': 'http://purl.obolibrary.org/obo/OBI_',
+    'NCBITAXON': 'http://purl.obolibrary.org/obo/NCBITaxon_',
+    'ONTIE': 'https://ontology.iedb.org/ontology/ONTIE_',
+}
+
+def url_to_curie(input):
+    """Convert a URL to a CURIE."""
+    if input is None:
+        return input
+    for prefix, url in prefixes.items():
+        if input.startswith(url):
+            return input.replace(url, prefix + ':')
+    return input
 
 def akc_id():
     """Returns a new AKC ID."""
@@ -158,29 +183,29 @@ def make_receptor(container, chains):
     if str(chains[0].chain_type) == 'TRB' and str(chains[1].chain_type) == 'TRA':
         receptor = AlphaBetaTCR(
             "AKC_RECEPTOR:" + seq_hash(chains[1].akc_id + chains[0].akc_id),
-            TRA_chain=chains[1].akc_id,
-            TRB_chain=chains[0].akc_id
+            tra_chain=chains[1].akc_id,
+            trb_chain=chains[0].akc_id
         )
         container.ab_tcell_receptors[receptor.akc_id] = receptor
     elif str(chains[1].chain_type) == 'TRB' and str(chains[0].chain_type) == 'TRA':
         receptor = AlphaBetaTCR(
             "AKC_RECEPTOR:" + seq_hash(chains[0].akc_id + chains[1].akc_id),
-            TRA_chain=chains[0].akc_id,
-            TRB_chain=chains[1].akc_id
+            tra_chain=chains[0].akc_id,
+            trb_chain=chains[1].akc_id
         )
         container.ab_tcell_receptors[receptor.akc_id] = receptor
     elif str(chains[0].chain_type) == 'TRG' and str(chains[1].chain_type) == 'TRD':
         receptor = GammaDeltaTCR(
             "AKC_RECEPTOR:" + seq_hash(chains[0].akc_id + chains[1].akc_id),
-            TRG_chain=chains[0].akc_id,
-            TRD_chain=chains[1].akc_id
+            trg_chain=chains[0].akc_id,
+            trd_chain=chains[1].akc_id
         )
         container.gd_tcell_receptors[receptor.akc_id] = receptor
     elif str(chains[1].chain_type) == 'TRG' and str(chains[0].chain_type) == 'TRD':
         receptor = GammaDeltaTCR(
             "AKC_RECEPTOR:" + seq_hash(chains[1].akc_id + chains[0].akc_id),
-            TRG_chain=chains[1].akc_id,
-            TRD_chain=chains[0].akc_id
+            trg_chain=chains[1].akc_id,
+            trd_chain=chains[0].akc_id
         )
         container.gd_tcell_receptors[receptor.akc_id] = receptor
 
@@ -190,30 +215,32 @@ def make_receptor(container, chains):
         if str(chains[1].chain_type) == 'IGK':
             receptor = BCellReceptor(
                 "AKC_RECEPTOR:" + seq_hash(chains[0].akc_id + chains[1].akc_id),
-                IGH_chain=chains[0].akc_id,
-                IGK_chain=chains[1].akc_id
+                igh_chain=chains[0].akc_id,
+                igk_chain=chains[1].akc_id
             )
             container.bcell_receptors[receptor.akc_id] = receptor
         elif str(chains[1].chain_type) == 'IGL':
             receptor = BCellReceptor(
                 "AKC_RECEPTOR:" + seq_hash(chains[0].akc_id + chains[1].akc_id),
-                IGH_chain=chains[0].akc_id,
-                IGL_chain=chains[1].akc_id
+                igh_chain=chains[0].akc_id,
+                igl_chain=chains[1].akc_id
             )
             container.bcell_receptors[receptor.akc_id] = receptor
+        else:
+            print('ERROR: unknown IG chain')
     elif str(chains[1].chain_type) == 'IGH':
         if str(chains[0].chain_type) == 'IGK':
             receptor = BCellReceptor(
                 "AKC_RECEPTOR:" + seq_hash(chains[1].akc_id + chains[0].akc_id),
-                IGH_chain=chains[1].akc_id,
-                IGK_chain=chains[0].akc_id
+                igh_chain=chains[1].akc_id,
+                igk_chain=chains[0].akc_id
             )
             container.bcell_receptors[receptor.akc_id] = receptor
         elif str(chains[0].chain_type) == 'IGL':
             receptor = BCellReceptor(
                 "AKC_RECEPTOR:" + seq_hash(chains[1].akc_id + chains[0].akc_id),
-                IGH_chain=chains[1].akc_id,
-                IGL_chain=chains[0].akc_id
+                igh_chain=chains[1].akc_id,
+                igl_chain=chains[0].akc_id
             )
             container.bcell_receptors[receptor.akc_id] = receptor
         else:
@@ -258,4 +285,54 @@ def to_int(value):
     if value == '' or value is None:
         return None
     return int(value)
+
+def write_jsonl(container, container_field, outfile):
+    print(outfile)
+    with open(outfile, 'w') as f:
+        for key in container[container_field]:
+            s = json.loads(json_dumper.dumps(container[container_field][key]))
+            doc = {}
+            doc[container_field] = s
+            f.write(json.dumps(doc))
+            f.write('\n')
+
+def write_csv(container, container_field, outfile):
+    rows = list(container[container_field].values())
+    if len(rows) < 1:
+        print(f"Skipping empty data for {container_field}")
+        return
+    print(f"Saving {container_field} into CSV file: {outfile}")
+    with open(outfile, 'w') as f:
+        fieldnames = [x.name for x in dataclasses.fields(rows[0])]
+        flatnames = [ n for n in fieldnames if ak_schema_view.get_slot(n).multivalued != True ]
+        #print(fieldnames)
+        #print(flatnames)
+        for fn in flatnames:
+            fn_slot = ak_schema_view.get_slot(fn)
+            #print(fn_slot)
+        w = csv.DictWriter(f, flatnames, lineterminator='\n', extrasaction='ignore')
+        w.writeheader()
+        for row in rows:
+            w.writerow(row.__dict__)
+
+# CSV relationships
+# we convert to lowercase because mixed case with SQL is a hassle
+def write_relationship_csv(class_name, class_obj, range_name, outpath, is_foreign=False):
+    with open(f'{outpath}{class_name}_{range_name}.csv', 'w') as f:
+        if is_foreign:
+            flatnames = [ class_name.lower() + '_akc_id', range_name.lower() + '_source_uri' ]
+        else:
+            flatnames = [ class_name.lower() + '_akc_id', range_name.lower() + '_akc_id' ]
+        w = csv.DictWriter(f, flatnames, lineterminator='\n', extrasaction='ignore')
+        w.writeheader()
+        for i_id in class_obj:
+            i = class_obj[i_id]
+            for p in i[range_name]:
+                if is_foreign:
+                    f.write(i.akc_id + ',' + p.source_uri + '\n')
+                else:
+                    f.write(i.akc_id + ',' + p.akc_id + '\n')
+
+def load_chains(filename):
+    return None
 

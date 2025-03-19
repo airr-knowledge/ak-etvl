@@ -10,6 +10,14 @@ AIRR Knowledge extract, transform, validate, load pipeline
 The integration pipeline is in beta release and designed to be run within a docker container
 bash shell with host mounts to access data files.
 
+The pipeline is designed to process data from each repository separately, and for the ADC to
+process each study separately. Thus generating separate output files which are then merged
+together to handle duplicate/conflicting data entries, and the merged files are loaded into
+the database (merge process currently not implemented).
+
+The overall plan is to support multiple database backends (SQL only, JSON only, SQL/JSON hybrid)
+so we can prototype scalable designs.
+
 This repository contains submodules. When doing a `git clone`, those submodules are
 not automatically populated, and an additional command is required.
 
@@ -25,12 +33,17 @@ Make a docker image from the local code:
 
 Build custom image or pull published images:
 
-* `docker build . -t airrknowledge/ak-schema:mytag`: build container with local code with custom tag.
-* `docker pull airrknowledge/ak-schema:tag`: pull published container for specific tagged version.
-* `docker pull airrknowledge/ak-schema`: pull published container with latest code.
+* `docker build . -t airrknowledge/ak-etvl:mytag`: build container with local code with custom tag.
+* `docker pull airrknowledge/ak-etvl:tag`: pull published container for specific tagged version.
+* `docker pull airrknowledge/ak-etvl`: pull published container with latest code.
 
-Within the docker container, run the etvl scripts
+The following mounts need to be defined for the docker container:
 
-* `make iedb_tcr`
-* `make adc_chain`
+* `/adc_data`: where to find VDJServer's cached ADC files.
+* `/iedb_data`: where to find IDEB export TSV files.
 
+Commands for converting data need to be run within the docker container, while commands
+which load data into the database are run outside of docker (but uses docker to
+connect to the database).
+
+Run `make` to see the list of commands.

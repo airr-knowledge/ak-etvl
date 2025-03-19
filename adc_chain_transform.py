@@ -1,4 +1,9 @@
 
+# TODO list
+# - we want to be able to process each cache ID separately
+# - switch to process only specific cache IDs
+# - create output folder for each cache ID
+
 import dataclasses
 import click
 import csv
@@ -9,149 +14,35 @@ import gzip
 import hashlib
 import itertools
 
+from linkml_runtime.utils.schemaview import SchemaView
+from linkml_runtime.linkml_model.meta import EnumDefinition, PermissibleValue, SchemaDefinition
 from linkml_runtime.dumpers import yaml_dumper, json_dumper, tsv_dumper
+
 from ak_schema import *
 from ak_schema_utils import *
+
+ak_schema_view = SchemaView("ak-schema/project/linkml/ak_schema.yaml")
 
 adc_data_dir = '/adc_data'
 adc_cache_dir = adc_data_dir + '/cache'
 
-ipa_list = [ "7245411507393139181-242ac11b-0001-012" ]
-vdjserver_list = [ "6270798281029250580-242ac117-0001-012", "2531647238962745836-242ac114-0001-012", "4507038074455191060-242ac114-0001-012", "2314581927515778580-242ac117-0001-012" ]
+vdjserver_cache_list = [
+    '2314581927515778580-242ac117-0001-012', # PRJNA608742
+    '4507038074455191060-242ac114-0001-012', # PRJNA472381
+    '2531647238962745836-242ac114-0001-012', # PRJNA724733
+    '6270798281029250580-242ac117-0001-012', # PRJNA680539
+    '6508961642208563691-242ac113-0001-012', # PRJNA300878
+    '6701977472490803691-242ac113-0001-012'  # PRJNA248475
+]
 
-ipa_studies = [ "PRJNA248411", "PRJNA280743", "PRJNA381394", "PRJNA280743", "PRJNA509910" ]
-vdjserver_studies = [ "PRJNA248475", "PRJNA300878", "PRJNA680539", "PRJNA724733", "PRJNA472381", "PRJNA608742" ]
-#vdjserver_studies = [ "PRJNA248475" ]
+ipa_cache_list = [
+    '7245411507393139181-242ac11b-0001-012', # PRJNA248411
+#    '3860335026075537901-242ac11b-0001-012', # PRJNA381394
+    '7480260319138419181-242ac11b-0001-012', # PRJNA280743
+    '8575123754278514195-242ac11b-0001-012' # PRJNA509910
+]
 
-def old_make_chain(container, akc_id, obj):
-    if obj['locus'] not in [ 'TRB', 'TRA', 'TRD', 'TRG', 'IGH', 'IGK', 'IGL' ]:
-        print('unhandled locus:', obj['locus'])
-        return None
-
-    chain = Chain(
-        f'AKC:{akc_id}',
-        complete_vdj = obj['complete_vdj'],
-        sequence = obj['sequence'],
-        sequence_aa = obj['sequence_aa'],
-        chain_type = ChainTypeEnum(obj['locus']),
-        junction_aa = obj['junction_aa'],
-        v_call = obj['v_call'],
-        j_call = obj['j_call'],
-    )
-    container.chains[f'AKC:{akc_id}'] = chain
-    return chain
-
-def old_make_receptor(container, akc_id, chains):
-
-    if len(chains) != 2:
-        print('ERROR: make_receptor assumes only 2 chains.')
-        return None
-
-    receptor = None
-
-    # T cell receptors
-    if str(chains[0]['chain']['chain_type']) == 'TRB' and str(chains[1]['chain']['chain_type']) == 'TRA':
-        receptor = AlphaBetaTCR(
-            f'AKC:{akc_id}',
-            TRA_chain=chains[1]['chain']['akc_id'],
-            TRB_chain=chains[0]['chain']['akc_id']
-        )
-        container.tcell_receptors[f'AKC:{akc_id}'] = receptor
-    elif str(chains[1]['chain']['chain_type']) == 'TRB' and str(chains[0]['chain']['chain_type']) == 'TRA':
-        receptor = AlphaBetaTCR(
-            f'AKC:{akc_id}',
-            TRA_chain=chains[0]['chain']['akc_id'],
-            TRB_chain=chains[1]['chain']['akc_id']
-        )
-        container.tcell_receptors[f'AKC:{akc_id}'] = receptor
-    elif str(chains[0]['chain']['chain_type']) == 'TRG' and str(chains[1]['chain']['chain_type']) == 'TRD':
-        receptor = GammaDeltaTCR(
-            f'AKC:{akc_id}',
-            TRG_chain=chains[0]['chain']['akc_id'],
-            TRD_chain=chains[1]['chain']['akc_id']
-        )
-        container.tcell_receptors[f'AKC:{akc_id}'] = receptor
-    elif str(chains[1]['chain']['chain_type']) == 'TRG' and str(chains[0]['chain']['chain_type']) == 'TRD':
-        receptor = GammaDeltaTCR(
-            f'AKC:{akc_id}',
-            TRG_chain=chains[1]['chain']['akc_id'],
-            TRD_chain=chains[0]['chain']['akc_id']
-        )
-        container.tcell_receptors[f'AKC:{akc_id}'] = receptor
-
-    # B cell receptors
-    elif str(chains[0]['chain']['chain_type']) == 'IGH':
-        if str(chains[1]['chain']['chain_type']) == 'IGK':
-            receptor = BCellReceptor(
-                f'AKC:{akc_id}',
-                IGH_chain=chains[0]['chain']['akc_id'],
-                IGK_chain=chains[1]['chain']['akc_id']
-            )
-            container.bcell_receptors[f'AKC:{akc_id}'] = receptor
-        elif str(chains[1]['chain']['chain_type']) == 'IGL':
-            receptor = BCellReceptor(
-                f'AKC:{akc_id}',
-                IGH_chain=chains[0]['chain']['akc_id'],
-                IGL_chain=chains[1]['chain']['akc_id']
-            )
-            container.bcell_receptors[f'AKC:{akc_id}'] = receptor
-    elif str(chains[1]['chain']['chain_type']) == 'IGH':
-        if str(chains[0]['chain']['chain_type']) == 'IGK':
-            receptor = BCellReceptor(
-                f'AKC:{akc_id}',
-                IGH_chain=chains[1]['chain']['akc_id'],
-                IGK_chain=chains[0]['chain']['akc_id']
-            )
-            container.bcell_receptors[f'AKC:{akc_id}'] = receptor
-        elif str(chains[0]['chain']['chain_type']) == 'IGL':
-            receptor = BCellReceptor(
-                f'AKC:{akc_id}',
-                IGH_chain=chains[1]['chain']['akc_id'],
-                IGL_chain=chains[0]['chain']['akc_id']
-            )
-            container.bcell_receptors[f'AKC:{akc_id}'] = receptor
-        else:
-            print('ERROR: unknown IG chain')
-
-
-    return receptor
-
-def check_three(chains):
-#    print(chains)
-    if len(chains) != 3:
-        print('ERROR: check_three assumes 3 chains.')
-        return None
-    cnt = { 'TRB': 0, 'TRA': 0 }
-    c = str(chains[0]['chain']['chain_type'])
-    if cnt.get(c) is not None:
-        cnt[c] += 1
-    c = str(chains[1]['chain']['chain_type'])
-    if cnt.get(c) is not None:
-        cnt[c] += 1
-    c = str(chains[2]['chain']['chain_type'])
-    if cnt.get(c) is not None:
-        cnt[c] += 1
-    if cnt['TRA'] == 3:
-        return [ 1, 0, 0, 0 ]
-    if cnt['TRA'] == 2 and cnt['TRB'] == 1:
-        return [ 0, 1, 0, 0 ]
-    if cnt['TRA'] == 1 and cnt['TRB'] == 2:
-        return [ 0, 0, 1, 0 ]
-    if cnt['TRB'] == 3:
-        return [ 0, 0, 0, 1 ]
-    return [ 0, 0, 0, 0]
-
-def to_bool(value):
-    if value in ['True', 'true', 'TRUE', 'T', 't', '1']:
-        return True
-    if value in ['False', 'false', 'FALSE', 'F', 'f', '0']:
-        return False
-    return None
-
-def to_int(value):
-    if value == '' or value is None:
-        return None
-    return int(value)
+cache_list = ipa_cache_list
 
 @click.command()
 @click.argument('output')
@@ -161,40 +52,36 @@ def receptor_integrate(output):
     fields = [ 'productive', 'junction', 'junction_aa', 'complete_vdj', 'sequence', 'sequence_aa', 'locus', 'v_call', 'j_call', 'duplicate_count', 'cell_id' ]
     field_types = [ 'bool', 'str', 'str', 'bool', 'str', 'str', 'str', 'str', 'str', 'int', 'str' ]
 
-    exact_match = {}
-    exact_aa_match = {}
-    junction_exact_match = {}
-    junction_exact_aa_match = {}
-    junction_exact_aa_and_vj_match = {}
     studies = os.listdir(adc_cache_dir)
 
-    container = AIRRKnowledgeCommons()
-
+    study_cnt = 0
     tot_row_cnt = 0
     total_rep_cnt = 0
     for study in studies:
         if study == '.DS_Store':
             continue
-#        if study == '2190435173075840530-242ac118-0001-012':
-#            continue
-#        if study == '6590523071159603691-242ac113-0001-012':
-#            continue
-#        if study != '2314581927515778580-242ac117-0001-012':
-#            continue
-#        if study != '6295837940364930580-242ac117-0001-012':
-#            continue
-#        if study != '3860335026075537901-242ac11b-0001-012':
-#            continue
+
+        if study not in cache_list:
+            continue
+
+        container = AIRRKnowledgeCommons()
+        exact_match = {}
+        exact_aa_match = {}
+        junction_exact_match = {}
+        junction_exact_aa_match = {}
+        junction_exact_aa_and_vj_match = {}
+
         print('Processing study cache:', study)
 
         # Load the AIRR data
         row_cnt = 0
         data = airr.read_airr(adc_cache_dir + '/' + study + '/repertoires.airr.json')
+        cell_id = {}
 
         # Info within Info is IPA
         cell_within_repertoire = True
         if data['Info'].get('Info') is not None:
-            print('Skipping IPA study')
+            print('This is IPA study')
             # this is an IPA special
             # the receptor chains within a cell are split across repertoires
             cell_within_repertoire = False
@@ -204,20 +91,24 @@ def receptor_integrate(output):
         for rep in data['Repertoire']:
             print('Processing repertoire:', rep['repertoire_id'])
 
+#            if rep['repertoire_id'] != '5ef386a20255b55fcc1bf5e6' and rep['repertoire_id'] != '5ef386a20255b55fcc1bf5e7':
+#                continue
+
 #            if rep['study']['study_id'] not in vdjserver_studies:
 #                print('skipping study:', study)
 #                break
                 
-            if "contains_paired_chain" not in rep['study']['keywords_study']:
-                print('skipping non paired chain study:', study)
-                break
+#            if "contains_paired_chain" not in rep['study']['keywords_study']:
+#                print('skipping non paired chain study:', study)
+#                break
 
 #            if rep['sample'][0]['physical_linkage'] == 'hetero_head-head':
 #                print('skipping Georgiou study:', study)
 #                break
 
             # match up paired chains using cell_id, but only within the repertoire
-            cell_id = {}
+            if cell_within_repertoire:
+                cell_id = {}
 
             prod_cnt = 0
             line_cnt = 0
@@ -328,61 +219,73 @@ def receptor_integrate(output):
             print(row_cnt, 'records for study cache:', study)
             total_rep_cnt += 1
 
-    # here we match at the study level for IPA
-    if not cell_within_repertoire:
-        print(f"cell_within_repertoire is {cell_within_repertoire}")
-        print(len(cell_id), 'unique cell ids')
-        dist = [ 0, 0, 0, 0 ]
-        tcr_three = [ 0, 0, 0, 0 ]
-        for c in cell_id:
-            lenc = len(cell_id[c])
-            if lenc < 2: # validation error?
-                dist[0] += 1
-            elif lenc == 3:
-                dist[2] += 1
-                #t = check_three(cell_id[c])
-                #tcr_three[0] += t[0]
-                #tcr_three[1] += t[1]
-                #tcr_three[2] += t[2]
-                #tcr_three[3] += t[3]
-            elif lenc > 3:
-                dist[3] += 1
-            else: # 2 chains, obvious case
-                dist[1] += 1
-                make_receptor(container, cell_id[c])
+        # here we match at the study level for IPA
+        if not cell_within_repertoire:
+            print(f"cell_within_repertoire is {cell_within_repertoire}")
+            print(len(cell_id), 'unique cell ids')
+            dist = [ 0, 0, 0, 0 ]
+            tcr_three = [ 0, 0, 0, 0 ]
+            for c in cell_id:
+                lenc = len(cell_id[c])
+                if lenc < 2: # validation error?
+                    dist[0] += 1
+                elif lenc == 3:
+                    dist[2] += 1
+                    #t = check_three(cell_id[c])
+                    #tcr_three[0] += t[0]
+                    #tcr_three[1] += t[1]
+                    #tcr_three[2] += t[2]
+                    #tcr_three[3] += t[3]
+                elif lenc > 3:
+                    dist[3] += 1
+                else: # 2 chains, obvious case
+                    dist[1] += 1
+                    #print(lenc)
+                    #print(cell_id[c])
+                    make_receptor(container, cell_id[c])
 
-#            break
-#        break
+        # output data for just this study
+        directory_name = f'{adc_data_dir}/adc_jsonl/{study}'
+        try:
+            os.mkdir(directory_name)
+        except FileExistsError:
+            pass
+        directory_name = f'{adc_data_dir}/adc_tsv/{study}'
+        try:
+            os.mkdir(directory_name)
+        except FileExistsError:
+            pass
 
-# single chain
+        print()
+        print(f'Finished study {study}')
+        print(total_rep_cnt, 'total ADC repertoires')
+        print(len(container['chains']), 'total chains')
+        print(len(container['ab_tcell_receptors']), 'total alpha/beta TCRs')
+        print(len(container['gd_tcell_receptors']), 'total gamma/delta TCRs')
+        print(len(container['bcell_receptors']), 'total BCRs')
+        print()
+        print(len(exact_match), 'nucleotide match')
+        print(len(junction_exact_match), 'junction nucleotide match')
+        print(len(exact_aa_match), 'aa match')
+        print(len(junction_exact_aa_match), 'junction aa match')
+        print(len(junction_exact_aa_and_vj_match), 'junction aa and V/J gene match')
 
-    print()
-    print(len(studies), 'total studies')
-    print(total_rep_cnt, 'total ADC repertoires')
-    print(len(container['chains']), 'total chains')
-    print(len(container['ab_tcell_receptors']), 'total alpha/beta TCRs')
-    print(len(container['gd_tcell_receptors']), 'total gamma/delta TCRs')
-    print(len(container['bcell_receptors']), 'total BCRs')
-    print()
-    print(len(exact_match), 'nucleotide match')
-    print(len(junction_exact_match), 'junction nucleotide match')
-    print(len(exact_aa_match), 'aa match')
-    print(len(junction_exact_aa_match), 'junction aa match')
-    print(len(junction_exact_aa_and_vj_match), 'junction aa and V/J gene match')
-#    yaml_dumper.dump(container, output)
+        # output yaml file
+        #    yaml_dumper.dump(container, output)
 
-    # Write everything to TSV
-    container_fields = [x.name for x in dataclasses.fields(container)]
-    for container_field in container_fields:
-        rows = list(container[container_field].values())
-        if len(rows) < 1:
-            continue
-        with open(f'{adc_data_dir}/adc_tsv/{container_field}.tsv', 'w') as f:
-            fieldnames = [x.name for x in dataclasses.fields(rows[0])]
-            w = csv.DictWriter(f, fieldnames, delimiter='\t', lineterminator='\n')
-            w.writeheader()
-            for row in rows:
-                w.writerow(row.__dict__)
+        container_fields = [x.name for x in dataclasses.fields(container)]
+
+        # Write everything to JSONL
+        for container_field in container_fields:
+            write_jsonl(container, container_field, f'{adc_data_dir}/adc_jsonl/{study}/{container_field}.jsonl')
+
+        # Write everything to CSV
+        for container_field in container_fields:
+            container_slot = ak_schema_view.get_slot(container_field)
+            tname = container_slot.range
+            fname = tname + '.csv'
+            write_csv(container, container_field, f'{adc_data_dir}/adc_tsv/{study}/{fname}')
+
 
 if __name__ == "__main__":
     receptor_integrate()
