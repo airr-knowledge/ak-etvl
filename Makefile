@@ -46,7 +46,7 @@ help:
 # build docker image
 docker:
 	@echo "Building docker image"
-	docker build . -t airrknowledge/ak_etvl
+	docker build . -t airrknowledge/ak-etvl
 
 # generate python dataclasses from schema
 ak_schema.py: ak-schema/project/linkml/ak_schema.yaml
