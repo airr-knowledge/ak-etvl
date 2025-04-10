@@ -1,3 +1,6 @@
 [submodule "ak-schema"]
 	path = ak-schema
 	url = https://github.com/airr-knowledge/ak-schema.git
+[submodule "ak-ontology"]
+	path = ak-ontology
+	url = https://github.com/airr-knowledge/ak-ontology.git
