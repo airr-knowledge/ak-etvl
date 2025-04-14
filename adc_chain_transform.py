@@ -23,9 +23,6 @@ from ak_schema_utils import *
 
 ak_schema_view = SchemaView("ak-schema/project/linkml/ak_schema.yaml")
 
-adc_data_dir = '/adc_data'
-adc_cache_dir = adc_data_dir + '/cache'
-
 vdjserver_cache_list = [
     '2314581927515778580-242ac117-0001-012', # PRJNA608742
     '4507038074455191060-242ac114-0001-012', # PRJNA472381
