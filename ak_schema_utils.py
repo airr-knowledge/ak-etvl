@@ -17,6 +17,13 @@ from linkml_runtime.dumpers import yaml_dumper, json_dumper, tsv_dumper
 
 from ak_schema import *
 
+# data import/export directories
+ak_data_dir = '/ak_data'
+adc_data_dir = ak_data_dir + '/vdjserver-adc-cache'
+adc_cache_dir = adc_data_dir + '/cache'
+iedb_data_dir = ak_data_dir + '/iedb'
+ak_load_dir = ak_data_dir + '/ak-data-load'
+
 ak_schema_view = SchemaView("ak-schema/project/linkml/ak_schema.yaml")
 
 prefixes = {

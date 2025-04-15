@@ -39,8 +39,15 @@ Build custom image or pull published images:
 
 The following mounts need to be defined for the docker container:
 
-* `/adc_data`: where to find VDJServer's cached ADC files.
-* `/iedb_data`: where to find IDEB export TSV files.
+* `/ak_data`: where to find AK data files
+
+The scripts assume specific subdirectories:
+
+* `/ak_data/vdjserver-adc-cache`: where to find VDJServer's ADC cache files.
+* `/ak_data/iedb`: where to find IDEB export TSV files.
+* `/ak_data/irad`: IRAD
+
+* `/ak_data/ak-data-load`: where final merged files for database loading
 
 Commands for converting data need to be run within the docker container, while commands
 which load data into the database are run outside of docker (but uses docker to
