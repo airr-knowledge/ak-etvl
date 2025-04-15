@@ -6,7 +6,7 @@ from ak_schema import *
 import immunespace_transform as i2a
 
 ROOT = Path(os.path.dirname(__file__))
-DATA_DIR = ROOT / "IMMUNESPACE_DATA"
+DATA_DIR = ROOT / "ak_data/immunespace" # note, this should come from the mounted docker volume somehow
 HCC_DB_FILE = DATA_DIR / "hcc_kb_nanobot.db"
 IMMPORT_DB_FILE = DATA_DIR / "immport_nanobot.db"
 
