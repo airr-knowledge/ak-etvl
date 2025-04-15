@@ -10,6 +10,7 @@ import gzip
 import hashlib
 import itertools
 import uuid
+from dateutil import parser
 
 from linkml_runtime.utils.schemaview import SchemaView
 from linkml_runtime.linkml_model.meta import EnumDefinition, PermissibleValue, SchemaDefinition
@@ -36,6 +37,10 @@ prefixes = {
     'ONTIE': 'https://ontology.iedb.org/ontology/ONTIE_',
 }
 
+def akc_id():
+    """Returns a new AKC ID."""
+    return 'AKC:' + str(uuid.uuid4())
+
 def url_to_curie(input):
     """Convert a URL to a CURIE."""
     if input is None:
@@ -45,9 +50,14 @@ def url_to_curie(input):
             return input.replace(url, prefix + ':')
     return input
 
-def akc_id():
-    """Returns a new AKC ID."""
-    return 'AKC:' + str(uuid.uuid4())
+def adc_ontology(field):
+    if field is None:
+        return None
+    else:
+        if field.get('id') is not None:
+            return field['id']
+        else:
+            return None
 
 def seq_hash(sequence):
     # canonicalize it, uppercase
@@ -292,6 +302,11 @@ def to_int(value):
     if value == '' or value is None:
         return None
     return int(value)
+
+def to_datetime(value):
+    if value == '' or value is None:
+        return None
+    return parser.isoparse(value)
 
 def write_jsonl(container, container_field, outfile):
     print(outfile)

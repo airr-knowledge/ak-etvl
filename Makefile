@@ -77,8 +77,8 @@ $(ADC_DATA)/adc_tsv/:
 	mkdir -p $@
 	mkdir -p $(ADC_DATA)/adc_jsonl/
 
-adc-repertoire:
-	@echo "Not implemented."
+adc-repertoire: ak_schema.py adc_repertoire_transform.py
+	python3 adc_repertoire_transform.py
 
 adc-chain: $(ADC_DATA)/airr_kb.yaml
 
