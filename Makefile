@@ -4,6 +4,7 @@
 # docker should map these paths to the local host where the data resides
 ADC_DATA=/adc_data
 IEDB_DATA=/iedb_data
+IMMUNESPACE_DATA=/immunespace_data
 IMPORT_DATA=/mnt/data2
 
 # note: "help" MUST be the first target in the file, so
