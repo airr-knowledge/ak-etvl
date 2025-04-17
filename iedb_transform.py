@@ -8,6 +8,7 @@ import click
 import csv
 import json
 import pandas as pd
+import sys
 
 from linkml_runtime.utils.schemaview import SchemaView
 
@@ -85,6 +86,42 @@ def convert(tcell_path, tcr_path, yaml_path):
     container = AIRRKnowledgeCommons(
     )
 
+    # process all receptors, index by assay_id
+    print('Processing receptors')
+    assay_to_tcr = {}
+    for tcr_idx, tcr_row in tcr_df.iterrows():
+        #print(tcr_row)
+        tcr_curie = url_to_curie(
+            tcr_row['Receptor']['Group IRI'])  # todo tcr_curie doesn't seem to be stored anywhere?
+        chain_1 = None
+        chain_2 = None
+        if tcr_row[('Chain 1', 'Type')]:
+            chain_1 = make_chain_from_iedb(tcr_row, 'Chain 1')
+            container.chains[chain_1.akc_id] = chain_1
+            #chains.append(chain_1)
+        if tcr_row[('Chain 2', 'Type')]:
+            chain_2 = make_chain_from_iedb(tcr_row, 'Chain 2')
+            container.chains[chain_2.akc_id] = chain_2
+            #chains.append(chain_2)
+
+        if chain_1 and chain_2:
+            tcr = make_receptor(container, [chain_1, chain_2])
+            if not tcr:
+                print(f"Unknown TCR type {tcr_row['Receptor']['Type']}")
+            else:
+                assay_ids = str(tcr_row[("Assay", "IEDB IDs")]).split(', ')
+                for aid in assay_ids:
+                    if assay_to_tcr.get(aid) is None:
+                        assay_to_tcr[aid] = [ tcr ]
+                    else:
+                        assay_to_tcr[aid].append(tcr)
+                    #tcell_receptors.append(tcr)
+        else:
+            pass
+    #print(assay_to_tcr)
+    print(len(assay_to_tcr))
+    #sys.exit(1)
+
     # For each row in the TCell table, generate:
     # 1 study arm
     # 1 study events: specimen collection
@@ -102,6 +139,7 @@ def convert(tcell_path, tcr_path, yaml_path):
     row_cnt = 0
     current_reference = None
 
+    print('Processing Tcell assays')
     for assay_idx, assay_row in assay_df.iterrows():
         # todo deal with fields that can have multiple values (e.g. see assay_df["1st in vivo Process"]["Disease Stage"].unique()
 
@@ -220,27 +258,30 @@ def convert(tcell_path, tcr_path, yaml_path):
         tcell_receptors = []
 
         # get all tcrs
-        for tcr_idx, tcr_row in get_tcr_df_for_assay(tcr_df, assay_id).iterrows():
-            tcr_curie = url_to_curie(
-                tcr_row['Receptor']['Group IRI'])  # todo tcr_curie doesn't seem to be stored anywhere?
-            chain_1 = None
-            chain_2 = None
-            if tcr_row[('Chain 1', 'Type')]:
-                chain_1 = make_chain_from_iedb(tcr_row, 'Chain 1')
-                chains.append(chain_1)
-            if tcr_row[('Chain 2', 'Type')]:
-                chain_2 = make_chain_from_iedb(tcr_row, 'Chain 2')
-                chains.append(chain_2)
+        tcell_receptors = assay_to_tcr.get(assay_id)
+        if tcell_receptors is None:
+            tcell_receptors = []
+#        for tcr_idx, tcr_row in get_tcr_df_for_assay(tcr_df, assay_id).iterrows():
+#            tcr_curie = url_to_curie(
+#                tcr_row['Receptor']['Group IRI'])  # todo tcr_curie doesn't seem to be stored anywhere?
+#            chain_1 = None
+#            chain_2 = None
+#            if tcr_row[('Chain 1', 'Type')]:
+#                chain_1 = make_chain_from_iedb(tcr_row, 'Chain 1')
+#                chains.append(chain_1)
+#            if tcr_row[('Chain 2', 'Type')]:
+#                chain_2 = make_chain_from_iedb(tcr_row, 'Chain 2')
+#                chains.append(chain_2)
 
-            if chain_1 and chain_2:
-                tcr = make_receptor(container, [chain_1, chain_2])
-                if not tcr:
-                    print(f"Unknown TCR type {tcr_row['Receptor']['Type']}")
-                else:
-                    tcell_receptors.append(tcr)
-            else:
-                pass
-                # print("missing two chains")
+#            if chain_1 and chain_2:
+#                tcr = make_receptor(container, [chain_1, chain_2])
+#                if not tcr:
+#                    print(f"Unknown TCR type {tcr_row['Receptor']['Type']}")
+#                else:
+#                    tcell_receptors.append(tcr)
+#            else:
+#                pass
+#                # print("missing two chains")
 
         assay = TCellReceptorEpitopeBindingAssay(
             akc_id(),
@@ -287,8 +328,8 @@ def convert(tcell_path, tcr_path, yaml_path):
         container.datasets[dataset.akc_id] = dataset
         container.conclusions[conclusion.akc_id] = conclusion
         container.epitopes[epitope.akc_id] = epitope
-        for chain in chains:
-            container.chains[chain.akc_id] = chain
+#        for chain in chains:
+#            container.chains[chain.akc_id] = chain
         #        for tcell_receptor in ab_tcell_receptors:
         #            container.ab_tcell_receptors[tcell_receptor.akc_id] = tcell_receptor
         #        for tcell_receptor in gd_tcell_receptors:
@@ -297,8 +338,8 @@ def convert(tcell_path, tcr_path, yaml_path):
         row_cnt += 1
         if assay_idx % 100 == 0:
             print(f"Processed {assay_idx}/{len(assay_df)} assay rows")
-        if assay_idx == 1000:
-            break
+        #if assay_idx == 1000:
+        #    break
 
     # Write outputs
     container_fields = [x.name for x in dataclasses.fields(container)]
@@ -309,18 +350,18 @@ def convert(tcell_path, tcr_path, yaml_path):
     for container_field in container_fields:
         container_slot = ak_schema_view.get_slot(container_field)
         tname = container_slot.range
-        write_jsonl(container, container_field, f'/iedb_data/iedb_jsonl/{tname}.jsonl')
-        write_csv(container, container_field, f'/iedb_data/iedb_tsv/{tname}.csv')
+        write_jsonl(container, container_field, f'{iedb_data_dir}/iedb_jsonl/{tname}.jsonl')
+        write_csv(container, container_field, f'{iedb_data_dir}/iedb_tsv/{tname}.csv')
 
     # CSV relationships
     # TODO: would be better to iterate over linkml metadata, to handle all
     # instead we hard-code in a simple way
 
     # investigation relationships
-    write_relationship_csv('Investigation', container.investigations, 'participants', '/iedb_data/iedb_tsv/')
-    write_relationship_csv('Investigation', container.investigations, 'assays', '/iedb_data/iedb_tsv/')
-    write_relationship_csv('Investigation', container.investigations, 'conclusions', '/iedb_data/iedb_tsv/')
-    write_relationship_csv('Investigation', container.investigations, 'documents', '/iedb_data/iedb_tsv/', True)
+    write_relationship_csv('Investigation', container.investigations, 'participants', f'{iedb_data_dir}/iedb_tsv/')
+    write_relationship_csv('Investigation', container.investigations, 'assays', f'{iedb_data_dir}/iedb_tsv/')
+    write_relationship_csv('Investigation', container.investigations, 'conclusions', f'{iedb_data_dir}/iedb_tsv/')
+    write_relationship_csv('Investigation', container.investigations, 'documents', f'{iedb_data_dir}/iedb_tsv/', True)
 
 
 if __name__ == "__main__":
