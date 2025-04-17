@@ -27,27 +27,26 @@ ak_load_dir = ak_data_dir + '/ak-data-load'
 
 ak_schema_view = SchemaView("ak-schema/project/linkml/ak_schema.yaml")
 
-prefixes = {
-    'iedb_reference': 'http://www.iedb.org/reference/',
-    'iedb_epitope': 'http://www.iedb.org/epitope/',
-    'iedb_assay': 'http://www.iedb.org/assay/',
-    'iedb_receptor': 'http://www.iedb.org/receptor/',
-    'OBI': 'http://purl.obolibrary.org/obo/OBI_',
-    'NCBITAXON': 'http://purl.obolibrary.org/obo/NCBITaxon_',
-    'ONTIE': 'https://ontology.iedb.org/ontology/ONTIE_',
-}
+
+curie_prefix_to_url = {curie.prefix: str(curie) for curie in globals().values() if isinstance(curie, CurieNamespace)}
+
 
 def akc_id():
     """Returns a new AKC ID."""
     return 'AKC:' + str(uuid.uuid4())
 
-def url_to_curie(input):
+def url_to_curie(input, verbose=False):
     """Convert a URL to a CURIE."""
     if input is None:
         return input
-    for prefix, url in prefixes.items():
-        if input.startswith(url):
+    for prefix, url in curie_prefix_to_url.items():
+        if (input.startswith(url) or
+                input.startswith(url.replace("https", "http", 1)) or
+                input.startswith(url.replace("http", "https", 1))):
             return input.replace(url, prefix + ':')
+
+    if verbose:
+        print(f"Cannot convert {input} to curie: URL prefix unknown")
     return input
 
 def adc_ontology(field):
@@ -128,6 +127,16 @@ chain_types = {
     'delta': 'TRD',
 }
 
+
+def safe_get_field(chain, fields, expected_type=str):
+    for field in fields:
+        if type(chain[field]) is expected_type:
+            return chain[field]
+
+def safe_get_int_field(chain, fields):
+    safe_get_field(chain, fields, expected_type=int)
+
+
 def make_chain_from_iedb(row, chain_name):
     '''Given a row dictionary and a chain name ("Chain 1" or "Chain 2"),
     return a new Chain object.
@@ -141,15 +150,16 @@ def make_chain_from_iedb(row, chain_name):
 
     # calculate exact match hashes
     # exact nucleotide sequence match, most stringent
-    if chain['Nucleotide Sequence'] is None:
-        nt_hash_id = akc_id()
-    else:
+    if type(chain['Nucleotide Sequence']) is str:
         nt_hash_id = seq_hash_id(chain['Nucleotide Sequence'])
+    else: # None/nan
+        nt_hash_id = akc_id()
+
     # exact aa sequence match
-    if chain['Protein Sequence'] is None:
-        aa_hash = None
-    else:
+    if type(chain['Protein Sequence']) is str:
         aa_hash = seq_hash(chain['Protein Sequence'])
+    else: # None/nan
+        aa_hash = None # todo why does nt get akc_id() as hash and protein does not?
 
     # TODO: maintain source_uri?
     #tcr_curie = curie(row['Receptor']['Group IRI'])
@@ -161,20 +171,20 @@ def make_chain_from_iedb(row, chain_name):
         sequence=chain['Nucleotide Sequence'],
         sequence_aa=chain['Protein Sequence'],
         chain_type=chain_types[chain['Type']],
-        v_call=chain['Calculated V Gene'] or chain['Curated V Gene'],
-        d_call=chain['Calculated D Gene'] or chain['Curated D Gene'],
-        j_call=chain['Calculated J Gene'] or chain['Curated J Gene'],
+        v_call=safe_get_field(chain, ["Calculated V Gene", "Curated V Gene"]),
+        d_call=safe_get_field(chain, ["Calculated D Gene", "Curated D Gene"]),
+        j_call=safe_get_field(chain, ["Calculated J Gene", "Curated J Gene"]),
         # c_call='',
         junction_aa=junction_aa,
-        cdr1_aa=chain['CDR1 Calculated'] or chain['CDR1 Curated'],
-        cdr2_aa=chain['CDR2 Calculated'] or chain['CDR2 Curated'],
-        cdr3_aa=chain['CDR3 Calculated'] or chain['CDR3 Curated'],
-        cdr1_start=chain['CDR1 Start Calculated'] or chain['CDR1 Start Curated'],
-        cdr1_end=chain['CDR1 End Calculated'] or chain['CDR1 End Curated'],
-        cdr2_start=chain['CDR2 Start Calculated'] or chain['CDR2 Start Curated'],
-        cdr2_end=chain['CDR2 End Calculated'] or chain['CDR2 End Curated'],
-        cdr3_start=chain['CDR3 Start Calculated'] or chain['CDR3 Start Curated'],
-        cdr3_end=chain['CDR3 End Calculated'] or chain['CDR3 End Curated']
+        cdr1_aa=safe_get_field(chain, ["CDR1 Calculated", "CDR1 Curated"]),
+        cdr2_aa=safe_get_field(chain, ["CDR2 Calculated", "CDR2 Curated"]),
+        cdr3_aa=safe_get_field(chain, ["CDR3 Calculated", "CDR3 Curated"]),
+        cdr1_start=safe_get_int_field(chain, ["CDR1 Start Calculated", "CDR1 Start Curated"]),
+        cdr1_end=safe_get_int_field(chain, ["CDR1 End Calculated", "CDR1 End Curated"]),
+        cdr2_start=safe_get_int_field(chain, ["CDR2 Start Calculated", "CDR2 Start Curated"]),
+        cdr2_end=safe_get_int_field(chain, ["CDR2 End Calculated", "CDR2 End Curated"]),
+        cdr3_start=safe_get_int_field(chain, ["CDR3 Start Calculated", "CDR3 Start Curated"]),
+        cdr3_end=safe_get_int_field(chain, ["CDR3 End Calculated", "CDR3 End Curated"]),
     )
 
     # exact CDR3 aa sequence and V and J alleles
