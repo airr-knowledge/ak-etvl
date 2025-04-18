@@ -359,11 +359,23 @@ def write_relationship_csv(class_name, class_obj, range_name, outpath, is_foreig
         w.writeheader()
         for i_id in class_obj:
             i = class_obj[i_id]
-            for p in i[range_name]:
-                if is_foreign:
-                    f.write(i.akc_id + ',' + p.source_uri + '\n')
-                else:
-                    f.write(i.akc_id + ',' + p.akc_id + '\n')
+            if hasattr(i, range_name):
+                for p in i[range_name]:
+                    f.write(i.akc_id + ',' + p + '\n')
+
+def write_all_relationships(container, outpath):
+    # TODO: would be better to iterate over linkml metadata, to handle all
+    # instead we hard-code in a simple way
+
+    # investigation relationships
+    write_relationship_csv('Investigation', container.investigations, 'participants', outpath)
+    write_relationship_csv('Investigation', container.investigations, 'assays', outpath)
+    write_relationship_csv('Investigation', container.investigations, 'conclusions', outpath)
+    write_relationship_csv('Investigation', container.investigations, 'documents', outpath, True)
+
+    # assay relationships
+    write_relationship_csv('Assay', container.assays, 'tcell_receptors', outpath)
+
 
 def load_chains(filename):
     return None

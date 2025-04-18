@@ -166,7 +166,7 @@ def convert(tcell_path, tcr_path, yaml_path):
             )
             container.investigations[investigation.akc_id] = investigation
             container.references[reference.source_uri] = reference
-            investigation.documents.append(reference)
+            investigation.documents.append(reference.source_uri)
 
         assay_id = assay_row['Assay ID']['IEDB IRI'].split('/')[-1]
 
@@ -193,7 +193,7 @@ def convert(tcell_path, tcr_path, yaml_path):
             geolocation=None
             # geolocation=row['Host']['Geolocation']
         )
-        investigation.participants.append(participant)
+        investigation.participants.append(participant.akc_id)
         life_event_1 = LifeEvent(
             akc_id(),
             name=f'1st in vivo immune exposure event of assay {assay_id}',
@@ -294,7 +294,7 @@ def convert(tcell_path, tcr_path, yaml_path):
             value=assay_row['Assay']['Qualitative Measurement'],
             unit=None
         )
-        investigation.assays.append(assay)
+        investigation.assays.append(assay.akc_id)
         dataset = Dataset(
             akc_id(),
             name=f'dataset 1 about assay {assay_id}',
@@ -314,7 +314,7 @@ def convert(tcell_path, tcr_path, yaml_path):
             organism=url_to_curie(assay_row['Host']['IRI']),
             experiment_type=url_to_curie(assay_row['Assay']['IRI'])
         )
-        investigation.conclusions.append(conclusion)
+        investigation.conclusions.append(conclusion.akc_id)
 
         container.study_arms[arm.akc_id] = arm
         container.study_events[study_event.akc_id] = study_event
@@ -354,14 +354,7 @@ def convert(tcell_path, tcr_path, yaml_path):
         write_csv(container, container_field, f'{iedb_data_dir}/iedb_tsv/{tname}.csv')
 
     # CSV relationships
-    # TODO: would be better to iterate over linkml metadata, to handle all
-    # instead we hard-code in a simple way
-
-    # investigation relationships
-    write_relationship_csv('Investigation', container.investigations, 'participants', f'{iedb_data_dir}/iedb_tsv/')
-    write_relationship_csv('Investigation', container.investigations, 'assays', f'{iedb_data_dir}/iedb_tsv/')
-    write_relationship_csv('Investigation', container.investigations, 'conclusions', f'{iedb_data_dir}/iedb_tsv/')
-    write_relationship_csv('Investigation', container.investigations, 'documents', f'{iedb_data_dir}/iedb_tsv/', True)
+    write_all_relationships(container, f'{iedb_data_dir}/iedb_tsv/')
 
 
 if __name__ == "__main__":

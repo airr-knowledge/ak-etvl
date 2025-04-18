@@ -121,6 +121,7 @@ for study in cache_list:
             investigation.participants.append(participant.akc_id)
 
             # transform study_group_description to StudyArm
+            # transform disease diagnosis to an immune exposure/life event
             arm = None
             if sub.get('diagnosis') is not None:
                 for diag in sub['diagnosis']:
@@ -136,7 +137,20 @@ for study in cache_list:
                         else:
                             arm = arms[diag['study_group_description']]
                         participant.study_arm = arm.akc_id
-
+                    if diag.get('disease_diagnosis') is not None:
+                        le = LifeEvent(
+                            akc_id(),
+                            participant=participant.akc_id,
+                            life_event_type='immune exposure'
+                        )
+                        container.life_events[le.akc_id] = le
+                        ie = ImmuneExposure(
+                            akc_id(),
+                            life_event=le.akc_id,
+                            disease = adc_ontology(diag.get('disease_diagnosis')),
+                            disease_stage = diag.get('disease_stage')
+                        )
+                        container.immune_exposures[ie.akc_id] = ie
         # specimen processing
         for s in rep['sample']:
             specimen = samples.get(s['sample_id'])
@@ -218,8 +232,8 @@ for study in cache_list:
                 sequencing_platform = s.get('sequencing_platform'),
                 sequencing_kit = s.get('sequencing_kit'),
                 sequencing_facility = s.get('sequencing_facility'),
-                total_reads_passing_qc_filter = s.get('total_reads_passing_qc_filter'),
-                sequencing_files = seq_files
+                total_reads_passing_qc_filter = s.get('total_reads_passing_qc_filter')
+                #sequencing_files = seq_files # disable until CDM is updated
             )
             container.assays[assay.akc_id] = assay
 
@@ -227,3 +241,18 @@ for study in cache_list:
         
 #print(container)
 yaml_dumper.dump(container, yaml_path)
+
+# Write outputs
+container_fields = [x.name for x in dataclasses.fields(container)]
+
+# Write to JSONL and CSV
+for container_field in container_fields:
+    if container_field in [ 'chains', 'ab_tcell_receptors', 'gd_tcell_receptors', 'bcell_receptors' ]:
+        continue
+    container_slot = ak_schema_view.get_slot(container_field)
+    tname = container_slot.range
+    write_jsonl(container, container_field, f'{adc_data_dir}/adc_jsonl/{tname}.jsonl')
+    write_csv(container, container_field, f'{adc_data_dir}/adc_tsv/{tname}.csv')
+
+# CSV relationships
+write_all_relationships(container, f'{adc_data_dir}/adc_tsv/')
