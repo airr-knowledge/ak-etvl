@@ -375,6 +375,7 @@ def write_all_relationships(container, outpath):
 
     # assay relationships
     write_relationship_csv('Assay', container.assays, 'tcell_receptors', outpath)
+    write_relationship_csv('Assay', container.assays, 'tcell_chains', outpath)
 
 
 def load_chains(filename):

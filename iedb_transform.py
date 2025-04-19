@@ -89,19 +89,31 @@ def convert(tcell_path, tcr_path, yaml_path):
     # process all receptors, index by assay_id
     print('Processing receptors')
     assay_to_tcr = {}
+    assay_to_chain = {}
     for tcr_idx, tcr_row in tcr_df.iterrows():
         #print(tcr_row)
         tcr_curie = url_to_curie(
             tcr_row['Receptor']['Group IRI'])  # todo tcr_curie doesn't seem to be stored anywhere?
+        assay_ids = str(tcr_row[("Assay", "IEDB IDs")]).split(', ')
         chain_1 = None
         chain_2 = None
         if tcr_row[('Chain 1', 'Type')]:
             chain_1 = make_chain_from_iedb(tcr_row, 'Chain 1')
             container.chains[chain_1.akc_id] = chain_1
+            for aid in assay_ids:
+                if assay_to_chain.get(aid) is None:
+                    assay_to_chain[aid] = [ chain_1.akc_id ]
+                else:
+                    assay_to_chain[aid].append(chain_1.akc_id)
             #chains.append(chain_1)
         if tcr_row[('Chain 2', 'Type')]:
             chain_2 = make_chain_from_iedb(tcr_row, 'Chain 2')
             container.chains[chain_2.akc_id] = chain_2
+            for aid in assay_ids:
+                if assay_to_chain.get(aid) is None:
+                    assay_to_chain[aid] = [ chain_2.akc_id ]
+                else:
+                    assay_to_chain[aid].append(chain_2.akc_id)
             #chains.append(chain_2)
 
         if chain_1 and chain_2:
@@ -109,7 +121,6 @@ def convert(tcell_path, tcr_path, yaml_path):
             if not tcr:
                 print(f"Unknown TCR type {tcr_row['Receptor']['Type']}")
             else:
-                assay_ids = str(tcr_row[("Assay", "IEDB IDs")]).split(', ')
                 for aid in assay_ids:
                     if assay_to_tcr.get(aid) is None:
                         assay_to_tcr[aid] = [ tcr ]
@@ -120,6 +131,7 @@ def convert(tcell_path, tcr_path, yaml_path):
             pass
     #print(assay_to_tcr)
     print(len(assay_to_tcr))
+    print(len(assay_to_chain))
     #sys.exit(1)
 
     # For each row in the TCell table, generate:
@@ -254,13 +266,17 @@ def convert(tcell_path, tcr_path, yaml_path):
         # For each row in the TCR table that matches this assay ID, generate:
         # 2 chains
         # 1 receptor: AlphaBetaTCR or GammaDeltaTCR
-        chains = []
+        tcell_chains = []
         tcell_receptors = []
 
         # get all tcrs
         tcell_receptors = assay_to_tcr.get(assay_id)
         if tcell_receptors is None:
             tcell_receptors = []
+        tcell_chains = assay_to_chain.get(assay_id)
+        if tcell_chains is None:
+            tcell_chains = []
+
 #        for tcr_idx, tcr_row in get_tcr_df_for_assay(tcr_df, assay_id).iterrows():
 #            tcr_curie = url_to_curie(
 #                tcr_row['Receptor']['Group IRI'])  # todo tcr_curie doesn't seem to be stored anywhere?
@@ -290,7 +306,8 @@ def convert(tcell_path, tcr_path, yaml_path):
             specimen=specimen.akc_id,
             assay_type=url_to_curie(assay_row['Assay']['IRI']),  # TODO: use label
             epitope=epitope.akc_id,
-            tcell_receptors=[t.akc_id for t in tcell_receptors],
+            tcell_receptors=list(set([t.akc_id for t in tcell_receptors])),
+            tcell_chains=list(set(tcell_chains)),
             value=assay_row['Assay']['Qualitative Measurement'],
             unit=None
         )
