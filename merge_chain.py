@@ -19,27 +19,6 @@ from linkml_runtime.loaders import json_loader
 from ak_schema import *
 from ak_schema_utils import *
 
-vdjserver_cache_list = [
-    '2314581927515778580-242ac117-0001-012', # PRJNA608742
-    '4507038074455191060-242ac114-0001-012', # PRJNA472381
-    '2531647238962745836-242ac114-0001-012', # PRJNA724733
-    '6270798281029250580-242ac117-0001-012', # PRJNA680539
-    '6508961642208563691-242ac113-0001-012', # PRJNA300878
-    '6701977472490803691-242ac113-0001-012'  # PRJNA248475
-]
-
-ipa_cache_list = [
-    '7245411507393139181-242ac11b-0001-012', # PRJNA248411
-#    '3860335026075537901-242ac11b-0001-012', # PRJNA381394
-    '7480260319138419181-242ac11b-0001-012', # PRJNA280743
-    '8575123754278514195-242ac11b-0001-012' # PRJNA509910
-]
-
-cache_list = []
-cache_list.extend(ipa_cache_list)
-cache_list.extend(vdjserver_cache_list)
-#cache_list = ['7245411507393139181-242ac11b-0001-012']
-
 container = AIRRKnowledgeCommons()
 
 # output data for just this study
@@ -149,7 +128,7 @@ with open(receptor_file, 'r') as f:
             dup_cnt += 1
 
 # Write everything to JSONL
-write_jsonl(container, 'chains', f'{ak_load_dir}/Chain.jsonl')
+#write_jsonl(container, 'chains', f'{ak_load_dir}/Chain.jsonl')
 write_jsonl(container, 'ab_tcell_receptors', f'{ak_load_dir}/AlphaBetaTCR.jsonl')
 write_jsonl(container, 'gd_tcell_receptors', f'{ak_load_dir}/GammaDeltaTCR.jsonl')
 write_jsonl(container, 'bcell_receptors', f'{ak_load_dir}/BCellReceptor.jsonl')

@@ -24,8 +24,9 @@ for tname in "${TABLE_NAMES[@]}"; do
     count=$(( $count + 1 ))
 done
 
-AIRRKB_IMPORT=${IMPORT_DATA}/ak-data-import/vdjserver-adc-cache/adc_tsv
-TABLE_NAMES=(Investigation StudyArm Participant Reference StudyEvent LifeEvent ImmuneExposure Specimen Epitope Assay Investigation_assays Dataset Conclusion Investigation_participants Investigation_documents Investigation_conclusions)
+#AIRRKB_IMPORT=${IMPORT_DATA}/ak-data-import/vdjserver-adc-cache/adc_tsv
+AIRRKB_IMPORT=${IMPORT_DATA}/ak-data-import/ak-data-load/adc/adc_tsv
+TABLE_NAMES=(Investigation StudyArm Participant Reference StudyEvent LifeEvent ImmuneExposure Specimen Epitope Assay Investigation_assays Dataset Conclusion Investigation_participants Investigation_documents Investigation_conclusions Assay_tcell_receptors Assay_tcell_chains)
 count=0
 for tname in "${TABLE_NAMES[@]}"; do
     file=${tname}.csv
@@ -38,7 +39,7 @@ for tname in "${TABLE_NAMES[@]}"; do
     count=$(( $count + 1 ))
 done
 
-AIRRKB_IMPORT=${IMPORT_DATA}/ak-data-import/iedb/iedb_tsv
+AIRRKB_IMPORT=${IMPORT_DATA}/ak-data-import/ak-data-load/iedb/iedb_tsv
 TABLE_NAMES=(Investigation StudyArm Participant Reference StudyEvent LifeEvent ImmuneExposure Specimen Epitope Assay Investigation_assays Dataset Conclusion Investigation_participants Investigation_documents Investigation_conclusions Assay_tcell_receptors Assay_tcell_chains)
 count=0
 for tname in "${TABLE_NAMES[@]}"; do

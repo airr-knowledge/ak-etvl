@@ -17,29 +17,32 @@ import itertools
 from linkml_runtime.utils.schemaview import SchemaView
 from linkml_runtime.linkml_model.meta import EnumDefinition, PermissibleValue, SchemaDefinition
 from linkml_runtime.dumpers import yaml_dumper, json_dumper, tsv_dumper
+from linkml_runtime.loaders import json_loader, yaml_loader
 
 from ak_schema import *
 from ak_schema_utils import *
 
 ak_schema_view = SchemaView("ak-schema/project/linkml/ak_schema.yaml")
 
-vdjserver_cache_list = [
-    '2314581927515778580-242ac117-0001-012', # PRJNA608742
-    '4507038074455191060-242ac114-0001-012', # PRJNA472381
-    '2531647238962745836-242ac114-0001-012', # PRJNA724733
-    '6270798281029250580-242ac117-0001-012', # PRJNA680539
-    '6508961642208563691-242ac113-0001-012', # PRJNA300878
-    '6701977472490803691-242ac113-0001-012'  # PRJNA248475
-]
 
-ipa_cache_list = [
-    '7245411507393139181-242ac11b-0001-012', # PRJNA248411
-#    '3860335026075537901-242ac11b-0001-012', # PRJNA381394
-    '7480260319138419181-242ac11b-0001-012', # PRJNA280743
-    '8575123754278514195-242ac11b-0001-012' # PRJNA509910
-]
-
-cache_list = ipa_cache_list
+# load AK Assay from ADC
+assays = {}
+assay_file = f'{adc_data_dir}/adc_jsonl/Assay.jsonl'
+print(assay_file)
+with open(assay_file, 'r') as f:
+    for line in f:
+        #print(line)
+        x = json.loads(line)
+        y = json_loader.load_any(x['assays'], AIRRSequencingAssay)
+        if assays.get(y.akc_id) is None:
+            assays[y.akc_id] = y
+print(len(assays))
+#print(assays)
+assay_by_rep_id = {}
+for akc_id in assays:
+    assay = assays[akc_id]
+    assay_by_rep_id[assay.repertoire_id] = akc_id
+print(len(assay_by_rep_id))
 
 @click.command()
 @click.argument('output')
@@ -87,6 +90,12 @@ def receptor_integrate(output):
         # loop through the repertoires
         for rep in data['Repertoire']:
             print('Processing repertoire:', rep['repertoire_id'])
+
+            # link to AK assay
+            assay_akc_id = assay_by_rep_id[rep['repertoire_id']]
+            print(assay_akc_id)
+            tcell_receptors = set()
+            tcell_chains = set()
 
 #            if rep['repertoire_id'] != '5ef386a20255b55fcc1bf5e6' and rep['repertoire_id'] != '5ef386a20255b55fcc1bf5e7':
 #                continue
@@ -171,6 +180,9 @@ def receptor_integrate(output):
 
                 # make chain
                 chain = make_chain_from_adc(row)
+                #print(chain.chain_type)
+                if str(chain.chain_type) in ['TRA', 'TRB', 'TRG', 'TRD']:
+                    tcell_chains.add(chain.akc_id)
                 container.chains[chain.akc_id] = chain
 
                 # gather chains by cell_id
@@ -207,7 +219,11 @@ def receptor_integrate(output):
                         dist[3] += 1
                     else: # 2 chains, obvious case
                         dist[1] += 1
-                        make_receptor(container, cell_id[c])
+                        receptor = make_receptor(container, cell_id[c])
+                        if type(receptor) == AlphaBetaTCR:
+                            tcell_receptors.add(receptor.akc_id)
+                        elif type(receptor) == GammaDeltaTCR:
+                            tcell_receptors.add(receptor.akc_id)
 
                 print('cell_id distribution:', dist)
                 print('TCR three chain distribution:', tcr_three)
@@ -215,6 +231,12 @@ def receptor_integrate(output):
             print(prod_cnt, 'productive rearrangements for repertoire:', rep['repertoire_id'])
             print(row_cnt, 'records for study cache:', study)
             total_rep_cnt += 1
+
+            # connect chains/receptors to assay
+            assays[assay_akc_id]['tcell_chains'] = list(tcell_chains)
+            print(f'{len(tcell_chains)} TCR chains')
+            assays[assay_akc_id]['tcell_receptors'] = list(tcell_receptors)
+            print(f'{len(tcell_receptors)} TCR receptors')
 
         # here we match at the study level for IPA
         if not cell_within_repertoire:
@@ -239,7 +261,11 @@ def receptor_integrate(output):
                     dist[1] += 1
                     #print(lenc)
                     #print(cell_id[c])
-                    make_receptor(container, cell_id[c])
+                    receptor = make_receptor(container, cell_id[c])
+                    if type(receptor) == AlphaBetaTCR:
+                        tcell_receptors.add(receptor.akc_id)
+                    elif type(receptor) == GammaDeltaTCR:
+                        tcell_receptors.add(receptor.akc_id)
 
         # output data for just this study
         directory_name = f'{adc_data_dir}/adc_jsonl/{study}'
@@ -283,6 +309,9 @@ def receptor_integrate(output):
             fname = tname + '.csv'
             write_csv(container, container_field, f'{adc_data_dir}/adc_tsv/{study}/{fname}')
 
+    # assay relationships
+    write_relationship_csv('Assay', assays, 'tcell_receptors', f'{adc_data_dir}/adc_tsv/')
+    write_relationship_csv('Assay', assays, 'tcell_chains', f'{adc_data_dir}/adc_tsv/')
 
 if __name__ == "__main__":
     receptor_integrate()

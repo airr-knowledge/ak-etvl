@@ -27,6 +27,41 @@ ak_load_dir = ak_data_dir + '/ak-data-load'
 
 ak_schema_view = SchemaView("ak-schema/project/linkml/ak_schema.yaml")
 
+# ADC study list
+vdjserver_cache_list = [
+    '2314581927515778580-242ac117-0001-012', # PRJNA608742
+    '4507038074455191060-242ac114-0001-012', # PRJNA472381
+    '2531647238962745836-242ac114-0001-012', # PRJNA724733
+    '6270798281029250580-242ac117-0001-012', # PRJNA680539
+    '6508961642208563691-242ac113-0001-012', # PRJNA300878
+    '6701977472490803691-242ac113-0001-012', # PRJNA248475
+    '6295837940364930580-242ac117-0001-012', # BIOPROJECT:PRJNA639580
+    '3567053283467128340-242ac117-0001-012', # PRJNA606979
+]
+
+ipa_cache_list = [
+    '7636497343395917330-242ac117-0001-012', # PRJNA744851
+#    '2190435173075840530-242ac118-0001-012', # DOI:10.21417/B7C88S
+#    '5875190083975057901-242ac11b-0001-012', # PRJCA002413
+#    '7245411507393139181-242ac11b-0001-012', # PRJNA248411
+#    '3860335026075537901-242ac11b-0001-012', # PRJNA381394
+#    '7480260319138419181-242ac11b-0001-012' # PRJNA280743
+#    '8575123754278514195-242ac11b-0001-012' # PRJNA509910
+]
+
+test_cache_list = [
+    '2314581927515778580-242ac117-0001-012', # PRJNA608742
+    '4507038074455191060-242ac114-0001-012', # PRJNA472381
+#    '2531647238962745836-242ac114-0001-012', # PRJNA724733
+#    '6270798281029250580-242ac117-0001-012', # PRJNA680539
+#    '6508961642208563691-242ac113-0001-012', # PRJNA300878
+]
+
+cache_list = []
+cache_list.extend(ipa_cache_list)
+cache_list.extend(vdjserver_cache_list)
+#cache_list.extend(test_cache_list)
+
 
 curie_prefix_to_url = {curie.prefix: str(curie) for curie in globals().values() if isinstance(curie, CurieNamespace)}
 
@@ -318,7 +353,7 @@ def to_datetime(value):
         return None
     return parser.isoparse(value)
 
-def write_jsonl(container, container_field, outfile):
+def write_jsonl(container, container_field, outfile, exclude=None):
     print(outfile)
     with open(outfile, 'w') as f:
         for key in container[container_field]:
@@ -350,7 +385,9 @@ def write_csv(container, container_field, outfile):
 # CSV relationships
 # we convert to lowercase because mixed case with SQL is a hassle
 def write_relationship_csv(class_name, class_obj, range_name, outpath, is_foreign=False):
-    with open(f'{outpath}{class_name}_{range_name}.csv', 'w') as f:
+    outfile = f'{outpath}{class_name}_{range_name}.csv'
+    print(f"Saving relationship into CSV file: {outfile}")
+    with open(outfile, 'w') as f:
         if is_foreign:
             flatnames = [ class_name.lower() + '_akc_id', range_name.lower() + '_source_uri' ]
         else:

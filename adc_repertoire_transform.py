@@ -17,31 +17,6 @@ from ak_schema_utils import *
 
 ak_schema_view = SchemaView("ak-schema/project/linkml/ak_schema.yaml")
 
-vdjserver_cache_list = [
-    '2314581927515778580-242ac117-0001-012', # PRJNA608742
-    '4507038074455191060-242ac114-0001-012', # PRJNA472381
-    '2531647238962745836-242ac114-0001-012', # PRJNA724733
-    '6270798281029250580-242ac117-0001-012', # PRJNA680539
-    '6508961642208563691-242ac113-0001-012', # PRJNA300878
-    '6701977472490803691-242ac113-0001-012'  # PRJNA248475
-]
-
-ipa_cache_list = [
-    '7245411507393139181-242ac11b-0001-012', # PRJNA248411
-#    '3860335026075537901-242ac11b-0001-012', # PRJNA381394
-    '7480260319138419181-242ac11b-0001-012' # PRJNA280743
-#    '8575123754278514195-242ac11b-0001-012' # PRJNA509910
-]
-
-test_cache_list = [
-    '7245411507393139181-242ac11b-0001-012' # PRJNA248411
-]
-
-cache_list = []
-cache_list.extend(ipa_cache_list)
-cache_list.extend(vdjserver_cache_list)
-#cache_list.extend(test_cache_list)
-
 yaml_path = ak_load_dir + '/adc-repertoire.yaml'
 
 container = AIRRKnowledgeCommons()
@@ -87,6 +62,7 @@ for study in cache_list:
                             investigation.documents.append(reference.source_uri)
                 else:
                     ref_id = rep['study']['pub_ids'].replace(' ','')
+                    print(ref_id.split(' '))
                     if len(ref_id) > 0:
                         reference = Reference(
                             ref_id,
@@ -225,6 +201,7 @@ for study in cache_list:
             )
             assay = AIRRSequencingAssay(
                 akc_id(),
+                repertoire_id = rep['repertoire_id'],
                 specimen = specimen.akc_id,
                 specimen_processing = [ cell_proc.akc_id, lib_proc.akc_id ],
                 sequencing_run_id = s.get('sequencing_run_id'),

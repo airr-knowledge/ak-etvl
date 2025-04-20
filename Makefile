@@ -5,6 +5,7 @@
 AK_DATA=/ak_data
 ADC_DATA=$(AK_DATA)/vdjserver-adc-cache
 IEDB_DATA=$(AK_DATA)/iedb
+AK_DATA_LOAD=$(AK_DATA)/ak-data-load
 
 # note: "help" MUST be the first target in the file, so
 # when the user types "make" they get help info by default
@@ -14,6 +15,11 @@ help:
 	@echo "------------------------------------------------------------"
 	@echo ""
 	@echo "make docker         -- Build docker image"
+	@echo ""
+	@echo "Utility functions (within docker)"
+	@echo "make list-import        -- List all IEDB import/export files"
+	@echo "make list-load          -- List DB load files"
+	@echo "make load-clean         -- Remove generated files for DB load"
 	@echo ""
 	@echo "Data Transform workflow"
 	@echo "  (run within docker)"
@@ -33,7 +39,6 @@ help:
 	@echo "make drop-sql-airrkb    -- Drop airrkb (version:v1)"
 	@echo "make create-sql-airrkb  -- Create airrkb (version:v1)"
 	@echo ""
-	@echo "make list-import        -- List all IEDB import/export files"
 	@echo "make load-data          -- Load data into airrkb"
 	@echo ""
 	@echo "make full-workflow      -- Do all previous steps"
@@ -58,6 +63,7 @@ $(IEDB_DATA)/iedb_tsv/:
 	mkdir -p $(IEDB_DATA)/iedb_jsonl/
 
 iedb-tcr: $(IEDB_DATA)/iedb_tcr.yaml
+	cp -rf $(IEDB_DATA) $(AK_DATA_LOAD)/iedb
 
 $(IEDB_DATA)/iedb_tcr.yaml: ak_schema.py iedb_transform.py $(IEDB_DATA)/tcell_full_v3.tsv $(IEDB_DATA)/tcr_full_v3.tsv | $(IEDB_DATA)/iedb_tsv/
 	python3 $(wordlist 2,4,$^) $@
@@ -73,14 +79,17 @@ irad-bcr:
 $(ADC_DATA)/adc_tsv/:
 	mkdir -p $@
 	mkdir -p $(ADC_DATA)/adc_jsonl/
+	mkdir -p $(ADC_DATA_LOAD)/adc/
 
-adc-repertoire: ak_schema.py adc_repertoire_transform.py
+adc-repertoire: ak_schema.py adc_repertoire_transform.py | $(ADC_DATA)/adc_tsv/
 	python3 adc_repertoire_transform.py
 
 adc-chain: $(ADC_DATA)/airr_kb.yaml
 
 $(ADC_DATA)/airr_kb.yaml: ak_schema.py adc_chain_transform.py | $(ADC_DATA)/adc_tsv/
 	python3 $(wordlist 2,3,$^) $@
+	cp -rf $(ADC_DATA)/adc_jsonl $(AK_DATA_LOAD)/adc/
+	cp -rf $(ADC_DATA)/adc_tsv $(AK_DATA_LOAD)/adc/
 
 merge-data: ak_schema.py merge_chain.py
 	python3 merge_chain.py
@@ -92,6 +101,9 @@ merge-data: ak_schema.py merge_chain.py
 list-import:
 	ls -lR $(AK_DATA)
 
+list-load:
+	ls -l $(AK_DATA_LOAD)
+
 create-sql-airrkb:
 	docker run -v $(PWD):/work --network ak-db-network -it postgres:16 psql postgresql://postgres:example@ak-db/postgres -c "create database airrkb_v1;"
 	docker run -v $(PWD):/work --network ak-db-network -it postgres:16 psql postgresql://postgres:example@ak-db/airrkb_v1 -f /work/ak-schema/project/sqlddl/ak_schema_modify.sql
@@ -100,17 +112,15 @@ create-sql-airrkb:
 drop-sql-airrkb:
 	docker run -v $(PWD):/work --network ak-db-network -it postgres:16 psql postgresql://postgres:example@ak-db/postgres -c "drop database airrkb_v1;"
 
-delete-iedb:
-	@bash iedb_delete.sh
-
-#load-iedb:
-#	@bash iedb_load.sh
-#	docker run -v $(IMPORT_DATA)/vdjserver-adc-cache:/adc_data -v $(IMPORT_DATA)/ak-data-import/iedb:/iedb_data --network ak-db-network -it postgres:16 psql -h ak-db -d airrkb_v1 -U postgres -c "\copy "'"PeptidicEpitope"'" ($(headers)) from '/iedb_data/iedb_tsv/epitopes.csv' DELIMITER ',' CSV HEADER;"
-#	docker run -v $(IMPORT_DATA)/vdjserver-adc-cache:/adc_data -v $(IMPORT_DATA)/ak-data-import/iedb:/iedb_data --network ak-db-network -it postgres:16 psql -h ak-db -d airrkb_v1 -U postgres -c "\copy "'"Chain"'" (akc_id,aa_hash,junction_aa_vj_allele_hash,junction_aa_vj_gene_hash,complete_vdj,sequence,sequence_aa,chain_type,v_call,d_call,j_call,c_call,junction_aa,cdr1_aa,cdr2_aa,cdr3_aa,cdr1_start,cdr1_end,cdr2_start,cdr2_end,cdr3_start,cdr3_end) from '/iedb_data/iedb_tsv/chains.csv' DELIMITER ',' CSV HEADER;
-
 load-data:
 	@bash airrkb_load.sh
-#	docker run -v $(IMPORT_DATA)/vdjserver-adc-cache:/adc_data -v $(IMPORT_DATA)/ak-data-import/iedb:/iedb_data --network ak-db-network -it postgres:16 psql -h ak-db -d airrkb_v1 -U postgres -c "\copy "'"Chain"'" (akc_id,aa_hash,junction_aa_vj_allele_hash,junction_aa_vj_gene_hash,complete_vdj,sequence,sequence_aa,chain_type,v_call,d_call,j_call,c_call,junction_aa,cdr1_aa,cdr2_aa,cdr3_aa,cdr1_start,cdr1_end,cdr2_start,cdr2_end,cdr3_start,cdr3_end) from '/adc_data/adc_tsv/Chain.csv' DELIMITER ',' CSV HEADER;
+
+load-clean:
+	rm -f $(AK_DATA_LOAD)/*.yaml
+	rm -f $(AK_DATA_LOAD)/*.jsonl
+	rm -f $(AK_DATA_LOAD)/*.csv
+	rm -rf $(AK_DATA_LOAD)/iedb
+	rm -rf $(AK_DATA_LOAD)/adc
 
 full-workflow:
 	@echo "Not implemented."
