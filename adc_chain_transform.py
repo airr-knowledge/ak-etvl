@@ -140,21 +140,26 @@ def receptor_integrate(output):
                     if idx is None:
                         row[f] = None
                     else:
-                        if idx > len(values):
-                            row[f] = None
-                            continue
-                        if t == 'bool':
-                            row[f] = to_bool(values[idx])
-                        elif t == 'int':
-                            #print(line_cnt, len(values), idx)
-                            row[f] = to_int(values[idx])
-                        elif t == 'str':
-                            if len(values[idx]) == 0:
+                        try:
+                            if idx > len(values):
                                 row[f] = None
+                                continue
+                            if t == 'bool':
+                                row[f] = to_bool(values[idx])
+                            elif t == 'int':
+                                #print(line_cnt, len(values), idx)
+                                row[f] = to_int(values[idx])
+                            elif t == 'str':
+                                if len(values[idx]) == 0:
+                                    row[f] = None
+                                else:
+                                    row[f] = values[idx]
                             else:
                                 row[f] = values[idx]
-                        else:
-                            row[f] = values[idx]
+                        except IndexError:
+                            print(idx, 'index not found for', f)
+                            row[f] = None
+                        
 #                print(headers)
 #                print(field_idx)
 #                print(values)
