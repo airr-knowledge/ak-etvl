@@ -30,7 +30,7 @@ git submodule update --init --recursive
 Make a docker image from the local code:
 
 * `make docker`: builds docker image
-* `alias docker-ak-etvl='docker run -v /mnt/data2/ak-data-import:/ak_data -v $PWD:/work -it airrknowledge/ak-etvl bash'`: run docker image with ak_data mount
+* `alias docker-ak-etvl='docker run -v /mnt/data2/ak-data-import:/ak_data -v $PWD:/work -it airrknowledge/ak-etvl bash'`: BASHalias to run docker image with `ak_data` mount being mapped to host local path of `/mnt/data2/ak-data-import`. Customize the alias for your environment
 
 Build custom image or pull published images:
 
