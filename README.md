@@ -30,7 +30,7 @@ git submodule update --init --recursive
 Make a docker image from the local code:
 
 * `make docker`: builds docker image
-* `alias docker-ak-postgres='docker run -v /mnt/data2/ak-data-import:/ak_data -v $PWD:/work --network ak-db-network -it postgres:16 psql -h ak-db -d airrkb_v1 -U postgres'`: run docker image with ak_data mount
+* `alias docker-ak-etvl='docker run -v /mnt/data2/ak-data-import:/ak_data -v $PWD:/work -it airrknowledge/ak-etvl bash'`: run docker image with ak_data mount
 
 Build custom image or pull published images:
 
