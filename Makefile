@@ -20,6 +20,7 @@ help:
 	@echo "make list-import        -- List all IEDB import/export files"
 	@echo "make list-load          -- List DB load files"
 	@echo "make load-clean         -- Remove generated files for DB load"
+	@echo "make ak-schema          -- Build and install ak-schema submodule"
 	@echo ""
 	@echo "Data Transform workflow"
 	@echo "  (run within docker)"
@@ -30,8 +31,6 @@ help:
 	@echo "make irad-bcr           -- Transform IRAD BCRs"
 	@echo "make adc-repertoire     -- Transform ADC repertoires"
 	@echo "make adc-chain          -- Transform ADC rearrangements"
-	@echo ""
-	@echo "make merge-data         -- Merge data into final files"
 	@echo ""
 	@echo "    Database Loads"
 	@echo "  (run outside docker)"
@@ -48,6 +47,10 @@ help:
 docker:
 	@echo "Building docker image"
 	docker build . -t airrknowledge/ak-etvl
+
+.PHONY: ak-schema
+ak-schema:
+	cd ak-schema; make all; make install
 
 # generate python dataclasses from schema
 ak_schema.py: ak-schema/project/linkml/ak_schema.yaml
@@ -79,7 +82,7 @@ irad-bcr:
 $(ADC_DATA)/adc_tsv/:
 	mkdir -p $@
 	mkdir -p $(ADC_DATA)/adc_jsonl/
-	mkdir -p $(ADC_DATA_LOAD)/adc/
+	mkdir -p $(AK_DATA_LOAD)/adc/
 
 adc-repertoire: ak_schema.py adc_repertoire_transform.py | $(ADC_DATA)/adc_tsv/
 	python3 adc_repertoire_transform.py
@@ -99,10 +102,10 @@ merge-data: ak_schema.py merge_chain.py
 #
 
 list-import:
-	ls -lR $(AK_DATA)
+	find $(AK_DATA) -type d -print
 
 list-load:
-	ls -l $(AK_DATA_LOAD)
+	find $(AK_DATA_LOAD) -type d -print
 
 create-sql-airrkb:
 	docker run -v $(PWD):/work --network ak-db-network -it postgres:16 psql postgresql://postgres:example@ak-db/postgres -c "create database airrkb_v1;"
@@ -113,7 +116,8 @@ drop-sql-airrkb:
 	docker run -v $(PWD):/work --network ak-db-network -it postgres:16 psql postgresql://postgres:example@ak-db/postgres -c "drop database airrkb_v1;"
 
 load-data:
-	@bash airrkb_load.sh
+	@bash adc_load.sh
+#	@bash iedb_load.sh
 
 load-clean:
 	rm -f $(AK_DATA_LOAD)/*.yaml

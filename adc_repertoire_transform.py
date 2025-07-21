@@ -83,7 +83,7 @@ for study in cache_list:
                 akc_id(),
                 name=sub['subject_id'],
                 species=adc_ontology(sub.get('species')),
-                biological_sex=sub.get('sex'),
+                sex=sub.get('sex'),
                 age=sub.get('age_min'),
                 #age_max=sub['age_max'],
                 age_event=sub.get('age_event'),
@@ -122,7 +122,7 @@ for study in cache_list:
                         container.life_events[le.akc_id] = le
                         ie = ImmuneExposure(
                             akc_id(),
-                            life_event=le.akc_id,
+                            t0_event=le.akc_id,
                             disease = adc_ontology(diag.get('disease_diagnosis')),
                             disease_stage = diag.get('disease_stage')
                         )
@@ -137,7 +137,6 @@ for study in cache_list:
                     life_event_type='specimen collection',
                     geolocation=None,
                     t0_event=None,
-                    t0_event_type=None,
                     start=None,
                     duration=None,
                     time_unit=None
@@ -147,9 +146,7 @@ for study in cache_list:
                     akc_id(),
                     name=s['sample_id'],
                     life_event=life_event.akc_id,
-                    specimen_type=s.get('sample_type'),
-                    tissue = adc_ontology(s.get('tissue')),
-                    process=None
+                    tissue = adc_ontology(s.get('tissue'))
                 )
                 samples[s['sample_id']] = specimen
                 container.specimens[specimen.akc_id] = specimen
