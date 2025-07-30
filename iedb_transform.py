@@ -45,7 +45,7 @@ def get_tcr_df_for_assay(tcr_df, assay_id):
 
 
 def read_double_header_df(path):
-    df = pd.read_csv(path, header=[0, 1], sep="\t")
+    df = pd.read_csv(path, header=[0, 1], sep="\t", low_memory=False)
     df = df.where(pd.notnull(df), None)
 
     return df
@@ -74,6 +74,7 @@ def sex_to_curie(field):
 def convert(tcell_path, tcr_path, yaml_path):
     """Convert an input TCell and TCR TSV file to YAML."""
 
+    print("Reading TCR export data files")
     tcr_df = read_double_header_df(tcr_path)
     assay_df = read_double_header_df(tcell_path)
 
@@ -116,7 +117,7 @@ def convert(tcell_path, tcr_path, yaml_path):
                     assay_to_chain[aid].append(chain_2.akc_id)
             #chains.append(chain_2)
 
-        if chain_1 and chain_2:
+        if chain_1 or chain_2:
             tcr = make_receptor(container, [chain_1, chain_2])
             if not tcr:
                 print(f"Unknown TCR type {tcr_row['Receptor']['Type']}")
@@ -128,10 +129,12 @@ def convert(tcell_path, tcr_path, yaml_path):
                         assay_to_tcr[aid].append(tcr)
                     #tcell_receptors.append(tcr)
         else:
-            pass
+            print(f"No TCR chains available {tcr_row['Receptor']['Type']}")
+
+
     #print(assay_to_tcr)
-    print(len(assay_to_tcr))
-    print(len(assay_to_chain))
+    print(f"{len(assay_to_tcr)} assay to TCR map entries")
+    print(f"{len(assay_to_chain)} assay to chain map entries")
     #sys.exit(1)
 
     # For each row in the TCell table, generate:
@@ -199,7 +202,7 @@ def convert(tcell_path, tcr_path, yaml_path):
             name=f'participant 1 of {assay_id}',
             description=f'study participant for assay {assay_id}',
             species=url_to_curie(assay_row['Host']['IRI']),
-            biological_sex=sex_to_curie(assay_row['Host']['Sex']),
+            sex=sex_to_curie(assay_row['Host']['Sex']),
             race=None,
             ethnicity=None,
             geolocation=None
@@ -216,7 +219,6 @@ def convert(tcell_path, tcr_path, yaml_path):
             # todo should be ontology (IRI not in IEDB output file)
             geolocation=None,
             t0_event=None,
-            t0_event_type=None,
             start=None,
             duration=None,
             time_unit=None
@@ -230,7 +232,6 @@ def convert(tcell_path, tcr_path, yaml_path):
             life_event_type='OBI:0000659',  # = specimen collection process
             geolocation=None,
             t0_event=None,
-            t0_event_type=None,
             start=None,
             duration=None,
             time_unit=None
@@ -239,7 +240,7 @@ def convert(tcell_path, tcr_path, yaml_path):
             akc_id(),
             name=f'details of 1st in vivo immune exposure event of assay {assay_id}',
             description=f'participant 1 of assay {assay_id} participated in this 1st in vivo immune exposure event, with these details',
-            life_event=life_event_1.akc_id,
+            t0_event=life_event_1.akc_id,
             exposure_material=url_to_curie(assay_row['1st immunogen']['Source Organism IRI']),
             disease=url_to_curie(assay_row['1st in vivo Process']['Disease IRI']),
             disease_stage=assay_row['1st in vivo Process']['Disease Stage'],
@@ -252,9 +253,7 @@ def convert(tcell_path, tcr_path, yaml_path):
             name=f'specimen 1 of assay {assay_id}',
             description=f'specimen 1 from participant 1 of assay {assay_id}',
             life_event=life_event_2.akc_id,
-            specimen_type=None,
-            tissue=url_to_curie(assay_row['Effector Cell']['Source Tissue IRI']),
-            process=None
+            tissue=url_to_curie(assay_row['Effector Cell']['Source Tissue IRI'])
         )
         epitope = PeptidicEpitope(
             akc_id(),
@@ -307,17 +306,15 @@ def convert(tcell_path, tcr_path, yaml_path):
             assay_type=url_to_curie(assay_row['Assay']['IRI']),  # TODO: use label
             epitope=epitope.akc_id,
             tcell_receptors=list(set([t.akc_id for t in tcell_receptors])),
-            tcell_chains=list(set(tcell_chains)),
-            value=assay_row['Assay']['Qualitative Measurement'],
-            unit=None
+            #tcell_chains=list(set(tcell_chains)),
+            measurement_category=assay_row['Assay']['Qualitative Measurement']
+#            measurement_value=convert_assay_measurement(assay_row['Assay']['Qualitative Measurement']),
+#            measurement_unit=convert_assay_unit`'UO:0000232' # bit
         )
         investigation.assays.append(assay.akc_id)
-        dataset = Dataset(
+        dataset = AKDataSet(
             akc_id(),
-            name=f'dataset 1 about assay {assay_id}',
-            description=f'dataset 1 is about assay {assay_id}',
-            assessments=None,
-            assays=[assay.akc_id]
+            data_items=assay.akc_id
         )
         conclusion = Conclusion(
             akc_id(),

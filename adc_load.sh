@@ -1,5 +1,5 @@
 IMPORT_DATA=/mnt/data2
-AIRRKB_IMPORT=${IMPORT_DATA}/ak-data-import/ak-data-load/iedb/iedb_tsv
+AIRRKB_IMPORT=${IMPORT_DATA}/ak-data-import/ak-data-load/adc/adc_tsv
 
 docker run -v ${AIRRKB_IMPORT}:/ak_data --network ak-db-network -it postgres:16 psql postgresql://postgres:example@ak-db/airrkb_v1 -c "DROP TABLE IF EXISTS tmp_table;"
 

@@ -89,13 +89,17 @@ def receptor_integrate(output):
 
         # loop through the repertoires
         for rep in data['Repertoire']:
-            print('Processing repertoire:', rep['repertoire_id'])
+            print('Processing repertoire:', rep['repertoire_id'], 'for study id:', rep['study']['study_id'])
 
             # link to AK assay
             assay_akc_id = assay_by_rep_id[rep['repertoire_id']]
             print(assay_akc_id)
             tcell_receptors = set()
             tcell_chains = set()
+
+            paired_chain = False
+            if "contains_paired_chain" in rep['study']['keywords_study']:
+                paired_chain = True
 
 #            if rep['repertoire_id'] != '5ef386a20255b55fcc1bf5e6' and rep['repertoire_id'] != '5ef386a20255b55fcc1bf5e7':
 #                continue
@@ -184,11 +188,21 @@ def receptor_integrate(output):
                     cnt = row['duplicate_count']
 
                 # make chain
-                chain = make_chain_from_adc(row)
-                #print(chain.chain_type)
-                if str(chain.chain_type) in ['TRA', 'TRB', 'TRG', 'TRD']:
+                species = None
+                if rep.get('subject') and rep['subject'].get('species') and rep['subject']['species'].get('id'):
+                    species = rep['subject']['species']['id']
+                chain = make_chain_from_adc(species, row)
+                #print(chain.locus)
+                if str(chain.locus) in ['TRA', 'TRB', 'TRG', 'TRD']:
                     tcell_chains.add(chain.akc_id)
                 container.chains[chain.akc_id] = chain
+
+                if not paired_chain:
+                    receptor = make_receptor(container, [chain, None])
+                    if type(receptor) == AlphaBetaTCR:
+                        tcell_receptors.add(receptor.akc_id)
+                    elif type(receptor) == GammaDeltaTCR:
+                        tcell_receptors.add(receptor.akc_id)
 
                 # gather chains by cell_id
                 if row.get('cell_id') is not None and len(row['cell_id']) != 0:
