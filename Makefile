@@ -38,6 +38,10 @@ help:
 	@echo "make drop-sql-airrkb    -- Drop airrkb (version:v1)"
 	@echo "make create-sql-airrkb  -- Create airrkb (version:v1)"
 	@echo ""
+	@echo "make ak-ontology        -- Build AK ontology"
+	@echo "make ontology-export    -- Generate ontology export files"
+	@echo "make load-ontology      -- Load ontology data into airrkb"
+	@echo ""
 	@echo "make load-data          -- Load data into airrkb"
 	@echo ""
 	@echo "make full-workflow      -- Do all previous steps"
@@ -96,6 +100,18 @@ $(ADC_DATA)/airr_kb.yaml: ak_schema.py adc_chain_transform.py | $(ADC_DATA)/adc_
 
 merge-data: ak_schema.py merge_chain.py
 	python3 merge_chain.py
+
+#
+# Ontology exports and loads
+#
+
+.PHONY: ak-ontology
+ak-ontology:
+	cd ak-ontology/src/ontology; sh run.sh make
+
+.PHONY: ontology-export
+ontology-export:
+	cd ak-ontology/src/ontology; sh run.sh make all_exports
 
 #
 # Database loads
