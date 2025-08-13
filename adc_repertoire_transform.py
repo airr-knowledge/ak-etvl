@@ -18,13 +18,22 @@ from ak_schema_utils import *
 
 ak_schema_view = SchemaView("ak-schema/project/linkml/ak_schema.yaml")
 
-yaml_path = ak_load_dir + '/adc-repertoire.yaml'
+#yaml_path = ak_load_dir + '/adc-repertoire.yaml'
 
-container = AIRRKnowledgeCommons()
-study_cnt = 0
-for study in cache_list:
+@click.command()
+@click.argument('cache_id')
+def repertoire_transform(cache_id):
+    """Transform ADC repertoire metadata to AK objects."""
+
+    if cache_id not in cache_list:
+        print(f"Given cache id: {cache_id} is not in the study list")
+        sys.exit(1)
+
+    study_cnt = 0
+    study = cache_id
 
     print('Processing study cache:', study)
+    container = AIRRKnowledgeCommons()
 
     # Load the AIRR data
     data = airr.read_airr(adc_cache_dir + '/' + study + '/repertoires.airr.json')
@@ -68,7 +77,7 @@ for study in cache_list:
                             investigation.documents.append(reference.source_uri)
                 else:
                     ref_id = rep['study']['pub_ids'].replace(' ','')
-                    print(ref_id.split(' '))
+                    #print(ref_id.split(' '))
                     if len(ref_id) > 0:
                         reference = Reference(
                             ref_id,
@@ -192,7 +201,8 @@ for study in cache_list:
             container.specimen_processings[lib_proc.akc_id] = lib_proc
 
             f = s['sequencing_files']
-            seq_files = SequencingData(
+            seq_files = AIRRSequencingData(
+                akc_id(),
                 sequencing_data_id = f.get('sequencing_data_id'),
                 file_type = f.get('file_type'),
                 filename = f.get('filename'),
@@ -202,6 +212,7 @@ for study in cache_list:
                 paired_read_direction = f.get('paired_read_direction'),
                 paired_read_length = f.get('paired_read_length')
             )
+            container.sequence_data[seq_files.akc_id] = seq_files
 
             sequencing_run_date = None
             if s.get('sequencing_run_date') is not None:
@@ -217,27 +228,43 @@ for study in cache_list:
                 sequencing_platform = s.get('sequencing_platform'),
                 sequencing_kit = s.get('sequencing_kit'),
                 sequencing_facility = s.get('sequencing_facility'),
-                total_reads_passing_qc_filter = s.get('total_reads_passing_qc_filter')
-                #sequencing_files = seq_files # disable until CDM is updated
+                total_reads_passing_qc_filter = s.get('total_reads_passing_qc_filter'),
+                sequencing_files = seq_files.akc_id
             )
             container.assays[assay.akc_id] = assay
 
         # data processing, not implemented
         
-#print(container)
-yaml_dumper.dump(container, yaml_path)
+    # output data for just this study
+    directory_name = f'{adc_data_dir}/adc_jsonl/{study}'
+    try:
+        os.mkdir(directory_name)
+    except FileExistsError:
+        pass
+    directory_name = f'{adc_data_dir}/adc_tsv/{study}'
+    try:
+        os.mkdir(directory_name)
+    except FileExistsError:
+        pass
 
-# Write outputs
-container_fields = [x.name for x in dataclasses.fields(container)]
+    #print(container)
+    #yaml_dumper.dump(container, yaml_path)
 
-# Write to JSONL and CSV
-for container_field in container_fields:
-    if container_field in [ 'chains', 'ab_tcell_receptors', 'gd_tcell_receptors', 'bcell_receptors' ]:
-        continue
-    container_slot = ak_schema_view.get_slot(container_field)
-    tname = container_slot.range
-    write_jsonl(container, container_field, f'{adc_data_dir}/adc_jsonl/{tname}.jsonl')
-    write_csv(container, container_field, f'{adc_data_dir}/adc_tsv/{tname}.csv')
+    # Write outputs
+    container_fields = [x.name for x in dataclasses.fields(container)]
 
-# CSV relationships
-write_all_relationships(container, f'{adc_data_dir}/adc_tsv/')
+    # Write to JSONL and CSV
+    for container_field in container_fields:
+        if container_field in [ 'chains', 'ab_tcell_receptors', 'gd_tcell_receptors', 'bcell_receptors' ]:
+            continue
+        container_slot = ak_schema_view.get_slot(container_field)
+        tname = container_slot.range
+        write_jsonl(container, container_field, f'{adc_data_dir}/adc_jsonl/{study}/{tname}.jsonl')
+        write_csv(container, container_field, f'{adc_data_dir}/adc_tsv/{study}/{tname}.csv')
+
+    # CSV relationships
+    write_all_relationships(container, f'{adc_data_dir}/adc_tsv/{study}/')
+
+
+if __name__ == "__main__":
+    repertoire_transform()

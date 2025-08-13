@@ -369,6 +369,8 @@ def convert(tcell_path, tcr_path, yaml_path):
 
     # CSV relationships
     write_all_relationships(container, f'{iedb_data_dir}/iedb_tsv/')
+    # assay relationships
+    write_relationship_csv('Assay', container.assays, 'tcell_receptors', f'{iedb_data_dir}/iedb_tsv/')
 
 
 if __name__ == "__main__":

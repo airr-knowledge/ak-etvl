@@ -616,7 +616,7 @@ def write_all_relationships(container, outpath):
     write_relationship_csv('Investigation', container.investigations, 'documents', outpath, True)
 
     # assay relationships
-    write_relationship_csv('Assay', container.assays, 'tcell_receptors', outpath)
+    #write_relationship_csv('Assay', container.assays, 'tcell_receptors', outpath)
     #write_relationship_csv('Assay', container.assays, 'tcell_chains', outpath)
 
 

@@ -1,9 +1,15 @@
 IMPORT_DATA=/mnt/data2
-AIRRKB_IMPORT=${IMPORT_DATA}/ak-data-import/ak-data-load/adc/adc_tsv
+CACHE_ID=$1
+
+if [[ "x$CACHE_ID" == "x" ]] ; then
+    echo "Study cache ID must be provided."
+    exit 1
+fi
+AIRRKB_IMPORT=${IMPORT_DATA}/ak-data-import/ak-data-load/adc/adc_tsv/${CACHE_ID}
 
 docker run -v ${AIRRKB_IMPORT}:/ak_data --network ak-db-network -it postgres:16 psql postgresql://postgres:example@ak-db/airrkb_v1 -c "DROP TABLE IF EXISTS tmp_table;"
 
-TABLE_NAMES=(Chain AlphaBetaTCR GammaDeltaTCR BCellReceptor Investigation StudyArm Participant Reference StudyEvent LifeEvent ImmuneExposure Specimen Epitope Assay Investigation_assays AKDataSet Conclusion Investigation_participants Investigation_documents Investigation_conclusions Assay_tcell_receptors)
+TABLE_NAMES=(Chain AlphaBetaTCR GammaDeltaTCR BCellReceptor Investigation StudyArm Participant Reference StudyEvent LifeEvent ImmuneExposure Specimen SequenceData Assay Investigation_assays AKDataSet Conclusion Investigation_participants Investigation_documents Investigation_conclusions Assay_tcell_receptors)
 count=0
 for tname in "${TABLE_NAMES[@]}"; do
     file=${tname}.csv
