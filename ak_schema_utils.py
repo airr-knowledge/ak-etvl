@@ -19,7 +19,8 @@ from linkml_runtime.dumpers import yaml_dumper, json_dumper, tsv_dumper
 from ak_schema import *
 
 # data import/export directories
-ak_data_dir = '/ak_data'
+# set ak_data_dir from the environment variable AK_DATA_DIR if it exists
+ak_data_dir = os.environ.get('AK_DATA_DIR', '/ak_data')
 adc_data_dir = ak_data_dir + '/vdjserver-adc-cache'
 adc_cache_dir = adc_data_dir + '/cache'
 iedb_data_dir = ak_data_dir + '/iedb'
