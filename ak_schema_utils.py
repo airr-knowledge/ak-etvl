@@ -183,6 +183,10 @@ test_cache_list = [
     '6508961642208563691-242ac113-0001-012', # PRJNA300878
 ]
 
+vdjbase_cache_list = [
+    'vdjbase-2025-08-231-0001-012',
+]
+
 cache_list = []
 cache_list.extend(ipa_tcr_cache_list)
 cache_list.extend(ipa_ig_cache_list)
@@ -193,6 +197,7 @@ cache_list.extend(vdjserver_ig_cache_list)
 cache_list.extend(vdjserver_both_cache_list)
 
 cache_list.extend(other_cache_list)
+cache_list.extend(vdjbase_cache_list)
 
 #cache_list.extend(test_cache_list)
 
