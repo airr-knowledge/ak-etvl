@@ -37,6 +37,7 @@ def repertoire_transform(cache_id):
     #    container = transform_airr_repertoires(adc_cache_dir + '/' + study + '/' + filename, container)
 
     container = transform_airr_genotypes(adc_cache_dir + '/' + study + '/airrseq_all_genotypes.json', container)
+    container = transform_airr_genotypes(adc_cache_dir + '/' + study + '/genomic_all_genotypes.json', container)
     
     # output data for just this study
     directory_name = f'{adc_data_dir}/adc_jsonl/{study}'

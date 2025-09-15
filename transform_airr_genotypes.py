@@ -23,6 +23,10 @@ from ak_schema_utils import (
     to_datetime,
 )
 
+# notes from schema meeting:
+# - make a GenomicGenotyping assay, maybe in ak_specimens.yaml ? don't really understand the structure of the files
+# - add GenotypeSet as a data item for AIRRSequencingData or GenomicGenontypingAssay
+# assay ontology: https://www.ebi.ac.uk/ols4/ontologies/obi/classes/http%253A%252F%252Fpurl.obolibrary.org%252Fobo%252FOBI_0000435?lang=en
 
 def transform_airr_genotypes(genotype_filename, container):
     """Transform ADC repertoire metadata to AK objects.
@@ -57,7 +61,6 @@ def transform_airr_genotypes(genotype_filename, container):
             ))
         
         genotype_sets.append(GenotypeSet(
-            akc_id(),
             receptor_genotype_set_id=receptor_genotype_set_id,
             genotype_class_list=genotypes
         ))
