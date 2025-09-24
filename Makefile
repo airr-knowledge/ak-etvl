@@ -51,6 +51,17 @@ help:
 	@echo ""
 	@echo "make import-clean       -- Remove generated files from data transform"
 	@echo "make load-clean         -- Remove generated files for DB load"
+	@echo "------------------------------------------------------------"
+	@echo ""
+	@echo "Data Extract workflow"
+	@echo "  (run within docker)"
+	@echo "------------------------------------------------------------"
+	@echo "make extract-ogrdb      -- Extract data from OGRDB"
+	@echo "make extract-iedb       -- Extract data from IEDB"
+	@echo "make extract-adc        -- Extract data from VDJServer's ADC cache"
+	@echo "make extract-irad       -- Extract data from IRAD"
+	@echo "make extract-vdjbase    -- Extract data from VDJbase"
+	@echo "------------------------------------------------------------"
 	@echo ""
 	@echo "Data Transform workflow"
 	@echo "  (run within docker)"
@@ -62,6 +73,7 @@ help:
 	@echo "make adc-transform           -- Transform ADC rearrangements for all studies"
 	@echo "make adc-transform-CACHE_ID  -- Transform ADC repertoires and rearrangements for study CACHE_ID"
 	@echo "make adc-copy                -- Copy transformed ADC data to DB load directory"
+	@echo "------------------------------------------------------------"
 	@echo ""
 	@echo "    Database Loads"
 	@echo "  (run outside docker)"
@@ -77,7 +89,6 @@ help:
 	@echo ""
 	@echo "make load-adc-CACHE_ID  -- Load ADC data into airrkb for study CACHE_ID"
 	@echo "make load-adc-data      -- Load all ADC data into airrkb"
-	@echo ""
 	@echo "------------------------------------------------------------"
 	@echo ""
 
@@ -96,6 +107,25 @@ ak_schema.py: ak-schema/project/linkml/ak_schema.yaml
 
 list-adc-cache:
 	@echo $(ADC_CACHE_LIST)
+
+#
+# Data extraction
+#
+extract-ogrdb:
+	@echo "Not implemented."
+
+extract-iedb:
+	@echo "Not implemented."
+
+extract-adc:
+	@echo "Not implemented."
+
+extract-irad:
+	@echo "Not implemented."
+
+extract-vdjbase:
+	@echo "Downloading VDJbase data."
+	bash download_vdjbase_data.sh
 
 #
 # Data transform
