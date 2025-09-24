@@ -1,12 +1,18 @@
 
 # AIRR Knowledge extract, transform, validate, load pipeline
 
-# docker should map these paths to the local host where the data resides
+# docker maps this path to the local host where the data resides
 AK_DATA=/ak_data
+
+# data import directories
 ADC_DATA=$(AK_DATA)/vdjserver-adc-cache
 IEDB_DATA=$(AK_DATA)/iedb
+VDJBASE_DATA=$(AK_DATA)/vdjbase
+
+# transformed data ready for DB load
 AK_DATA_LOAD=$(AK_DATA)/ak-data-load
 
+# TODO: studies are hard-coded, matching list in ak_schema_utils.py
 # study list for ADC rearrangements
 ADC_CACHE_LIST=2314581927515778580-242ac117-0001-012 \
     2531647238962745836-242ac114-0001-012 \
@@ -66,6 +72,8 @@ help:
 	@echo "Data Transform workflow"
 	@echo "  (run within docker)"
 	@echo "------------------------------------------------------------"
+	@echo "make ogrdb-transform    -- Transform OGRDB germlines"
+	@echo ""
 	@echo "make iedb-tcr           -- Transform IEDB TCR export file"
 	@echo "make iedb-bcr           -- Transform IEDB BCR export file"
 	@echo "make irad-bcr           -- Transform IRAD BCRs"
@@ -73,6 +81,8 @@ help:
 	@echo "make adc-transform           -- Transform ADC rearrangements for all studies"
 	@echo "make adc-transform-CACHE_ID  -- Transform ADC repertoires and rearrangements for study CACHE_ID"
 	@echo "make adc-copy                -- Copy transformed ADC data to DB load directory"
+	@echo ""
+	@echo "make vdjbase-transform       -- Transform VDJbase genotypes"
 	@echo "------------------------------------------------------------"
 	@echo ""
 	@echo "    Database Loads"
@@ -131,6 +141,10 @@ extract-vdjbase:
 # Data transform
 #
 
+# OGRDB transform
+ogrdb-transform:
+	@echo "Not implemented."
+
 # IEDB transform
 $(IEDB_DATA)/iedb_tsv/:
 	mkdir -p $@
@@ -181,6 +195,13 @@ adc-copy:
 	cp -rf $(ADC_DATA)/adc_jsonl $(AK_DATA_LOAD)/adc/
 	cp -rf $(ADC_DATA)/adc_tsv $(AK_DATA_LOAD)/adc/
 
+# VDJbase transform
+$(VDJBASE_DATA)/vdjbase_tsv/:
+	mkdir -p $@
+	mkdir -p $(VDJBASE_DATA)/vdjbase_jsonl/
+
+vdjbase-transform: ak_schema.py | $(VDJBASE_DATA)/vdjbase_tsv/
+	python3 vdjbase_metadata_transform.py vdjbase-2025-08-231-0001-012
 
 #
 # Ontology exports and loads

@@ -5,12 +5,11 @@ import os
 from linkml_runtime.utils.schemaview import SchemaView
 from ak_schema import AIRRKnowledgeCommons
 from ak_schema_utils import (
-    cache_list,
+    vdjbase_cache_list,
     write_jsonl,
     write_csv,
     write_all_relationships,
-    adc_data_dir,
-    adc_cache_dir
+    vdjbase_data_dir
 )
 from transform_airr_repertoires import transform_airr_repertoires
 from transform_airr_genotypes import transform_airr_genotypes
@@ -23,7 +22,7 @@ ak_schema_view = SchemaView("ak-schema/project/linkml/ak_schema.yaml")
 def repertoire_transform(cache_id):
     """Transform VDJbase metadata to AK objects."""
 
-    if cache_id not in cache_list:
+    if cache_id not in vdjbase_cache_list:
         print(f"Given cache id: {cache_id} is not in the study list")
         sys.exit(1)
 
@@ -36,16 +35,16 @@ def repertoire_transform(cache_id):
     #for filename in ['airrseq_metadata_IGH.json', 'airrseq_metadata_IGK.json', 'airrseq_metadata_IGL.json', 'airrseq_metadata_TRB.json']:
     #    container = transform_airr_repertoires(adc_cache_dir + '/' + study + '/' + filename, container)
 
-    container = transform_airr_genotypes(adc_cache_dir + '/' + study + '/airrseq_all_genotypes.json', container)
-    container = transform_airr_genotypes(adc_cache_dir + '/' + study + '/genomic_all_genotypes.json', container)
+    container = transform_airr_genotypes(vdjbase_data_dir + '/' + study + '/airrseq_all_genotypes.json', container)
+    container = transform_airr_genotypes(vdjbase_data_dir + '/' + study + '/genomic_all_genotypes.json', container)
     
     # output data for just this study
-    directory_name = f'{adc_data_dir}/adc_jsonl/{study}'
+    directory_name = f'{vdjbase_data_dir}/vdjbase_jsonl/{study}'
     try:
         os.mkdir(directory_name)
     except FileExistsError:
         pass
-    directory_name = f'{adc_data_dir}/adc_tsv/{study}'
+    directory_name = f'{vdjbase_data_dir}/vdjbase_tsv/{study}'
     try:
         os.mkdir(directory_name)
     except FileExistsError:
@@ -60,11 +59,11 @@ def repertoire_transform(cache_id):
             continue
         container_slot = ak_schema_view.get_slot(container_field)
         tname = container_slot.range
-        write_jsonl(container, container_field, f'{adc_data_dir}/adc_jsonl/{study}/{tname}.jsonl')
-        write_csv(container, container_field, f'{adc_data_dir}/adc_tsv/{study}/{tname}.csv')
+        write_jsonl(container, container_field, f'{vdjbase_data_dir}/vdjbase_jsonl/{study}/{tname}.jsonl')
+        write_csv(container, container_field, f'{vdjbase_data_dir}/vdjbase_tsv/{study}/{tname}.csv')
 
     # CSV relationships
-    write_all_relationships(container, f'{adc_data_dir}/adc_tsv/{study}/')
+    write_all_relationships(container, f'{vdjbase_data_dir}/vdjbase_tsv/{study}/')
 
 
 if __name__ == "__main__":

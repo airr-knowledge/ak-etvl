@@ -21,9 +21,12 @@ from ak_schema import *
 # data import/export directories
 # set ak_data_dir from the environment variable AK_DATA_DIR if it exists
 ak_data_dir = os.environ.get('AK_DATA_DIR', '/ak_data')
+
 adc_data_dir = ak_data_dir + '/vdjserver-adc-cache'
 adc_cache_dir = adc_data_dir + '/cache'
 iedb_data_dir = ak_data_dir + '/iedb'
+vdjbase_data_dir = ak_data_dir + '/vdjbase'
+
 ak_load_dir = ak_data_dir + '/ak-data-load'
 
 ak_schema_view = SchemaView("ak-schema/project/linkml/ak_schema.yaml")
@@ -197,7 +200,7 @@ cache_list.extend(vdjserver_ig_cache_list)
 cache_list.extend(vdjserver_both_cache_list)
 
 cache_list.extend(other_cache_list)
-cache_list.extend(vdjbase_cache_list)
+#cache_list.extend(vdjbase_cache_list)
 
 #cache_list.extend(test_cache_list)
 
