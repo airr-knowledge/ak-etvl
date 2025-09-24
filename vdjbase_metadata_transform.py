@@ -13,6 +13,7 @@ from ak_schema_utils import (
     adc_cache_dir
 )
 from transform_airr_repertoires import transform_airr_repertoires
+from transform_airr_genotypes import transform_airr_genotypes
 
 ak_schema_view = SchemaView("ak-schema/project/linkml/ak_schema.yaml")
 
@@ -20,15 +21,23 @@ ak_schema_view = SchemaView("ak-schema/project/linkml/ak_schema.yaml")
 @click.command()
 @click.argument('cache_id')
 def repertoire_transform(cache_id):
-    """Transform ADC repertoire metadata to AK objects."""
+    """Transform VDJbase metadata to AK objects."""
 
     if cache_id not in cache_list:
         print(f"Given cache id: {cache_id} is not in the study list")
         sys.exit(1)
 
     study = cache_id
-    
-    container = transform_airr_repertoires(adc_cache_dir + '/' + study + '/repertoires.airr.json', AIRRKnowledgeCommons())
+    container = AIRRKnowledgeCommons()
+
+    #for filename in ['genomic_metadata_IGH.json', 'genomic_metadata_IGK.json', 'genomic_metadata_IGL.json']:
+    #    container = transform_airr_repertoires(adc_cache_dir + '/' + study + '/' + filename, container)
+
+    #for filename in ['airrseq_metadata_IGH.json', 'airrseq_metadata_IGK.json', 'airrseq_metadata_IGL.json', 'airrseq_metadata_TRB.json']:
+    #    container = transform_airr_repertoires(adc_cache_dir + '/' + study + '/' + filename, container)
+
+    container = transform_airr_genotypes(adc_cache_dir + '/' + study + '/airrseq_all_genotypes.json', container)
+    container = transform_airr_genotypes(adc_cache_dir + '/' + study + '/genomic_all_genotypes.json', container)
     
     # output data for just this study
     directory_name = f'{adc_data_dir}/adc_jsonl/{study}'
