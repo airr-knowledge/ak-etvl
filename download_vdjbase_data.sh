@@ -1,4 +1,5 @@
-cd akc-data/vdjserver-adc-cache/cache/vdjbase-2025-08-231-0001-012
+mkdir -p /ak_data/vdjbase/vdjbase-2025-08-231-0001-012
+cd /ak_data/vdjbase/vdjbase-2025-08-231-0001-012
 curl "https://vdjbase.org/api/v1/genomic/all_samples_metadata/Homo%20sapiens/IGH" >genomic_metadata_IGH.json
 curl "https://vdjbase.org/api/v1/genomic/all_samples_metadata/Homo%20sapiens/IGK" >genomic_metadata_IGK.json
 curl "https://vdjbase.org/api/v1/genomic/all_samples_metadata/Homo%20sapiens/IGL" >genomic_metadata_IGL.json
