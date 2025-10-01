@@ -36,7 +36,7 @@ def transform_airr_repertoires(repertoire_filename, container):
     data = airr.read_airr(repertoire_filename)
 
     # loop through the repertoires
-    first = True
+    investigations = {}
     subjects = {}
     arms = {}
     samples = {}
@@ -47,8 +47,9 @@ def transform_airr_repertoires(repertoire_filename, container):
         if progress_count % 75 == 0:
             print()
 
-        # create investigation object
-        if first:
+        study_id = rep['study'].get('study_id')
+
+        if study_id not in investigations:
             if 'ImmuneCODE' in rep['study'].get('study_id'):
                 archival_id = rep['study'].get('study_id').replace(' ', '')
             else:
@@ -89,7 +90,11 @@ def transform_airr_repertoires(repertoire_filename, container):
             container.investigations[investigation.akc_id] = investigation
             # print(investigation)
             # print(container)
-            first = False
+
+            print('Processing study:', study_id, investigation.name)
+            investigations[study_id] = investigation
+        else:
+            investigation = investigations[study_id]
 
         # create participant from subject data
         participant = subjects.get(rep['subject']['subject_id'])
