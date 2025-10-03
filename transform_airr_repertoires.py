@@ -20,10 +20,14 @@ from ak_schema_utils import (
     to_datetime,
 )
 
-
 def transform_airr_repertoires(repertoire_filename, container):
     """Transform ADC repertoire metadata to AK objects.
-    
+       
+       The code will handle multiple studies in a sinmgle repertoire file,
+       and will merge data into an existing container, creating new objects
+       only as needed. This will allow VDJbase repertoires to be merged into
+       existing data from the ADC, or vice versa.
+       
     Args:
         repertoire_filename (str): The path to the repertoire JSON file
         container (AIRRKnowledgeCommons): The container to populate
@@ -34,14 +38,21 @@ def transform_airr_repertoires(repertoire_filename, container):
 
     # Load the AIRR data
     data = airr.read_airr(repertoire_filename)
-
-    # loop through the repertoires
-    investigations = {}
-    subjects = {}
-    arms = {}
-    samples = {}
     progress_count = 0
+    current_investigation = None
+    subject_ids = {}
+    arm_ids = {}
+    sample_ids = {}
+    investigations = {}
+
+    # Pre-populate with existing investigations
+    for investigation in container.investigations.values():
+        investigations[investigation.archival_id] = investigation
+
+    # loop through the repertoires in the file
     for rep in data['Repertoire']:
+        #if 'P27_I25' in rep['repertoire_id']:
+        #    breakpoint()
         progress_count += 1
         print('.', end='', flush=True)
         if progress_count % 75 == 0:
@@ -49,12 +60,20 @@ def transform_airr_repertoires(repertoire_filename, container):
 
         study_id = rep['study'].get('study_id')
 
-        if study_id not in investigations:
-            if 'ImmuneCODE' in rep['study'].get('study_id'):
-                archival_id = rep['study'].get('study_id').replace(' ', '')
-            else:
-                archival_id = rep['study'].get('study_id')
+        if not study_id:
+            continue    # Don't process repertoires that have not been deposited in an archive
 
+        
+        # Fixes for specific issues encountered in current data
+        if 'ImmuneCODE' in rep['study'].get('study_id'):
+            archival_id = rep['study'].get('study_id').replace(' ', '')
+        else:
+            archival_id = rep['study'].get('study_id')
+
+        if 'BioProject: ' in archival_id:
+            archival_id = archival_id.replace('BioProject: ', '')
+
+        if archival_id not in investigations:
             investigation = Investigation(
                 akc_id(),
                 name=rep['study'].get('study_title'),
@@ -79,7 +98,6 @@ def transform_airr_repertoires(repertoire_filename, container):
                             investigation.documents.append(reference.source_uri)
                 else:
                     ref_id = rep['study']['pub_ids'].replace(' ', '')
-                    # print(ref_id.split(' '))
                     if len(ref_id) > 0:
                         reference = Reference(
                             ref_id,
@@ -88,17 +106,40 @@ def transform_airr_repertoires(repertoire_filename, container):
                         investigation.documents.append(reference.source_uri)
 
             container.investigations[investigation.akc_id] = investigation
-            # print(investigation)
-            # print(container)
 
-            print('Processing study:', study_id, investigation.name)
-            investigations[study_id] = investigation
+            # print('Processing study:', study_id, investigation.name)
+            investigations[archival_id] = investigation
         else:
-            investigation = investigations[study_id]
+            investigation = investigations[archival_id]
 
+        # populate pre-declared objects for this study
+
+        investigation_id = investigation.akc_id
+        if current_investigation != investigation_id:
+            subject_ids = {}
+            arm_ids = {}
+            sample_ids = {}
+
+            for participant_id in container['investigations'][investigation_id].participants:
+                subject_ids[container['participants'][participant_id].name] = participant_id
+
+            for arm_id in container['study_arms']:
+                if container['study_arms'][arm_id].investigation == investigation_id:
+                    arm_ids[container['study_arms'][arm_id].name] = arm_id
+
+            study_life_events = [le.akc_id for le in container['life_events'].values() if le.participant in container['investigations'][investigation_id].participants]
+
+            for sp in container['specimens'].values():
+                if sp.life_event in study_life_events:
+                    sample_ids[sp.name] = sp.akc_id
+
+            current_investigation = investigation_id
+  
         # create participant from subject data
-        participant = subjects.get(rep['subject']['subject_id'])
-        if participant is None:
+        participant_id = subject_ids.get(rep['subject']['subject_id'])
+        if participant_id:
+            participant = container['participants'][participant_id]
+        else:
             sub = rep['subject']
             participant = Participant(
                 akc_id(),
@@ -113,7 +154,7 @@ def transform_airr_repertoires(repertoire_filename, container):
                 ethnicity=sub.get('ethnicity'),
                 geolocation=None
             )
-            subjects[rep['subject']['subject_id']] = participant
+            subject_ids[rep['subject']['subject_id']] = participant.akc_id
             container.participants[participant.akc_id] = participant
             investigation.participants.append(participant.akc_id)
 
@@ -122,19 +163,22 @@ def transform_airr_repertoires(repertoire_filename, container):
             arm = None
             if sub.get('diagnosis') is not None:
                 for diag in sub['diagnosis']:
-                    if diag.get('study_group_description') is not None:
-                        if arms.get(diag['study_group_description']) is None:
+                    if diag.get('study_group_description'):
+                        arm_id = arm_ids.get(diag['study_group_description'])
+                        if arm_id:
+                            arm = container.study_arms[arm_id]
+                            participant.study_arm = arm.akc_id
+                        else:
                             arm = StudyArm(
                                 akc_id(),
                                 name=diag['study_group_description'],
                                 investigation=investigation.akc_id
                             )
-                            arms[diag['study_group_description']] = arm
+                            arm_ids[diag['study_group_description']] = arm.akc_id
                             container.study_arms[arm.akc_id] = arm
-                        else:
-                            arm = arms[diag['study_group_description']]
-                        participant.study_arm = arm.akc_id
-                    if diag.get('disease_diagnosis') is not None:
+                    disease_diagnosis = diag.get('disease_diagnosis')
+
+                    if disease_diagnosis and disease_diagnosis.get('id'):
                         le = LifeEvent(
                             akc_id(),
                             participant=participant.akc_id,
@@ -148,10 +192,18 @@ def transform_airr_repertoires(repertoire_filename, container):
                             disease_stage=diag.get('disease_stage')
                         )
                         container.immune_exposures[ie.akc_id] = ie
+
+
         # specimen processing
         for s in rep['sample']:
-            specimen = samples.get(s['sample_id'])
-            if specimen is None:
+            sample_id = s.get('sample_id', rep['subject']['subject_id'])
+            specimen_id = sample_ids.get(sample_id)
+            if specimen_id:
+                # n.b. as there is a 1-1 relationship from specimen to subject, if two subjects in the repertoire
+                # have the same sample_id (which would probably be a data error), the sample will only be assigned 
+                # to one in the akc, and the other will not have a sample linked to it
+                specimen = container.specimens[specimen_id]
+            else:
                 life_event = LifeEvent(
                     akc_id(),
                     participant=participant.akc_id,
@@ -163,13 +215,14 @@ def transform_airr_repertoires(repertoire_filename, container):
                     time_unit=None
                 )
                 container.life_events[life_event.akc_id] = life_event
+
                 specimen = Specimen(
                     akc_id(),
-                    name=s['sample_id'],
+                    name=sample_id,
                     life_event=life_event.akc_id,
                     tissue=adc_ontology(s.get('tissue'))
                 )
-                samples[s['sample_id']] = specimen
+                sample_ids[sample_id] = specimen.akc_id
                 container.specimens[specimen.akc_id] = specimen
 
             cell_proc = CellIsolationProcessing(
