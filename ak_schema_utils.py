@@ -15,8 +15,12 @@ from dateutil import parser
 from linkml_runtime.utils.schemaview import SchemaView
 from linkml_runtime.linkml_model.meta import EnumDefinition, PermissibleValue, SchemaDefinition
 from linkml_runtime.dumpers import yaml_dumper, json_dumper, tsv_dumper
+from linkml_runtime.loaders import json_loader, yaml_loader
 
 from ak_schema import *
+
+# for access to linkml metadata for the AK schema
+ak_schema_view = SchemaView("ak-schema/project/linkml/ak_schema.yaml")
 
 # data import/export directories
 # set ak_data_dir from the environment variable AK_DATA_DIR if it exists
@@ -28,8 +32,6 @@ iedb_data_dir = ak_data_dir + '/iedb'
 vdjbase_data_dir = ak_data_dir + '/vdjbase'
 
 ak_load_dir = ak_data_dir + '/ak-data-load'
-
-ak_schema_view = SchemaView("ak-schema/project/linkml/ak_schema.yaml")
 
 # ADC study list
 vdjserver_tcr_cache_list = [
@@ -564,6 +566,39 @@ def to_datetime(value):
     if value == '' or value is None:
         return None
     return parser.isoparse(value)
+
+# load AKC json and put into provided container
+def load_akc_objects(container, container_field, container_class):
+    container_slot = ak_schema_view.get_slot(container_field)
+    tname = container_slot.range
+    for study in cache_list:
+        akc_file = f'{adc_data_dir}/adc_jsonl/{study}/{tname}.jsonl'
+        with open(akc_file, 'r') as f:
+            for line in f:
+                #print(line)
+                x = json.loads(line)
+                y = json_loader.load_any(x[container_field], container_class)
+                if container_field == 'references':
+                    if container[container_field].get(y.source_uri) is None:
+                        container[container_field][y.source_uri] = y
+                else:
+                    if container[container_field].get(y.akc_id) is None:
+                        container[container_field][y.akc_id] = y
+    
+# load up ADC objects from the transformed AKC json
+def load_adc_container(container):
+    # TODO: should just do a loop, but not sure how to get the class
+    load_akc_objects(container, 'investigations', Investigation)
+    load_akc_objects(container, 'references', Reference)
+    load_akc_objects(container, 'study_arms', StudyArm)
+    load_akc_objects(container, 'study_events', StudyEvent)
+    load_akc_objects(container, 'participants', Participant)
+    load_akc_objects(container, 'life_events', LifeEvent)
+    load_akc_objects(container, 'immune_exposures', ImmuneExposure)
+    load_akc_objects(container, 'specimens', Specimen)
+    #load_akc_objects(container, 'specimen_processings', CellIsolationProcessing)
+    load_akc_objects(container, 'assays', AIRRSequencingAssay)
+    load_akc_objects(container, 'sequence_data', AIRRSequencingData)
 
 def write_jsonl(container, container_field, outfile, exclude=None):
     print(outfile)
