@@ -611,7 +611,10 @@ def write_jsonl(container, container_field, outfile, exclude=None):
             f.write('\n')
 
 def write_csv(container, container_field, outfile):
-    rows = list(container[container_field].values())
+    if type(container[container_field]) == list:
+        rows = container[container_field]
+    else:
+        rows = list(container[container_field].values())
     if len(rows) < 1:
         print(f"Skipping empty data for {container_field}")
         return
