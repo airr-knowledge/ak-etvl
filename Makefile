@@ -188,9 +188,14 @@ adc-transform-repertoire-%: ak_schema.py | $(ADC_DATA)/adc_tsv/
 
 adc-transform-chain-%: ak_schema.py | $(ADC_DATA)/adc_tsv/
 	@echo ""
+	@echo "START: " `date`
+	@echo ""
 	@echo "Chain transform"
 	@echo ""
 	python3 adc_chain_transform.py $*
+	@echo ""
+	@echo "END: " `date`
+	@echo ""
 
 adc-transform-%: ak_schema.py | $(ADC_DATA)/adc_tsv/
 	@echo ""
@@ -208,10 +213,19 @@ adc-transform-%: ak_schema.py | $(ADC_DATA)/adc_tsv/
 	@echo ""
 
 adc-transform-repertoire: $(ADC_TRANSFORM_REPERTOIRE_TARGETS)
+	@echo ""
+	@echo "DONE"
+	@echo ""
 
 adc-transform-chain: $(ADC_TRANSFORM_CHAIN_TARGETS)
+	@echo ""
+	@echo "DONE"
+	@echo ""
 
 adc-transform: $(ADC_TRANSFORM_TARGETS)
+	@echo ""
+	@echo "DONE"
+	@echo ""
 
 adc-delete-snapshot:
 	rm -rf $(ADC_DATA)/adc_jsonl.snapshot
