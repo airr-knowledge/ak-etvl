@@ -20,6 +20,7 @@ from ak_schema_utils import (
     to_datetime,
 )
 
+
 def transform_airr_repertoires(repertoire_filename, container):
     """Transform ADC repertoire metadata to AK objects.
        
@@ -51,7 +52,7 @@ def transform_airr_repertoires(repertoire_filename, container):
 
     # loop through the repertoires in the file
     for rep in data['Repertoire']:
-        #if 'P27_I25' in rep['repertoire_id']:
+        #if 'P25_I1_' in rep['repertoire_id']:
         #    breakpoint()
         progress_count += 1
         print('.', end='', flush=True)
@@ -63,7 +64,6 @@ def transform_airr_repertoires(repertoire_filename, container):
         if not study_id:
             continue    # Don't process repertoires that have not been deposited in an archive
 
-        
         # Fixes for specific issues encountered in current data
         if 'ImmuneCODE' in rep['study'].get('study_id'):
             archival_id = rep['study'].get('study_id').replace(' ', '')
@@ -134,7 +134,7 @@ def transform_airr_repertoires(repertoire_filename, container):
                     sample_ids[sp.name] = sp.akc_id
 
             current_investigation = investigation_id
-  
+
         # create participant from subject data
         participant_id = subject_ids.get(rep['subject']['subject_id'])
         if participant_id:
@@ -193,7 +193,6 @@ def transform_airr_repertoires(repertoire_filename, container):
                         )
                         container.immune_exposures[ie.akc_id] = ie
 
-
         # specimen processing
         for s in rep['sample']:
             sample_id = s.get('sample_id', rep['subject']['subject_id'])
@@ -225,74 +224,74 @@ def transform_airr_repertoires(repertoire_filename, container):
                 sample_ids[sample_id] = specimen.akc_id
                 container.specimens[specimen.akc_id] = specimen
 
-            cell_proc = CellIsolationProcessing(
-                akc_id(),
-                specimen=specimen.akc_id,
-                tissue_processing=s.get('tissue_processing'),
-                cell_subset=adc_ontology(s.get('cell_subset')),
-                cell_phenotype=s.get('cell_phenotype'),
-                cell_species=adc_ontology(s.get('cell_species')),
-                single_cell=s.get('single_cell'),
-                cell_number=s.get('cell_number'),
-                cells_per_reaction=s.get('cells_per_reaction'),
-                cell_storage=s.get('cell_storage'),
-                cell_quality=s.get('cell_quality'),
-                cell_isolation=s.get('cell_isolation'),
-                cell_processing_protocol=s.get('cell_processing_protocol')
-            )
-            container.specimen_processings[cell_proc.akc_id] = cell_proc
+                cell_proc = CellIsolationProcessing(
+                    akc_id(),
+                    specimen=specimen.akc_id,
+                    tissue_processing=s.get('tissue_processing'),
+                    cell_subset=adc_ontology(s.get('cell_subset')),
+                    cell_phenotype=s.get('cell_phenotype'),
+                    cell_species=adc_ontology(s.get('cell_species')),
+                    single_cell=s.get('single_cell'),
+                    cell_number=s.get('cell_number'),
+                    cells_per_reaction=s.get('cells_per_reaction'),
+                    cell_storage=s.get('cell_storage'),
+                    cell_quality=s.get('cell_quality'),
+                    cell_isolation=s.get('cell_isolation'),
+                    cell_processing_protocol=s.get('cell_processing_protocol')
+                )
+                container.specimen_processings[cell_proc.akc_id] = cell_proc
 
-            lib_proc = LibraryPreparationProcessing(
-                akc_id(),
-                specimen=specimen.akc_id,
-                template_class=s.get('template_class'),
-                template_quality=s.get('template_quality'),
-                template_amount=s.get('template_amount'),
-                template_amount_unit=adc_ontology(s.get('template_amount_unit')),
-                library_generation_method=s.get('library_generation_method'),
-                library_generation_protocol=s.get('library_generation_protocol'),
-                library_generation_kit_version=s.get('library_generation_kit_version'),
-                complete_sequences=s.get('complete_sequences').strip(),
-                physical_linkage=s.get('physical_linkage')
-            )
-            for t in s.get('pcr_target'):
-                lib_proc.pcr_target.append(t.get('pcr_target_locus'))
-            container.specimen_processings[lib_proc.akc_id] = lib_proc
+                lib_proc = LibraryPreparationProcessing(
+                    akc_id(),
+                    specimen=specimen.akc_id,
+                    template_class=s.get('template_class'),
+                    template_quality=s.get('template_quality'),
+                    template_amount=s.get('template_amount'),
+                    template_amount_unit=adc_ontology(s.get('template_amount_unit')),
+                    library_generation_method=s.get('library_generation_method'),
+                    library_generation_protocol=s.get('library_generation_protocol'),
+                    library_generation_kit_version=s.get('library_generation_kit_version'),
+                    complete_sequences=s.get('complete_sequences').strip(),
+                    physical_linkage=s.get('physical_linkage')
+                )
+                for t in s.get('pcr_target'):
+                    lib_proc.pcr_target.append(t.get('pcr_target_locus'))
+                container.specimen_processings[lib_proc.akc_id] = lib_proc
 
-            f = s['sequencing_files']
-            seq_files = AIRRSequencingData(
-                akc_id(),
-                sequencing_data_id=f.get('sequencing_data_id'),
-                file_type=f.get('file_type'),
-                filename=f.get('filename'),
-                read_direction=f.get('read_direction'),
-                read_length=f.get('read_length'),
-                paired_filename=f.get('paired_filename'),
-                paired_read_direction=f.get('paired_read_direction'),
-                paired_read_length=f.get('paired_read_length')
-            )
-            container.sequence_data[seq_files.akc_id] = seq_files
+                f = s['sequencing_files']
+                seq_files = AIRRSequencingData(
+                    akc_id(),
+                    sequencing_data_id=f.get('sequencing_data_id'),
+                    file_type=f.get('file_type'),
+                    filename=f.get('filename'),
+                    read_direction=f.get('read_direction'),
+                    read_length=f.get('read_length'),
+                    paired_filename=f.get('paired_filename'),
+                    paired_read_direction=f.get('paired_read_direction'),
+                    paired_read_length=f.get('paired_read_length')
+                )
+                container.sequence_data[seq_files.akc_id] = seq_files
 
-            sequencing_run_date = None
-            if s.get('sequencing_run_date') is not None:
-                sequencing_run_date = parse(s.get('sequencing_run_date'))
+                sequencing_run_date = None
+                if s.get('sequencing_run_date') is not None:
+                    sequencing_run_date = parse(s.get('sequencing_run_date'))
 
-            assay = AIRRSequencingAssay(
-                akc_id(),
-                repertoire_id=rep['repertoire_id'],
-                specimen=specimen.akc_id,
-                specimen_processing=[cell_proc.akc_id, lib_proc.akc_id],
-                sequencing_run_id=s.get('sequencing_run_id'),
-                sequencing_run_date=sequencing_run_date,
-                sequencing_platform=s.get('sequencing_platform'),
-                sequencing_kit=s.get('sequencing_kit'),
-                sequencing_facility=s.get('sequencing_facility'),
-                total_reads_passing_qc_filter=s.get('total_reads_passing_qc_filter'),
-                sequencing_files=seq_files.akc_id
-            )
-            container.assays[assay.akc_id] = assay
+                assay = AIRRSequencingAssay(
+                    akc_id(),
+                    repertoire_id=rep['repertoire_id'],
+                    specimen=specimen.akc_id,
+                    specimen_processing=[cell_proc.akc_id, lib_proc.akc_id],
+                    sequencing_run_id=s.get('sequencing_run_id'),
+                    sequencing_run_date=sequencing_run_date,
+                    sequencing_platform=s.get('sequencing_platform'),
+                    sequencing_kit=s.get('sequencing_kit'),
+                    sequencing_facility=s.get('sequencing_facility'),
+                    total_reads_passing_qc_filter=s.get('total_reads_passing_qc_filter'),
+                    sequencing_files=seq_files.akc_id
+                )
+                container.assays[assay.akc_id] = assay
 
-        # data processing, not implemented
+            # data processing, not implemented
 
     # Print final newline if we didn't just print one
     if progress_count % 75 != 0:
