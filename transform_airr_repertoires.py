@@ -167,7 +167,6 @@ def transform_airr_repertoires(repertoire_filename, container):
                         arm_id = arm_ids.get(diag['study_group_description'])
                         if arm_id:
                             arm = container.study_arms[arm_id]
-                            participant.study_arm = arm.akc_id
                         else:
                             arm = StudyArm(
                                 akc_id(),
@@ -176,8 +175,9 @@ def transform_airr_repertoires(repertoire_filename, container):
                             )
                             arm_ids[diag['study_group_description']] = arm.akc_id
                             container.study_arms[arm.akc_id] = arm
-                    disease_diagnosis = diag.get('disease_diagnosis')
+                        participant.study_arm = arm.akc_id
 
+                    disease_diagnosis = diag.get('disease_diagnosis')
                     if disease_diagnosis and disease_diagnosis.get('id'):
                         le = LifeEvent(
                             akc_id(),

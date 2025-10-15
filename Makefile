@@ -38,6 +38,8 @@ ADC_CACHE_LIST=2314581927515778580-242ac117-0001-012 \
     6906582706313892331-242ac117-0001-012
 
 ADC_TRANSFORM_TARGETS := $(addprefix adc-transform-,$(ADC_CACHE_LIST))
+ADC_TRANSFORM_REPERTOIRE_TARGETS := $(addprefix adc-transform-repertoire-,$(ADC_CACHE_LIST))
+ADC_TRANSFORM_CHAIN_TARGETS := $(addprefix adc-transform-chain-,$(ADC_CACHE_LIST))
 ADC_LOAD_TARGETS := $(addprefix load-adc-,$(ADC_CACHE_LIST))
 
 # note: "help" MUST be the first target in the file, so
@@ -78,9 +80,14 @@ help:
 	@echo "make iedb-bcr           -- Transform IEDB BCR export file"
 	@echo "make irad-bcr           -- Transform IRAD BCRs"
 	@echo ""
-	@echo "make adc-transform           -- Transform ADC rearrangements for all studies"
-	@echo "make adc-transform-CACHE_ID  -- Transform ADC repertoires and rearrangements for study CACHE_ID"
-	@echo "make adc-copy                -- Copy transformed ADC data to DB load directory"
+	@echo "make adc-delete-snapshot                -- Delete snapshot of transformed ADC data"
+	@echo "make adc-snapshot                       -- Make snapshot of transformed ADC data"
+	@echo ""
+	@echo "make adc-transform                      -- Transform ADC rearrangements for all studies"
+	@echo "make adc-transform-CACHE_ID             -- Transform ADC repertoires and rearrangements for study CACHE_ID"
+	@echo "make adc-transform-repertoire-CACHE_ID  -- Transform ADC repertoires for study CACHE_ID"
+	@echo "make adc-transform-chain-CACHE_ID       -- Transform ADC rearrangements for study CACHE_ID"
+	@echo "make adc-copy                           -- Copy transformed ADC data to DB load directory"
 	@echo ""
 	@echo "make vdjbase-transform       -- Transform VDJbase genotypes"
 	@echo "------------------------------------------------------------"
@@ -173,6 +180,23 @@ $(ADC_DATA)/adc_tsv/:
 
 # ADC repertoire and rearrangement transform
 # manual targets for each study is not the best
+adc-transform-repertoire-%: ak_schema.py | $(ADC_DATA)/adc_tsv/
+	@echo ""
+	@echo "Repertoire transform"
+	@echo ""
+	python3 adc_repertoire_transform.py $*
+
+adc-transform-chain-%: ak_schema.py | $(ADC_DATA)/adc_tsv/
+	@echo ""
+	@echo "START: " `date`
+	@echo ""
+	@echo "Chain transform"
+	@echo ""
+	python3 adc_chain_transform.py $*
+	@echo ""
+	@echo "END: " `date`
+	@echo ""
+
 adc-transform-%: ak_schema.py | $(ADC_DATA)/adc_tsv/
 	@echo ""
 	@echo "START: " `date`
@@ -188,7 +212,28 @@ adc-transform-%: ak_schema.py | $(ADC_DATA)/adc_tsv/
 	@echo "END: " `date`
 	@echo ""
 
+adc-transform-repertoire: $(ADC_TRANSFORM_REPERTOIRE_TARGETS)
+	@echo ""
+	@echo "DONE"
+	@echo ""
+
+adc-transform-chain: $(ADC_TRANSFORM_CHAIN_TARGETS)
+	@echo ""
+	@echo "DONE"
+	@echo ""
+
 adc-transform: $(ADC_TRANSFORM_TARGETS)
+	@echo ""
+	@echo "DONE"
+	@echo ""
+
+adc-delete-snapshot:
+	rm -rf $(ADC_DATA)/adc_jsonl.snapshot
+	rm -rf $(ADC_DATA)/adc_tsv.snapshot
+
+adc-snapshot:
+	mv $(ADC_DATA)/adc_jsonl $(ADC_DATA)/adc_jsonl.snapshot
+	mv $(ADC_DATA)/adc_tsv $(ADC_DATA)/adc_tsv.snapshot
 
 adc-copy:
 	mkdir -p $(AK_DATA_LOAD)/adc
