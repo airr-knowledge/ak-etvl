@@ -4,7 +4,7 @@ import sys
 import os
 from linkml_runtime.utils.schemaview import SchemaView
 import airr
-from ak_schema import AIRRKnowledgeCommons
+from ak_schema import AIRRKnowledgeCommons, LibraryPreparationProcessing
 from ak_schema_utils import (
     vdjbase_cache_list,
     write_jsonl,
@@ -140,13 +140,30 @@ def repertoire_transform(cache_id):
     container = AIRRKnowledgeCommons()
     vdjbase_name_to_study_subject = {}
 
+    # VDJbase should maintain a consistent mapping of VDJbase subject ID to study/subject across its datasets.
+    # Warnings will be printed if any inconsistencies are found.
+
     for filename in ['genomic_metadata_IGH.json', 'genomic_metadata_IGK.json', 'genomic_metadata_IGL.json']:
-        vdjbase_name_to_study_subject.update(map_vdjbase_name_to_study_subject(vdjbase_data_dir + '/' + cache_id + '/' + filename))
+        for vdjbase_name, (study_id, subject_id) in map_vdjbase_name_to_study_subject(vdjbase_data_dir + '/' + cache_id + '/' + filename).items():
+            if vdjbase_name in vdjbase_name_to_study_subject:
+                existing_study_id, existing_subject_id = vdjbase_name_to_study_subject[vdjbase_name]
+                if (existing_study_id, existing_subject_id) != (study_id, subject_id):
+                    print(f"Warning: VDJbase name: {vdjbase_name} already mapped to {existing_study_id} / {existing_subject_id}, now found mapping to {study_id} / {subject_id}")
+            else:
+                vdjbase_name_to_study_subject[vdjbase_name] = (study_id, subject_id)
+
         container = transform_airr_repertoires(vdjbase_data_dir + '/' + cache_id + '/' + filename, container)
 
     for filename in ['airrseq_metadata_IGH.json', 'airrseq_metadata_IGK.json', 'airrseq_metadata_IGL.json', 'airrseq_metadata_TRB.json']:
-        vdjbase_name_to_study_subject.update(map_vdjbase_name_to_study_subject(vdjbase_data_dir + '/' + cache_id + '/' + filename))
+        for vdjbase_name, (study_id, subject_id) in map_vdjbase_name_to_study_subject(vdjbase_data_dir + '/' + cache_id + '/' + filename).items():
+            if vdjbase_name in vdjbase_name_to_study_subject:
+                existing_study_id, existing_subject_id = vdjbase_name_to_study_subject[vdjbase_name]
+                if (existing_study_id, existing_subject_id) != (study_id, subject_id):
+                    print(f"Warning: VDJbase name: {vdjbase_name} already mapped to {existing_study_id} / {existing_subject_id}, now found mapping to {study_id} / {subject_id}")
+            else:
+                vdjbase_name_to_study_subject[vdjbase_name] = (study_id, subject_id)
         container = transform_airr_repertoires(vdjbase_data_dir + '/' + cache_id + '/' + filename, container)
+
 
     # make a mapping of VDJbase subject ID to investigation, participant
 
@@ -161,23 +178,55 @@ def repertoire_transform(cache_id):
             participant_name = container['participants'][participant_id].name
             subj_id_to_participant[investigation_id][participant_name] = participant_id
 
-    # transform vdjbase_name_to_study_subject to refer to akc ids
+    # transform vdjbase_name_to_study_subject to refer to (investigation, subject) akc_ids
     vdjbase_name_to_akc_ids = {}
     for vdjbase_name, (study_id, subject_id) in vdjbase_name_to_study_subject.items():
         if study_id in study_id_to_investigation:
             investigation_id = study_id_to_investigation[study_id]
             if subject_id in subj_id_to_participant[investigation_id]:
                 participant_id = subj_id_to_participant[investigation_id][subject_id]
-                vdjbase_name_to_akc_ids[vdjbase_name] = (investigation_id, participant_id)
+                vdjbase_name_to_akc_ids[vdjbase_name] = {'investigation_id': investigation_id, 'participant_id': participant_id}
             else:
                 print(f"Cannot find subject id: {study_id} / {subject_id} in participants for investigation: {investigation_id} ({container['investigations'][investigation_id].archival_id})")
         else:
             print(f"Cannot find study id: {study_id} in investigations")
 
+    participant_akc_id_to_vdjbase_name = {v['participant_id']: k for k, v in vdjbase_name_to_akc_ids.items()}
+
+    # Enumerate the sequencing_files for each participant
+    
+    participant_id_to_sequencing_files = {}
+    
+    for assay_id, assay in container['assays'].items():
+        if assay.type == 'AIRRSequencingAssay':
+            specimen = container['specimens'][assay.specimen]
+            life_event = container['life_events'][specimen.life_event]
+            participant_id = life_event.participant
+            sequencing_files_id = assay.sequencing_files
+            targets = []
+
+            for processing_id in assay.specimen_processing:
+                processing = container['specimen_processings'][processing_id]
+                if isinstance(processing, LibraryPreparationProcessing):
+                    if processing.pcr_target:
+                        targets.extend(processing.pcr_target)
+
+            if participant_id not in participant_id_to_sequencing_files:
+                participant_id_to_sequencing_files[participant_id] = list()
+
+            participant_id_to_sequencing_files[participant_id].append({
+                'sequencing_files_id': sequencing_files_id,
+                'sequencing_data_id': container.sequence_data[sequencing_files_id].sequencing_data_id,
+                'sequencing_run_id': assay.sequencing_run_id,
+                'repertoire_id': assay.repertoire_id,
+                'targets': targets, 
+                'vdjbase_name': participant_akc_id_to_vdjbase_name[participant_id] if participant_id in participant_akc_id_to_vdjbase_name else None
+                })
+
     dump_studies_in_container(container)
 
-    container = transform_airr_genotypes(vdjbase_data_dir + '/' + cache_id + '/airrseq_all_genotypes.json', container)
-    container = transform_airr_genotypes(vdjbase_data_dir + '/' + cache_id + '/genomic_all_genotypes.json', container)
+    container = transform_airr_genotypes(vdjbase_data_dir + '/' + cache_id + '/airrseq_all_genotypes.json', vdjbase_name_to_akc_ids, container, participant_id_to_sequencing_files)
+    container = transform_airr_genotypes(vdjbase_data_dir + '/' + cache_id + '/genomic_all_genotypes.json', vdjbase_name_to_akc_ids, container, participant_id_to_sequencing_files)
     
     # output data for just this cache_id
     directory_name = f'{vdjbase_data_dir}/vdjbase_jsonl/{cache_id}'
