@@ -9,3 +9,5 @@ curl "https://vdjbase.org/api/v1/airrseq/all_samples_metadata/Homo%20sapiens/IGL
 curl "https://vdjbase.org/api/v1/airrseq/all_samples_metadata/Homo%20sapiens/TRB" >airrseq_metadata_TRB.json
 curl "https://vdjbase.org/api/v1/airrseq/all_subjects_genotype/Homo%20sapiens" >airrseq_all_genotypes.json
 curl "https://vdjbase.org/api/v1/genomic/all_subjects_genotype/Homo%20sapiens" >genomic_all_genotypes.json
+# fix extraneous Unicode in PMID entries (this will be corrected in VDJbase soon)
+sed -i 's/PMID:\\u00d6\\u00b2\\u00c2\\u00a032377375/PMID:32377375/g' *.json
