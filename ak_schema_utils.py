@@ -603,12 +603,20 @@ def load_adc_container(container):
 def write_jsonl(container, container_field, outfile, exclude=None):
     print(outfile)
     with open(outfile, 'w') as f:
-        for key in container[container_field]:
-            s = json.loads(json_dumper.dumps(container[container_field][key]))
-            doc = {}
-            doc[container_field] = s
-            f.write(json.dumps(doc))
-            f.write('\n')
+        if type(container[container_field]) == list:
+            for obj in container[container_field]:
+                s = json.loads(json_dumper.dumps(obj))
+                doc = {}
+                doc[container_field] = s
+                f.write(json.dumps(doc))
+                f.write('\n')
+        else:
+            for key in container[container_field]:
+                s = json.loads(json_dumper.dumps(container[container_field][key]))
+                doc = {}
+                doc[container_field] = s
+                f.write(json.dumps(doc))
+                f.write('\n')
 
 def write_csv(container, container_field, outfile):
     if type(container[container_field]) == list:

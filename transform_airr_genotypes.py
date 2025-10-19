@@ -108,6 +108,7 @@ def transform_airr_genotypes(genotype_filename, vdjbase_name_to_akc_ids, contain
             akc_id(),
             data_transformation_types=['genotype_inference'],
         )
+        container['transformations'][data_transformation.akc_id] = data_transformation
 
         for recs in participant_id_to_sequencing_files[participant_id]:
             sequencing_file_id = recs['sequencing_files_id']
@@ -115,10 +116,11 @@ def transform_airr_genotypes(genotype_filename, vdjbase_name_to_akc_ids, contain
             # at the moment the map is not stored in the container
             # at the moment I create a separate map for each sequencing file, but perhaps the map should link to a list of sequencing files?
             io_map = InputOutputDataMap(
-                data_transformation=data_transformation,
+                data_transformation=data_transformation.akc_id,
                 has_specified_input=sequencing_file_id,
                 has_specified_output=genotype_data.akc_id,
             )
+            container['input_output_map'].append(io_map)
 
     return container    
 
