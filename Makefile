@@ -1,12 +1,18 @@
 
 # AIRR Knowledge extract, transform, validate, load pipeline
 
-# docker should map these paths to the local host where the data resides
+# docker maps this path to the local host where the data resides
 AK_DATA=/ak_data
+
+# data import directories
 ADC_DATA=$(AK_DATA)/vdjserver-adc-cache
 IEDB_DATA=$(AK_DATA)/iedb
+VDJBASE_DATA=$(AK_DATA)/vdjbase
+
+# transformed data ready for DB load
 AK_DATA_LOAD=$(AK_DATA)/ak-data-load
 
+# TODO: studies are hard-coded, matching list in ak_schema_utils.py
 # study list for ADC rearrangements
 ADC_CACHE_LIST=2314581927515778580-242ac117-0001-012 \
     2531647238962745836-242ac114-0001-012 \
@@ -32,6 +38,8 @@ ADC_CACHE_LIST=2314581927515778580-242ac117-0001-012 \
     6906582706313892331-242ac117-0001-012
 
 ADC_TRANSFORM_TARGETS := $(addprefix adc-transform-,$(ADC_CACHE_LIST))
+ADC_TRANSFORM_REPERTOIRE_TARGETS := $(addprefix adc-transform-repertoire-,$(ADC_CACHE_LIST))
+ADC_TRANSFORM_CHAIN_TARGETS := $(addprefix adc-transform-chain-,$(ADC_CACHE_LIST))
 ADC_LOAD_TARGETS := $(addprefix load-adc-,$(ADC_CACHE_LIST))
 
 # note: "help" MUST be the first target in the file, so
@@ -51,17 +59,38 @@ help:
 	@echo ""
 	@echo "make import-clean       -- Remove generated files from data transform"
 	@echo "make load-clean         -- Remove generated files for DB load"
+	@echo "------------------------------------------------------------"
+	@echo ""
+	@echo "Data Extract workflow"
+	@echo "  (run within docker)"
+	@echo "------------------------------------------------------------"
+	@echo "make extract-ogrdb      -- Extract data from OGRDB"
+	@echo "make extract-iedb       -- Extract data from IEDB"
+	@echo "make extract-adc        -- Extract data from VDJServer's ADC cache"
+	@echo "make extract-irad       -- Extract data from IRAD"
+	@echo "make extract-vdjbase    -- Extract data from VDJbase"
+	@echo "------------------------------------------------------------"
 	@echo ""
 	@echo "Data Transform workflow"
 	@echo "  (run within docker)"
 	@echo "------------------------------------------------------------"
+	@echo "make ogrdb-transform    -- Transform OGRDB germlines"
+	@echo ""
 	@echo "make iedb-tcr           -- Transform IEDB TCR export file"
 	@echo "make iedb-bcr           -- Transform IEDB BCR export file"
 	@echo "make irad-bcr           -- Transform IRAD BCRs"
 	@echo ""
-	@echo "make adc-transform           -- Transform ADC rearrangements for all studies"
-	@echo "make adc-transform-CACHE_ID  -- Transform ADC repertoires and rearrangements for study CACHE_ID"
-	@echo "make adc-copy                -- Copy transformed ADC data to DB load directory"
+	@echo "make adc-delete-snapshot                -- Delete snapshot of transformed ADC data"
+	@echo "make adc-snapshot                       -- Make snapshot of transformed ADC data"
+	@echo ""
+	@echo "make adc-transform                      -- Transform ADC rearrangements for all studies"
+	@echo "make adc-transform-CACHE_ID             -- Transform ADC repertoires and rearrangements for study CACHE_ID"
+	@echo "make adc-transform-repertoire-CACHE_ID  -- Transform ADC repertoires for study CACHE_ID"
+	@echo "make adc-transform-chain-CACHE_ID       -- Transform ADC rearrangements for study CACHE_ID"
+	@echo "make adc-copy                           -- Copy transformed ADC data to DB load directory"
+	@echo ""
+	@echo "make vdjbase-transform       -- Transform VDJbase genotypes"
+	@echo "------------------------------------------------------------"
 	@echo ""
 	@echo "    Database Loads"
 	@echo "  (run outside docker)"
@@ -77,7 +106,6 @@ help:
 	@echo ""
 	@echo "make load-adc-CACHE_ID  -- Load ADC data into airrkb for study CACHE_ID"
 	@echo "make load-adc-data      -- Load all ADC data into airrkb"
-	@echo ""
 	@echo "------------------------------------------------------------"
 	@echo ""
 
@@ -98,8 +126,31 @@ list-adc-cache:
 	@echo $(ADC_CACHE_LIST)
 
 #
+# Data extraction
+#
+extract-ogrdb:
+	@echo "Not implemented."
+
+extract-iedb:
+	@echo "Not implemented."
+
+extract-adc:
+	@echo "Not implemented."
+
+extract-irad:
+	@echo "Not implemented."
+
+extract-vdjbase:
+	@echo "Downloading VDJbase data."
+	bash download_vdjbase_data.sh
+
+#
 # Data transform
 #
+
+# OGRDB transform
+ogrdb-transform:
+	@echo "Not implemented."
 
 # IEDB transform
 $(IEDB_DATA)/iedb_tsv/:
@@ -129,6 +180,23 @@ $(ADC_DATA)/adc_tsv/:
 
 # ADC repertoire and rearrangement transform
 # manual targets for each study is not the best
+adc-transform-repertoire-%: ak_schema.py | $(ADC_DATA)/adc_tsv/
+	@echo ""
+	@echo "Repertoire transform"
+	@echo ""
+	python3 adc_repertoire_transform.py $*
+
+adc-transform-chain-%: ak_schema.py | $(ADC_DATA)/adc_tsv/
+	@echo ""
+	@echo "START: " `date`
+	@echo ""
+	@echo "Chain transform"
+	@echo ""
+	python3 adc_chain_transform.py $*
+	@echo ""
+	@echo "END: " `date`
+	@echo ""
+
 adc-transform-%: ak_schema.py | $(ADC_DATA)/adc_tsv/
 	@echo ""
 	@echo "START: " `date`
@@ -144,13 +212,41 @@ adc-transform-%: ak_schema.py | $(ADC_DATA)/adc_tsv/
 	@echo "END: " `date`
 	@echo ""
 
+adc-transform-repertoire: $(ADC_TRANSFORM_REPERTOIRE_TARGETS)
+	@echo ""
+	@echo "DONE"
+	@echo ""
+
+adc-transform-chain: $(ADC_TRANSFORM_CHAIN_TARGETS)
+	@echo ""
+	@echo "DONE"
+	@echo ""
+
 adc-transform: $(ADC_TRANSFORM_TARGETS)
+	@echo ""
+	@echo "DONE"
+	@echo ""
+
+adc-delete-snapshot:
+	rm -rf $(ADC_DATA)/adc_jsonl.snapshot
+	rm -rf $(ADC_DATA)/adc_tsv.snapshot
+
+adc-snapshot:
+	mv $(ADC_DATA)/adc_jsonl $(ADC_DATA)/adc_jsonl.snapshot
+	mv $(ADC_DATA)/adc_tsv $(ADC_DATA)/adc_tsv.snapshot
 
 adc-copy:
 	mkdir -p $(AK_DATA_LOAD)/adc
 	cp -rf $(ADC_DATA)/adc_jsonl $(AK_DATA_LOAD)/adc/
 	cp -rf $(ADC_DATA)/adc_tsv $(AK_DATA_LOAD)/adc/
 
+# VDJbase transform
+$(VDJBASE_DATA)/vdjbase_tsv/:
+	mkdir -p $@
+	mkdir -p $(VDJBASE_DATA)/vdjbase_jsonl/
+
+vdjbase-transform: ak_schema.py | $(VDJBASE_DATA)/vdjbase_tsv/
+	python3 vdjbase_metadata_transform.py vdjbase-2025-08-231-0001-012
 
 #
 # Ontology exports and loads

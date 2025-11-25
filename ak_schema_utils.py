@@ -15,17 +15,23 @@ from dateutil import parser
 from linkml_runtime.utils.schemaview import SchemaView
 from linkml_runtime.linkml_model.meta import EnumDefinition, PermissibleValue, SchemaDefinition
 from linkml_runtime.dumpers import yaml_dumper, json_dumper, tsv_dumper
+from linkml_runtime.loaders import json_loader, yaml_loader
 
 from ak_schema import *
 
+# for access to linkml metadata for the AK schema
+ak_schema_view = SchemaView("ak-schema/project/linkml/ak_schema.yaml")
+
 # data import/export directories
-ak_data_dir = '/ak_data'
+# set ak_data_dir from the environment variable AK_DATA_DIR if it exists
+ak_data_dir = os.environ.get('AK_DATA_DIR', '/ak_data')
+
 adc_data_dir = ak_data_dir + '/vdjserver-adc-cache'
 adc_cache_dir = adc_data_dir + '/cache'
 iedb_data_dir = ak_data_dir + '/iedb'
-ak_load_dir = ak_data_dir + '/ak-data-load'
+vdjbase_data_dir = ak_data_dir + '/vdjbase'
 
-ak_schema_view = SchemaView("ak-schema/project/linkml/ak_schema.yaml")
+ak_load_dir = ak_data_dir + '/ak-data-load'
 
 # ADC study list
 vdjserver_tcr_cache_list = [
@@ -182,6 +188,10 @@ test_cache_list = [
     '6508961642208563691-242ac113-0001-012', # PRJNA300878
 ]
 
+vdjbase_cache_list = [
+    'vdjbase-2025-08-231-0001-012',
+]
+
 cache_list = []
 cache_list.extend(ipa_tcr_cache_list)
 cache_list.extend(ipa_ig_cache_list)
@@ -192,6 +202,7 @@ cache_list.extend(vdjserver_ig_cache_list)
 cache_list.extend(vdjserver_both_cache_list)
 
 cache_list.extend(other_cache_list)
+#cache_list.extend(vdjbase_cache_list)
 
 #cache_list.extend(test_cache_list)
 
@@ -556,18 +567,62 @@ def to_datetime(value):
         return None
     return parser.isoparse(value)
 
+# load AKC json and put into provided container
+def load_akc_objects(container, container_field, container_class):
+    container_slot = ak_schema_view.get_slot(container_field)
+    tname = container_slot.range
+    for study in cache_list:
+        akc_file = f'{adc_data_dir}/adc_jsonl/{study}/{tname}.jsonl'
+        with open(akc_file, 'r') as f:
+            for line in f:
+                #print(line)
+                x = json.loads(line)
+                y = json_loader.load_any(x[container_field], container_class)
+                if container_field == 'references':
+                    if container[container_field].get(y.source_uri) is None:
+                        container[container_field][y.source_uri] = y
+                else:
+                    if container[container_field].get(y.akc_id) is None:
+                        container[container_field][y.akc_id] = y
+    
+# load up ADC objects from the transformed AKC json
+def load_adc_container(container):
+    # TODO: should just do a loop, but not sure how to get the class
+    load_akc_objects(container, 'investigations', Investigation)
+    load_akc_objects(container, 'references', Reference)
+    load_akc_objects(container, 'study_arms', StudyArm)
+    load_akc_objects(container, 'study_events', StudyEvent)
+    load_akc_objects(container, 'participants', Participant)
+    load_akc_objects(container, 'life_events', LifeEvent)
+    load_akc_objects(container, 'immune_exposures', ImmuneExposure)
+    load_akc_objects(container, 'specimens', Specimen)
+    #load_akc_objects(container, 'specimen_processings', CellIsolationProcessing)
+    load_akc_objects(container, 'assays', AIRRSequencingAssay)
+    load_akc_objects(container, 'sequence_data', AIRRSequencingData)
+
 def write_jsonl(container, container_field, outfile, exclude=None):
     print(outfile)
     with open(outfile, 'w') as f:
-        for key in container[container_field]:
-            s = json.loads(json_dumper.dumps(container[container_field][key]))
-            doc = {}
-            doc[container_field] = s
-            f.write(json.dumps(doc))
-            f.write('\n')
+        if type(container[container_field]) == list:
+            for obj in container[container_field]:
+                s = json.loads(json_dumper.dumps(obj))
+                doc = {}
+                doc[container_field] = s
+                f.write(json.dumps(doc))
+                f.write('\n')
+        else:
+            for key in container[container_field]:
+                s = json.loads(json_dumper.dumps(container[container_field][key]))
+                doc = {}
+                doc[container_field] = s
+                f.write(json.dumps(doc))
+                f.write('\n')
 
 def write_csv(container, container_field, outfile):
-    rows = list(container[container_field].values())
+    if type(container[container_field]) == list:
+        rows = container[container_field]
+    else:
+        rows = list(container[container_field].values())
     if len(rows) < 1:
         print(f"Skipping empty data for {container_field}")
         return
