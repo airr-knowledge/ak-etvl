@@ -279,7 +279,7 @@ drop-sql-airrkb:
 	docker run -v $(PWD):/work --network ak-db-network -it postgres:16 psql postgresql://postgres:example@ak-db/postgres -c "drop database airrkb_v1;"
 
 load-ontology:
-	@echo "Not implemented."
+	@bash ontology_load.sh BiomedicalInvestigations
 
 load-iedb-data:
 	@bash iedb_load.sh
