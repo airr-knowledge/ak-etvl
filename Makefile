@@ -93,13 +93,14 @@ help:
 	@echo "------------------------------------------------------------"
 	@echo ""
 	@echo "    Database Loads"
-	@echo "  (run outside docker)"
+	@echo "  (run outside docker, with one exception)"
 	@echo "------------------------------------------------------------"
 	@echo "make drop-sql-airrkb    -- Drop airrkb (version:v1)"
 	@echo "make create-sql-airrkb  -- Create airrkb (version:v1)"
 	@echo ""
 	@echo "make ak-ontology        -- Build AK ontology"
 	@echo "make ontology-export    -- Generate ontology export files"
+	@echo "make ontology-copy      -- Copy ontology export files to DB load directory (run within docker)"
 	@echo "make load-ontology      -- Load ontology data into airrkb"
 	@echo ""
 	@echo "make load-iedb-data     -- Load IEDB data into airrkb"
@@ -259,6 +260,11 @@ ak-ontology:
 .PHONY: ontology-export
 ontology-export:
 	cd ak-ontology/src/ontology; sh run.sh make all_exports
+
+.PHONY: ontology-copy
+ontology-copy:
+	mkdir -p $(AK_DATA_LOAD)/ontology
+	cp -rf ak-ontology/src/ontology/exports/*.csv $(AK_DATA_LOAD)/ontology
 
 #
 # Database loads
