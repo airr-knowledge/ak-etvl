@@ -1,6 +1,14 @@
 
 # AIRR Knowledge extract, transform, validate, load pipeline
 
+# database connection info
+include .env
+PG_CONN=postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@$(POSTGRES_HOST)/postgres
+PG_AK_CONN=postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@$(POSTGRES_HOST)/$(POSTGRES_DB)
+PG_DISPLAY_CONN=postgresql://$(POSTGRES_USER):XXXXXX@$(POSTGRES_HOST)/$(POSTGRES_DB)
+export IMPORT_DATA
+export PG_AK_CONN
+
 # docker maps this path to the local host where the data resides
 AK_DATA=/ak_data
 
@@ -48,6 +56,8 @@ help:
 	@echo ""
 	@echo "AIRR Knowledge ETVL pipeline"
 	@echo "------------------------------------------------------------"
+	@echo "Using DB: $(PG_DISPLAY_CONN)"
+	@echo "Host location of ak-data-import folder: $(IMPORT_DATA)"
 	@echo ""
 	@echo "make docker             -- Build docker image"
 	@echo ""
@@ -93,13 +103,14 @@ help:
 	@echo "------------------------------------------------------------"
 	@echo ""
 	@echo "    Database Loads"
-	@echo "  (run outside docker)"
+	@echo "  (run outside docker, with one exception)"
 	@echo "------------------------------------------------------------"
-	@echo "make drop-sql-airrkb    -- Drop airrkb (version:v1)"
-	@echo "make create-sql-airrkb  -- Create airrkb (version:v1)"
+	@echo "make drop-sql-airrkb    -- Drop airrkb (version: $(POSTGRES_DB))"
+	@echo "make create-sql-airrkb  -- Create airrkb (version: $(POSTGRES_DB))"
 	@echo ""
 	@echo "make ak-ontology        -- Build AK ontology"
 	@echo "make ontology-export    -- Generate ontology export files"
+	@echo "make ontology-copy      -- Copy ontology export files to DB load directory (run within docker)"
 	@echo "make load-ontology      -- Load ontology data into airrkb"
 	@echo ""
 	@echo "make load-iedb-data     -- Load IEDB data into airrkb"
@@ -260,6 +271,11 @@ ak-ontology:
 ontology-export:
 	cd ak-ontology/src/ontology; sh run.sh make all_exports
 
+.PHONY: ontology-copy
+ontology-copy:
+	mkdir -p $(AK_DATA_LOAD)/ontology
+	cp -rf ak-ontology/src/ontology/exports/*.csv $(AK_DATA_LOAD)/ontology
+
 #
 # Database loads
 #
@@ -271,15 +287,20 @@ list-load:
 	find $(AK_DATA_LOAD) -type d -print
 
 create-sql-airrkb:
-	docker run -v $(PWD):/work --network ak-db-network -it postgres:16 psql postgresql://postgres:example@ak-db/postgres -c "create database airrkb_v1;"
-	docker run -v $(PWD):/work --network ak-db-network -it postgres:16 psql postgresql://postgres:example@ak-db/airrkb_v1 -f /work/ak-schema/project/sqlddl/ak_schema_modify.sql
-#	docker run -v $(PWD):/work --network ak-db-network -it postgres:16 psql postgresql://postgres:example@ak-db/airrkb_v1 -f /work/ak-schema/project/sqlddl/ak_schema_postgres.sql
+	docker run -v $(PWD):/work --network ak-db-network -it postgres:16 psql $(PG_CONN) -c "create database $(POSTGRES_DB);"
+	docker run -v $(PWD):/work --network ak-db-network -it postgres:16 psql $(PG_AK_CONN) -f /work/ak-schema/project/sqlddl/ak_schema_modify.sql
+#	docker run -v $(PWD):/work --network ak-db-network -it postgres:16 psql $(PG_AK_CONN) -f /work/ak-schema/project/sqlddl/ak_schema_postgres.sql
 
 drop-sql-airrkb:
-	docker run -v $(PWD):/work --network ak-db-network -it postgres:16 psql postgresql://postgres:example@ak-db/postgres -c "drop database airrkb_v1;"
+	docker run -v $(PWD):/work --network ak-db-network -it postgres:16 psql $(PG_CONN) -c "drop database $(POSTGRES_DB);"
 
 load-ontology:
-	@echo "Not implemented."
+	@bash ontology_load.sh BiomedicalInvestigations
+	@bash ontology_load.sh Cells
+	@bash ontology_load.sh Diseases
+	@bash ontology_load.sh PhenotypeAndTraits
+	@bash ontology_load.sh UberAnatomy
+	@bash ontology_load.sh Units
 
 load-iedb-data:
 	@bash iedb_load.sh
