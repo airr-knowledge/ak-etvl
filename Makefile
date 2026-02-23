@@ -14,7 +14,42 @@ AK_DATA_LOAD=$(AK_DATA)/ak-data-load
 
 # TODO: studies are hard-coded, matching list in ak_schema_utils.py
 # study list for ADC rearrangements
-ADC_CACHE_LIST=2314581927515778580-242ac117-0001-012 \
+IPA_TCR_CACHE_LIST=1546893841758097901-242ac11b-0001-012 \
+    1589929414064017901-242ac11b-0001-012 \
+    1631719445854097901-242ac11b-0001-012 \
+    1665177241089937901-242ac11b-0001-012 \
+    1703144751986577901-242ac11b-0001-012 \
+    1818767539323343341-242ac11b-0001-012 \
+    2190435173075840530-242ac118-0001-012 \
+    3791830297704337901-242ac11b-0001-012 \
+    4896275633090653715-242ac11b-0001-012 \
+    5034739262512754195-242ac11b-0001-012 \
+    5524076507527057901-242ac11b-0001-012 \
+    5573468631431057901-242ac11b-0001-012 \
+    5626983923939217901-242ac11b-0001-012 \
+    7625215465378419181-242ac11b-0001-012 \
+    7636497343395917330-242ac117-0001-012 \
+    8434237213378080275-242ac11b-0001-012 \
+    8498404024780320275-242ac11b-0001-012 \
+    8575123754278514195-242ac11b-0001-012 \
+    970356185718124050-242ac117-0001-012
+
+# needs error fixed
+#IPA_TCR_CACHE_LIST=\
+
+# data issue
+#    7430997044253299181-242ac11b-0001-012 \
+
+# missing locus
+#    620211697973137901-242ac11b-0001-012 \
+
+# filename issue
+#    5875190083975057901-242ac11b-0001-012 \
+
+# missing locus
+#    5919600045815697901-242ac11b-0001-012 \
+
+VDJSERVER_TCR_CACHE_LIST=2314581927515778580-242ac117-0001-012 \
     2531647238962745836-242ac114-0001-012 \
     3567053283467128340-242ac117-0001-012 \
     4086105921948741140-242ac114-0001-012 \
@@ -36,6 +71,8 @@ ADC_CACHE_LIST=2314581927515778580-242ac117-0001-012 \
     6824255191407923691-242ac113-0001-012 \
     6838858080214323691-242ac113-0001-012 \
     6906582706313892331-242ac117-0001-012
+
+ADC_CACHE_LIST=$(IPA_TCR_CACHE_LIST)
 
 ADC_TRANSFORM_TARGETS := $(addprefix adc-transform-,$(ADC_CACHE_LIST))
 ADC_TRANSFORM_REPERTOIRE_TARGETS := $(addprefix adc-transform-repertoire-,$(ADC_CACHE_LIST))
@@ -69,6 +106,7 @@ help:
 	@echo "make extract-adc        -- Extract data from VDJServer's ADC cache"
 	@echo "make extract-irad       -- Extract data from IRAD"
 	@echo "make extract-vdjbase    -- Extract data from VDJbase"
+	@echo "make data-fixes         -- Fix unresolved errors in repository data"
 	@echo "------------------------------------------------------------"
 	@echo ""
 	@echo "Data Transform workflow"
@@ -143,6 +181,10 @@ extract-irad:
 extract-vdjbase:
 	@echo "Downloading VDJbase data."
 	bash download_vdjbase_data.sh
+
+data-fixes:
+	@echo "Fixing data errors."
+	python3 iReceptor_metadata_fix.py
 
 #
 # Data transform
