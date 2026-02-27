@@ -26,6 +26,15 @@ ak_schema_view = SchemaView("ak-schema/project/linkml/ak_schema.yaml")
 # set ak_data_dir from the environment variable AK_DATA_DIR if it exists
 ak_data_dir = os.environ.get('AK_DATA_DIR', '/ak_data')
 
+ADC_IMPORT_DATA = os.environ.get('ADC_IMPORT_DATA')
+if not ADC_IMPORT_DATA:
+    print("ADC_IMPORT_DATA is not defined.")
+    sys.exit(1)
+ADC_TRANSFORM_DATA = os.environ.get('ADC_TRANSFORM_DATA')
+if not ADC_TRANSFORM_DATA:
+    print("ADC_TRANSFORM_DATA is not defined.")
+    sys.exit(1)
+
 IEDB_IMPORT_DATA = os.environ.get('IEDB_IMPORT_DATA')
 if not IEDB_IMPORT_DATA:
     print("IEDB_IMPORT_DATA is not defined.")
@@ -33,12 +42,6 @@ if not IEDB_IMPORT_DATA:
 IEDB_TRANSFORM_DATA = os.environ.get('IEDB_TRANSFORM_DATA', '/ak_data')
 if not IEDB_TRANSFORM_DATA:
     print("IEDB_TRANSFORM_DATA is not defined.")
-
-
-adc_data_dir = ak_data_dir + '/vdjserver-adc-cache'
-adc_cache_dir = adc_data_dir + '/cache'
-
-# iedb_data_dir = ak_data_dir + '/iedb'
 
 vdjbase_data_dir = ak_data_dir + '/vdjbase'
 
@@ -536,6 +539,28 @@ def make_receptor(container, chains):
 
     return receptor
 
+def make_complex(container, receptor, epitope, mhc):
+    tcr_complex = None
+    receptor_id = None
+    if receptor:
+        receptor_id = receptor.akc_id
+    epitope_id = None
+    if epitope:
+        epitope_id = epitope.akc_id
+    mhc_id = None
+    if mhc:
+        mhc_id = mhc.akc_id
+    
+    if type(receptor) == AlphaBetaTCR:
+        tcr_complex = TCRpMHCComplex(akc_id(), tcr=receptor_id, epitope=epitope_id, mhc=mhc_id)
+    elif type(receptor) == GammaDeltaTCR:
+        tcr_complex = TCRpMHCComplex(akc_id(), tcr=receptor_id, epitope=epitope_id, mhc=mhc_id)
+
+    if tcr_complex:
+        container.tcr_complex[tcr_complex.akc_id] = tcr_complex
+
+
+
 def check_three(chains):
 #    print(chains)
     if len(chains) != 3:
@@ -583,7 +608,7 @@ def load_akc_objects(container, container_field, container_class):
     container_slot = ak_schema_view.get_slot(container_field)
     tname = container_slot.range
     for study in cache_list:
-        akc_file = f'{adc_data_dir}/adc_jsonl/{study}/{tname}.jsonl'
+        akc_file = f'{ADC_TRANSFORM_DATA}/adc_jsonl/{study}/{tname}.jsonl'
         with open(akc_file, 'r') as f:
             for line in f:
                 #print(line)

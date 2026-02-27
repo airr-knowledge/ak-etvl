@@ -13,16 +13,20 @@ export PG_AK_CONN
 AK_DATA=/ak_data
 
 # data import directories
-ADC_DATA=$(AK_DATA)/vdjserver-adc-cache
+ADC_IMPORT_DATA=$(AK_DATA)/vdjserver-adc-cache/cache
+export ADC_IMPORT_DATA
+ADC_TRANSFORM_DATA=$(AK_DATA)/adc/$(POSTGRES_DB)
+export ADC_TRANSFORM_DATA
 
 IEDB_IMPORT_DATA=$(AK_DATA)/iedb
 export IEDB_IMPORT_DATA
 IEDB_TRANSFORM_DATA=$(AK_DATA)/iedb/$(POSTGRES_DB)
 export IEDB_TRANSFORM_DATA
+
 VDJBASE_DATA=$(AK_DATA)/vdjbase
 
 # transformed data ready for DB load
-AK_DATA_LOAD=$(AK_DATA)/ak-data-load
+AK_DATA_LOAD=$(AK_DATA)/ak-data-load/$(POSTGRES_DB)
 
 # TODO: studies are hard-coded, matching list in ak_schema_utils.py
 # study list for ADC rearrangements
@@ -84,7 +88,7 @@ VDJSERVER_TCR_CACHE_LIST=2314581927515778580-242ac117-0001-012 \
     6838858080214323691-242ac113-0001-012 \
     6906582706313892331-242ac117-0001-012
 
-ADC_CACHE_LIST=$(IPA_TCR_CACHE_LIST)
+ADC_CACHE_LIST=$(VDJSERVER_TCR_CACHE_LIST) $(IPA_TCR_CACHE_LIST)
 
 ADC_TRANSFORM_TARGETS := $(addprefix adc-transform-,$(ADC_CACHE_LIST))
 ADC_TRANSFORM_REPERTOIRE_TARGETS := $(addprefix adc-transform-repertoire-,$(ADC_CACHE_LIST))
@@ -108,7 +112,7 @@ help:
 	@echo "make list-adc-cache     -- List ADC study cache IDs"
 	@echo "make ak-schema          -- Build and install ak-schema submodule"
 	@echo ""
-	@echo "make import-clean       -- Remove generated files from data transform"
+	@echo "make transform-clean    -- Remove generated files from data transform"
 	@echo "make load-clean         -- Remove generated files for DB load"
 	@echo "------------------------------------------------------------"
 	@echo ""
@@ -230,20 +234,20 @@ irad-bcr:
 	@echo "Not implemented."
 
 # ADC repertoire transform
-$(ADC_DATA)/adc_tsv/:
+$(ADC_TRANSFORM_DATA)/adc_tsv/:
 	mkdir -p $@
-	mkdir -p $(ADC_DATA)/adc_jsonl/
+	mkdir -p $(ADC_TRANSFORM_DATA)/adc_jsonl/
 	mkdir -p $(AK_DATA_LOAD)/adc/
 
 # ADC repertoire and rearrangement transform
 # manual targets for each study is not the best
-adc-transform-repertoire-%: ak_schema.py | $(ADC_DATA)/adc_tsv/
+adc-transform-repertoire-%: ak_schema.py | $(ADC_TRANSFORM_DATA)/adc_tsv/
 	@echo ""
 	@echo "Repertoire transform"
 	@echo ""
 	python3 adc_repertoire_transform.py $*
 
-adc-transform-chain-%: ak_schema.py | $(ADC_DATA)/adc_tsv/
+adc-transform-chain-%: ak_schema.py | $(ADC_TRANSFORM_DATA)/adc_tsv/
 	@echo ""
 	@echo "START: " `date`
 	@echo ""
@@ -254,7 +258,7 @@ adc-transform-chain-%: ak_schema.py | $(ADC_DATA)/adc_tsv/
 	@echo "END: " `date`
 	@echo ""
 
-adc-transform-%: ak_schema.py | $(ADC_DATA)/adc_tsv/
+adc-transform-%: ak_schema.py | $(ADC_TRANSFORM_DATA)/adc_tsv/
 	@echo ""
 	@echo "START: " `date`
 	@echo ""
@@ -294,8 +298,8 @@ adc-snapshot:
 
 adc-copy:
 	mkdir -p $(AK_DATA_LOAD)/adc
-	cp -rf $(ADC_DATA)/adc_jsonl $(AK_DATA_LOAD)/adc/
-	cp -rf $(ADC_DATA)/adc_tsv $(AK_DATA_LOAD)/adc/
+	cp -rf $(ADC_TRANSFORM_DATA)/adc_jsonl $(AK_DATA_LOAD)/adc/
+	cp -rf $(ADC_TRANSFORM_DATA)/adc_tsv $(AK_DATA_LOAD)/adc/
 
 # VDJbase transform
 $(VDJBASE_DATA)/vdjbase_tsv/:
@@ -363,9 +367,8 @@ load-clean:
 	rm -rf $(AK_DATA_LOAD)/iedb
 	rm -rf $(AK_DATA_LOAD)/adc
 
-import-clean:
+transform-clean:
 	rm -rf $(IEDB_TRANSFORM_DATA)/iedb_tsv
 	rm -rf $(IEDB_TRANSFORM_DATA)/iedb_jsonl
-	rm -rf $(ADC_DATA)/adc_tsv
-	rm -rf $(ADC_DATA)/adc_jsonl
-
+	rm -rf $(ADC_TRANSFORM_DATA)/adc_tsv
+	rm -rf $(ADC_TRANSFORM_DATA)/adc_jsonl

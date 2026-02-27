@@ -175,6 +175,7 @@ def receptor_integrate(cache_id):
 
             if not paired_chain:
                 receptor = make_receptor(container, [chain, None])
+                make_complex(container, receptor, None, None)
                 if type(receptor) == AlphaBetaTCR:
                     tcell_receptors.add(receptor.akc_id)
                 elif type(receptor) == GammaDeltaTCR:
@@ -215,6 +216,7 @@ def receptor_integrate(cache_id):
                 else: # 2 chains, obvious case
                     dist[1] += 1
                     receptor = make_receptor(container, cell_id[c])
+                    make_complex(container, receptor, None, None)
                     if type(receptor) == AlphaBetaTCR:
                         tcell_receptors.add(receptor.akc_id)
                     elif type(receptor) == GammaDeltaTCR:
@@ -257,6 +259,7 @@ def receptor_integrate(cache_id):
                 #print(lenc)
                 #print(cell_id[c])
                 receptor = make_receptor(container, cell_id[c])
+                make_complex(container, receptor, None, None)
                 if type(receptor) == AlphaBetaTCR:
                     tcell_receptors.add(receptor.akc_id)
                 elif type(receptor) == GammaDeltaTCR:
