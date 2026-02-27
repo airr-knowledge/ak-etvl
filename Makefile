@@ -14,7 +14,11 @@ AK_DATA=/ak_data
 
 # data import directories
 ADC_DATA=$(AK_DATA)/vdjserver-adc-cache
-IEDB_DATA=$(AK_DATA)/iedb
+
+IEDB_IMPORT_DATA=$(AK_DATA)/iedb
+export IEDB_IMPORT_DATA
+IEDB_TRANSFORM_DATA=$(AK_DATA)/iedb/$(POSTGRES_DB)
+export IEDB_TRANSFORM_DATA
 VDJBASE_DATA=$(AK_DATA)/vdjbase
 
 # transformed data ready for DB load
@@ -161,7 +165,7 @@ help:
 # build docker image
 docker:
 	@echo "Building docker image"
-	docker build . -t airrknowledge/ak-etvl
+	docker build . -t airrknowledge/ak-etvl:$(POSTGRES_DB)
 
 .PHONY: ak-schema
 ak-schema:
@@ -206,16 +210,16 @@ ogrdb-transform:
 	@echo "Not implemented."
 
 # IEDB transform
-$(IEDB_DATA)/iedb_tsv/:
+$(IEDB_TRANSFORM_DATA)/iedb_tsv/:
 	mkdir -p $@
-	mkdir -p $(IEDB_DATA)/iedb_jsonl/
+	mkdir -p $(IEDB_TRANSFORM_DATA)/iedb_jsonl/
 
-iedb-tcr: $(IEDB_DATA)/iedb_tcr.yaml
+iedb-tcr: $(IEDB_TRANSFORM_DATA)/iedb_tcr.yaml
 	mkdir -p $(AK_DATA_LOAD)/iedb
-	cp -rf $(IEDB_DATA)/iedb_jsonl $(AK_DATA_LOAD)/iedb
-	cp -rf $(IEDB_DATA)/iedb_tsv $(AK_DATA_LOAD)/iedb
+	cp -rf $(IEDB_TRANSFORM_DATA)/iedb_jsonl $(AK_DATA_LOAD)/iedb
+	cp -rf $(IEDB_TRANSFORM_DATA)/iedb_tsv $(AK_DATA_LOAD)/iedb
 
-$(IEDB_DATA)/iedb_tcr.yaml: ak_schema.py iedb_transform.py $(IEDB_DATA)/tcell_full_v3.tsv $(IEDB_DATA)/tcr_full_v3.tsv | $(IEDB_DATA)/iedb_tsv/
+$(IEDB_TRANSFORM_DATA)/iedb_tcr.yaml: ak_schema.py iedb_transform.py $(IEDB_IMPORT_DATA)/tcell_full_v3.tsv $(IEDB_IMPORT_DATA)/tcr_full_v3.tsv | $(IEDB_TRANSFORM_DATA)/iedb_tsv/
 	python3 $(wordlist 2,4,$^) $@
 
 iedb-bcr:
@@ -360,8 +364,8 @@ load-clean:
 	rm -rf $(AK_DATA_LOAD)/adc
 
 import-clean:
-	rm -rf $(IEDB_DATA)/iedb_tsv
-	rm -rf $(IEDB_DATA)/iedb_jsonl
+	rm -rf $(IEDB_TRANSFORM_DATA)/iedb_tsv
+	rm -rf $(IEDB_TRANSFORM_DATA)/iedb_jsonl
 	rm -rf $(ADC_DATA)/adc_tsv
 	rm -rf $(ADC_DATA)/adc_jsonl
 

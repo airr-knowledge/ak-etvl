@@ -26,9 +26,20 @@ ak_schema_view = SchemaView("ak-schema/project/linkml/ak_schema.yaml")
 # set ak_data_dir from the environment variable AK_DATA_DIR if it exists
 ak_data_dir = os.environ.get('AK_DATA_DIR', '/ak_data')
 
+IEDB_IMPORT_DATA = os.environ.get('IEDB_IMPORT_DATA')
+if not IEDB_IMPORT_DATA:
+    print("IEDB_IMPORT_DATA is not defined.")
+    
+IEDB_TRANSFORM_DATA = os.environ.get('IEDB_TRANSFORM_DATA', '/ak_data')
+if not IEDB_TRANSFORM_DATA:
+    print("IEDB_TRANSFORM_DATA is not defined.")
+
+
 adc_data_dir = ak_data_dir + '/vdjserver-adc-cache'
 adc_cache_dir = adc_data_dir + '/cache'
-iedb_data_dir = ak_data_dir + '/iedb'
+
+# iedb_data_dir = ak_data_dir + '/iedb'
+
 vdjbase_data_dir = ak_data_dir + '/vdjbase'
 
 ak_load_dir = ak_data_dir + '/ak-data-load'

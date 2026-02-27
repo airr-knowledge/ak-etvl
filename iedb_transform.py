@@ -364,13 +364,13 @@ def convert(tcell_path, tcr_path, yaml_path):
     for container_field in container_fields:
         container_slot = ak_schema_view.get_slot(container_field)
         tname = container_slot.range
-        write_jsonl(container, container_field, f'{iedb_data_dir}/iedb_jsonl/{tname}.jsonl')
-        write_csv(container, container_field, f'{iedb_data_dir}/iedb_tsv/{tname}.csv')
+        write_jsonl(container, container_field, f'{IEDB_TRANSFORM_DATA}/iedb_jsonl/{tname}.jsonl')
+        write_csv(container, container_field, f'{IEDB_TRANSFORM_DATA}/iedb_tsv/{tname}.csv')
 
     # CSV relationships
-    write_all_relationships(container, f'{iedb_data_dir}/iedb_tsv/')
+    write_all_relationships(container, f'{IEDB_TRANSFORM_DATA}/iedb_tsv/')
     # assay relationships
-    write_relationship_csv('Assay', container.assays, 'tcell_receptors', f'{iedb_data_dir}/iedb_tsv/')
+    write_relationship_csv('Assay', container.assays, 'tcell_receptors', f'{IEDB_TRANSFORM_DATA}/iedb_tsv/')
 
 
 if __name__ == "__main__":
