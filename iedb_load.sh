@@ -3,8 +3,9 @@
 # IMPORT_DATA
 # PG_AK_CONN
 
-AIRRKB_IMPORT=${IMPORT_DATA}/ak-data-import/ak-data-load/iedb/iedb_tsv
+AIRRKB_IMPORT=${IMPORT_DATA}/ak-data-import/ak-data-load/${POSTGRES_DB}/iedb/iedb_tsv
 
+# docker run -v ${AIRRKB_IMPORT}:/ak_data --network ak-db-network -it postgres:16 psql ${PG_AK_CONN} -c "DROP TABLE IF EXISTS tmp_table;"
 docker run -v ${AIRRKB_IMPORT}:/ak_data --network ak-db-network -it postgres:16 psql ${PG_AK_CONN} -c "DROP TABLE IF EXISTS tmp_table;"
 
 TABLE_NAMES=(Chain AlphaBetaTCR GammaDeltaTCR BCellReceptor Investigation StudyArm Participant Reference StudyEvent LifeEvent ImmuneExposure Specimen Epitope Assay Investigation_assays AKDataSet Conclusion Investigation_participants Investigation_documents Investigation_conclusions Assay_tcell_receptors)

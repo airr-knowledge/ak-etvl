@@ -8,6 +8,7 @@ PG_AK_CONN=postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@$(POSTGRES_HOST)/$
 PG_DISPLAY_CONN=postgresql://$(POSTGRES_USER):XXXXXX@$(POSTGRES_HOST)/$(POSTGRES_DB)
 export IMPORT_DATA
 export PG_AK_CONN
+export POSTGRES_DB
 
 # docker maps this path to the local host where the data resides
 AK_DATA=/ak_data
@@ -27,6 +28,8 @@ VDJBASE_DATA=$(AK_DATA)/vdjbase
 
 # transformed data ready for DB load
 AK_DATA_LOAD=$(AK_DATA)/ak-data-load/$(POSTGRES_DB)
+
+export AK_DATA_LOAD
 
 # TODO: studies are hard-coded, matching list in ak_schema_utils.py
 # study list for ADC rearrangements
@@ -134,6 +137,7 @@ help:
 	@echo ""
 	@echo "make iedb-tcr           -- Transform IEDB TCR export file"
 	@echo "make iedb-bcr           -- Transform IEDB BCR export file"
+	@echo "make iedb-copy           -- Copy Transformed IEDB BCR export file"
 	@echo "make irad-bcr           -- Transform IRAD BCRs"
 	@echo ""
 	@echo "make adc-delete-snapshot                -- Delete snapshot of transformed ADC data"
@@ -159,7 +163,7 @@ help:
 	@echo "make ontology-copy      -- Copy ontology export files to DB load directory (run within docker)"
 	@echo "make load-ontology      -- Load ontology data into airrkb"
 	@echo ""
-	@echo "make load-iedb-data     -- Load IEDB data into airrkb"
+	@echo "make load-iedb-data     -- Load IEDB data into airrkb (version: $(POSTGRES_DB))"
 	@echo ""
 	@echo "make load-adc-CACHE_ID  -- Load ADC data into airrkb for study CACHE_ID"
 	@echo "make load-adc-data      -- Load all ADC data into airrkb"
@@ -219,6 +223,8 @@ $(IEDB_TRANSFORM_DATA)/iedb_tsv/:
 	mkdir -p $(IEDB_TRANSFORM_DATA)/iedb_jsonl/
 
 iedb-tcr: $(IEDB_TRANSFORM_DATA)/iedb_tcr.yaml
+	
+iedb-copy:
 	mkdir -p $(AK_DATA_LOAD)/iedb
 	cp -rf $(IEDB_TRANSFORM_DATA)/iedb_jsonl $(AK_DATA_LOAD)/iedb
 	cp -rf $(IEDB_TRANSFORM_DATA)/iedb_tsv $(AK_DATA_LOAD)/iedb
