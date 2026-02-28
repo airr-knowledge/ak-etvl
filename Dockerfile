@@ -17,6 +17,9 @@ ENV YOUR_ENV=${YOUR_ENV} \
   POETRY_VIRTUALENVS_CREATE=false \
   POETRY_VERSION=1.1.13
 
+# flag for being in docker
+ENV AKC_DOCKER=1
+
 # System deps:
 RUN pip install "poetry==$POETRY_VERSION"
 

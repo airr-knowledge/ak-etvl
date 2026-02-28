@@ -11,22 +11,30 @@ export PG_AK_CONN
 
 # docker maps this path to the local host where the data resides
 AK_DATA=/ak_data
+AK_IMPORT_DATA=$(AK_DATA)/data-extract
+AK_TRANSFORM_DATA=$(AK_DATA)/ak-transform-data/$(POSTGRES_DB)
 
 # data import directories
-ADC_IMPORT_DATA=$(AK_DATA)/vdjserver-adc-cache/cache
+ADC_IMPORT_DATA=$(AK_IMPORT_DATA)/vdjserver-adc-cache/cache
 export ADC_IMPORT_DATA
-ADC_TRANSFORM_DATA=$(AK_DATA)/adc/$(POSTGRES_DB)
+ADC_TRANSFORM_DATA=$(AK_TRANSFORM_DATA)/adc
 export ADC_TRANSFORM_DATA
 
-IEDB_IMPORT_DATA=$(AK_DATA)/iedb
+IEDB_IMPORT_DATA=$(AK_IMPORT_DATA)/iedb
 export IEDB_IMPORT_DATA
-IEDB_TRANSFORM_DATA=$(AK_DATA)/iedb/$(POSTGRES_DB)
+IEDB_TRANSFORM_DATA=$(AK_TRANSFORM_DATA)/iedb
 export IEDB_TRANSFORM_DATA
 
 VDJBASE_DATA=$(AK_DATA)/vdjbase
 
 # transformed data ready for DB load
+# inside docker
 AK_DATA_LOAD=$(AK_DATA)/ak-data-load/$(POSTGRES_DB)
+export AK_DATA_LOAD
+# outside docker
+AIRRKB_LOAD=$(IMPORT_DATA)/ak-data-import/ak-data-load/$(POSTGRES_DB)
+export AIRRKB_LOAD
+
 
 # TODO: studies are hard-coded, matching list in ak_schema_utils.py
 # study list for ADC rearrangements
@@ -107,7 +115,9 @@ help:
 	@echo "make docker             -- Build docker image"
 	@echo ""
 	@echo "Utility functions (within docker)"
-	@echo "make list-import        -- List all import/export files"
+	@echo "make show-paths         -- Show data paths for import, transform and load"
+	@echo "make list-extract       -- List all repository data extract files"
+	@echo "make list-transform     -- List all transform output files"
 	@echo "make list-load          -- List DB load files"
 	@echo "make list-adc-cache     -- List ADC study cache IDs"
 	@echo "make ak-schema          -- Build and install ak-schema submodule"
@@ -134,10 +144,9 @@ help:
 	@echo ""
 	@echo "make iedb-tcr           -- Transform IEDB TCR export file"
 	@echo "make iedb-bcr           -- Transform IEDB BCR export file"
-	@echo "make irad-bcr           -- Transform IRAD BCRs"
+	@echo "make iedb-copy          -- Copy transformed IEDB data to DB load directory"
 	@echo ""
-	@echo "make adc-delete-snapshot                -- Delete snapshot of transformed ADC data"
-	@echo "make adc-snapshot                       -- Make snapshot of transformed ADC data"
+	@echo "make irad-bcr           -- Transform IRAD BCRs"
 	@echo ""
 	@echo "make adc-transform                      -- Transform ADC rearrangements for all studies"
 	@echo "make adc-transform-CACHE_ID             -- Transform ADC repertoires and rearrangements for study CACHE_ID"
@@ -171,13 +180,47 @@ docker:
 	@echo "Building docker image"
 	docker build . -t airrknowledge/ak-etvl:$(POSTGRES_DB)
 
+check-docker:
+	@if [ -z "$(AKC_DOCKER)" ]; then echo "MUST BE RUN WITHIN DOCKER"; exit 1; fi
+
+outside-docker:
+	@if [ -z "$(AKC_DOCKER)" ]; then exit 0; else echo "MUST BE RUN OUTSIDE OF DOCKER"; exit 1; fi
+
+show-paths:
+	@echo "------------------------------------------------------------"
+	@echo "Using DB: $(PG_DISPLAY_CONN)"
+	@echo "Host location of ak-data-import folder: $(IMPORT_DATA)"
+	@echo "------------------------------------------------------------"
+	@echo "Paths inside docker:"
+	@echo ""
+	@echo "               AK_DATA = $(AK_DATA) [host: $(IMPORT_DATA)]"
+	@echo "        AK_IMPORT_DATA = $(AK_IMPORT_DATA)"
+	@echo "     AK_TRANSFORM_DATA = $(AK_TRANSFORM_DATA)"
+	@echo ""
+	@echo "       ADC_IMPORT_DATA = $(ADC_IMPORT_DATA)"
+	@echo "    ADC_TRANSFORM_DATA = $(ADC_TRANSFORM_DATA)"
+	@echo ""
+	@echo "      IEDB_IMPORT_DATA = $(IEDB_IMPORT_DATA)"
+	@echo "   IEDB_TRANSFORM_DATA = $(IEDB_TRANSFORM_DATA)"
+	@echo ""
+	@echo "      IRAD_IMPORT_DATA = $(IRAD_IMPORT_DATA)"
+	@echo "   IRAD_TRANSFORM_DATA = $(IRAD_TRANSFORM_DATA)"
+	@echo ""
+	@echo "   VDJBASE_IMPORT_DATA = $(VDJBASE_IMPORT_DATA)"
+	@echo "VDJBASE_TRANSFORM_DATA = $(VDJBASE_TRANSFORM_DATA)"
+	@echo "------------------------------------------------------------"
+	@echo "          AK_DATA_LOAD = $(AK_DATA_LOAD)"
+	@echo "           AIRRKB_LOAD = $(AIRRKB_LOAD)"
+	@echo "------------------------------------------------------------"
+
+
 .PHONY: ak-schema
-ak-schema:
+ak-schema: check-docker
 	cd ak-schema; make all; make install
 
 # generate python dataclasses from schema
-ak_schema.py: ak-schema/project/linkml/ak_schema.yaml
-	gen-python $< > $@
+ak_schema.py: check-docker ak-schema/project/linkml/ak_schema.yaml
+	gen-python ak-schema/project/linkml/ak_schema.yaml > $@
 
 list-adc-cache:
 	@echo $(ADC_CACHE_LIST)
@@ -201,7 +244,7 @@ extract-vdjbase:
 	@echo "Downloading VDJbase data."
 	bash download_vdjbase_data.sh
 
-data-fixes:
+data-fixes: check-docker
 	@echo "Fixing data errors."
 	python3 iReceptor_metadata_fix.py
 
@@ -214,30 +257,30 @@ ogrdb-transform:
 	@echo "Not implemented."
 
 # IEDB transform
-$(IEDB_TRANSFORM_DATA)/iedb_tsv/:
+$(IEDB_TRANSFORM_DATA)/iedb_tsv/: check-docker
 	mkdir -p $@
 	mkdir -p $(IEDB_TRANSFORM_DATA)/iedb_jsonl/
 
-iedb-tcr: $(IEDB_TRANSFORM_DATA)/iedb_tcr.yaml
-	mkdir -p $(AK_DATA_LOAD)/iedb
-	cp -rf $(IEDB_TRANSFORM_DATA)/iedb_jsonl $(AK_DATA_LOAD)/iedb
-	cp -rf $(IEDB_TRANSFORM_DATA)/iedb_tsv $(AK_DATA_LOAD)/iedb
+iedb-tcr: check-docker $(IEDB_TRANSFORM_DATA)/iedb_tcr.yaml
 
 $(IEDB_TRANSFORM_DATA)/iedb_tcr.yaml: ak_schema.py iedb_transform.py $(IEDB_IMPORT_DATA)/tcell_full_v3.tsv $(IEDB_IMPORT_DATA)/tcr_full_v3.tsv | $(IEDB_TRANSFORM_DATA)/iedb_tsv/
 	python3 $(wordlist 2,4,$^) $@
 
-iedb-bcr:
+iedb-bcr: check-docker
 	@echo "Not implemented."
 
+iedb-copy: check-docker
+	mkdir -p $(AK_DATA_LOAD)/iedb
+	cp -rf $(IEDB_TRANSFORM_DATA)/* $(AK_DATA_LOAD)/iedb
+
 # IRAD transform
-irad-bcr:
+irad-bcr: check-docker
 	@echo "Not implemented."
 
 # ADC repertoire transform
-$(ADC_TRANSFORM_DATA)/adc_tsv/:
+$(ADC_TRANSFORM_DATA)/adc_tsv/: check-docker
 	mkdir -p $@
 	mkdir -p $(ADC_TRANSFORM_DATA)/adc_jsonl/
-	mkdir -p $(AK_DATA_LOAD)/adc/
 
 # ADC repertoire and rearrangement transform
 # manual targets for each study is not the best
@@ -288,21 +331,12 @@ adc-transform: $(ADC_TRANSFORM_TARGETS)
 	@echo "DONE"
 	@echo ""
 
-adc-delete-snapshot:
-	rm -rf $(ADC_DATA)/adc_jsonl.snapshot
-	rm -rf $(ADC_DATA)/adc_tsv.snapshot
-
-adc-snapshot:
-	mv $(ADC_DATA)/adc_jsonl $(ADC_DATA)/adc_jsonl.snapshot
-	mv $(ADC_DATA)/adc_tsv $(ADC_DATA)/adc_tsv.snapshot
-
-adc-copy:
+adc-copy: check-docker
 	mkdir -p $(AK_DATA_LOAD)/adc
-	cp -rf $(ADC_TRANSFORM_DATA)/adc_jsonl $(AK_DATA_LOAD)/adc/
-	cp -rf $(ADC_TRANSFORM_DATA)/adc_tsv $(AK_DATA_LOAD)/adc/
+	cp -rf $(ADC_TRANSFORM_DATA)/* $(AK_DATA_LOAD)/adc
 
 # VDJbase transform
-$(VDJBASE_DATA)/vdjbase_tsv/:
+$(VDJBASE_DATA)/vdjbase_tsv/: check-docker
 	mkdir -p $@
 	mkdir -p $(VDJBASE_DATA)/vdjbase_jsonl/
 
@@ -314,15 +348,15 @@ vdjbase-transform: ak_schema.py | $(VDJBASE_DATA)/vdjbase_tsv/
 #
 
 .PHONY: ak-ontology
-ak-ontology:
+ak-ontology: outside-docker
 	cd ak-ontology/src/ontology; sh run.sh make
 
 .PHONY: ontology-export
-ontology-export:
+ontology-export: outside-docker
 	cd ak-ontology/src/ontology; sh run.sh make all_exports
 
 .PHONY: ontology-copy
-ontology-copy:
+ontology-copy: check-docker
 	mkdir -p $(AK_DATA_LOAD)/ontology
 	cp -rf ak-ontology/src/ontology/exports/*.csv $(AK_DATA_LOAD)/ontology
 
@@ -330,21 +364,24 @@ ontology-copy:
 # Database loads
 #
 
-list-import:
-	find $(AK_DATA) -type d -print
+list-extract: check-docker
+	find $(AK_IMPORT_DATA) -type d -print
 
-list-load:
+list-transform: check-docker
+	find $(AK_TRANSFORM_DATA) -type d -print
+
+list-load: check-docker
 	find $(AK_DATA_LOAD) -type d -print
 
-create-sql-airrkb:
+create-sql-airrkb: outside-docker
 	docker run -v $(PWD):/work --network ak-db-network -it postgres:16 psql $(PG_CONN) -c "create database $(POSTGRES_DB);"
 	docker run -v $(PWD):/work --network ak-db-network -it postgres:16 psql $(PG_AK_CONN) -f /work/ak-schema/project/sqlddl/ak_schema_modify.sql
 #	docker run -v $(PWD):/work --network ak-db-network -it postgres:16 psql $(PG_AK_CONN) -f /work/ak-schema/project/sqlddl/ak_schema_postgres.sql
 
-drop-sql-airrkb:
+drop-sql-airrkb: outside-docker
 	docker run -v $(PWD):/work --network ak-db-network -it postgres:16 psql $(PG_CONN) -c "drop database $(POSTGRES_DB);"
 
-load-ontology:
+load-ontology: outside-docker
 	@bash ontology_load.sh BiomedicalInvestigations
 	@bash ontology_load.sh Cells
 	@bash ontology_load.sh Diseases
@@ -352,23 +389,16 @@ load-ontology:
 	@bash ontology_load.sh UberAnatomy
 	@bash ontology_load.sh Units
 
-load-iedb-data:
+load-iedb-data: outside-docker
 	@bash iedb_load.sh
 
-load-adc-%:
+load-adc-%: outside-docker
 	@bash adc_load.sh $*
 
 load-adc-data: $(ADC_LOAD_TARGETS)
 
-load-clean:
-	rm -f $(AK_DATA_LOAD)/*.yaml
-	rm -f $(AK_DATA_LOAD)/*.jsonl
-	rm -f $(AK_DATA_LOAD)/*.csv
-	rm -rf $(AK_DATA_LOAD)/iedb
-	rm -rf $(AK_DATA_LOAD)/adc
+load-clean: check-docker
+	rm -r $(AK_DATA_LOAD)
 
-transform-clean:
-	rm -rf $(IEDB_TRANSFORM_DATA)/iedb_tsv
-	rm -rf $(IEDB_TRANSFORM_DATA)/iedb_jsonl
-	rm -rf $(ADC_TRANSFORM_DATA)/adc_tsv
-	rm -rf $(ADC_TRANSFORM_DATA)/adc_jsonl
+transform-clean: check-docker
+	rm -r $(AK_TRANSFORM_DATA)

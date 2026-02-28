@@ -9,7 +9,7 @@ if [[ "x$CACHE_ID" == "x" ]] ; then
     echo "Study cache ID must be provided."
     exit 1
 fi
-AIRRKB_IMPORT=${IMPORT_DATA}/ak-data-import/ak-data-load/adc/adc_tsv/${CACHE_ID}
+AIRRKB_IMPORT=${AIRRKB_LOAD}/adc/adc_tsv/${CACHE_ID}
 
 docker run -v ${AIRRKB_IMPORT}:/ak_data --network ak-db-network -it postgres:16 psql ${PG_AK_CONN} -c "DROP TABLE IF EXISTS tmp_table;"
 

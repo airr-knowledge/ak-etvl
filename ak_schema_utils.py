@@ -39,7 +39,7 @@ IEDB_IMPORT_DATA = os.environ.get('IEDB_IMPORT_DATA')
 if not IEDB_IMPORT_DATA:
     print("IEDB_IMPORT_DATA is not defined.")
     
-IEDB_TRANSFORM_DATA = os.environ.get('IEDB_TRANSFORM_DATA', '/ak_data')
+IEDB_TRANSFORM_DATA = os.environ.get('IEDB_TRANSFORM_DATA')
 if not IEDB_TRANSFORM_DATA:
     print("IEDB_TRANSFORM_DATA is not defined.")
 
