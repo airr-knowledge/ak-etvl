@@ -167,6 +167,7 @@ help:
 	@echo "make create-sql-airrkb  -- Create airrkb (version: $(POSTGRES_DB))"
 	@echo ""
 	@echo "make ak-ontology        -- Build AK ontology"
+	@echo "make ak-ontology-utsw   -- Build AK ontology (using UTSW proxy config)"
 	@echo "make ontology-export    -- Generate ontology export files"
 	@echo "make ontology-copy      -- Copy ontology export files to DB load directory (run within docker)"
 	@echo "make load-ontology      -- Load ontology data into airrkb"
@@ -353,6 +354,10 @@ vdjbase-transform: ak_schema.py | $(VDJBASE_DATA)/vdjbase_tsv/
 .PHONY: ak-ontology
 ak-ontology: outside-docker
 	cd ak-ontology/src/ontology; sh run.sh make
+
+.PHONY: ak-ontology
+ak-ontology-utsw: outside-docker
+	cd ak-ontology/src/ontology; cp run.sh.conf.utsw run.sh.conf; sh run.sh make
 
 .PHONY: ontology-export
 ontology-export: outside-docker
