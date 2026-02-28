@@ -8,6 +8,7 @@ PG_AK_CONN=postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@$(POSTGRES_HOST)/$
 PG_DISPLAY_CONN=postgresql://$(POSTGRES_USER):XXXXXX@$(POSTGRES_HOST)/$(POSTGRES_DB)
 export IMPORT_DATA
 export PG_AK_CONN
+export POSTGRES_DB
 
 # docker maps this path to the local host where the data resides
 AK_DATA=/ak_data
@@ -35,6 +36,8 @@ export AK_DATA_LOAD
 AIRRKB_LOAD=$(IMPORT_DATA)/ak-data-import/ak-data-load/$(POSTGRES_DB)
 export AIRRKB_LOAD
 
+
+export AK_DATA_LOAD
 
 # TODO: studies are hard-coded, matching list in ak_schema_utils.py
 # study list for ADC rearrangements
@@ -168,7 +171,7 @@ help:
 	@echo "make ontology-copy      -- Copy ontology export files to DB load directory (run within docker)"
 	@echo "make load-ontology      -- Load ontology data into airrkb"
 	@echo ""
-	@echo "make load-iedb-data     -- Load IEDB data into airrkb"
+	@echo "make load-iedb-data     -- Load IEDB data into airrkb (version: $(POSTGRES_DB))"
 	@echo ""
 	@echo "make load-adc-CACHE_ID  -- Load ADC data into airrkb for study CACHE_ID"
 	@echo "make load-adc-data      -- Load all ADC data into airrkb"
