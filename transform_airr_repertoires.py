@@ -74,12 +74,29 @@ def transform_airr_repertoires(repertoire_filename, container):
             archival_id = archival_id.replace('BioProject: ', '')
 
         if archival_id not in investigations:
+            # convert investigation type from NCIT to OBI
+            study_type = adc_ontology(rep['study']['study_type'])
+            if study_type == 'NCIT:C15197': # case-control
+                investigation_type = 'OBI:0003692'
+            elif study_type == 'NCIT:C15273': # longitudinal
+                investigation_type = 'OBI:0003694'
+            elif study_type == 'NCIT:C15601': # phase II clinical trial
+                investigation_type = 'OBI:0003701'
+            elif study_type == 'NCIT:C16084': # observational
+                investigation_type = 'OBI:0003693'
+            elif study_type == 'NCIT:C63536': # generic
+                investigation_type = 'OBI:0000066'
+            elif study_type == 'NCIT:C93130': # animal
+                investigation_type = 'OBI:0003696'
+            else:
+                investigation_type = study_type
+
             investigation = Investigation(
                 akc_id(),
                 name=rep['study'].get('study_title'),
                 description=rep['study'].get('study_description'),
                 archival_id=archival_id,
-                investigation_type=adc_ontology(rep['study']['study_type']),
+                investigation_type=investigation_type,
                 inclusion_exclusion_criteria=rep['study'].get('inclusion_exclusion_criteria'),
                 release_date=to_datetime(rep['study'].get('adc_release_date')),
                 update_date=to_datetime(rep['study'].get('adc_update_date'))
