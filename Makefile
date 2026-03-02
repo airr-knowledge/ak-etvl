@@ -45,12 +45,10 @@ IPA_TCR_CACHE_LIST=1546893841758097901-242ac11b-0001-012 \
     1589929414064017901-242ac11b-0001-012 \
     1631719445854097901-242ac11b-0001-012 \
     1665177241089937901-242ac11b-0001-012 \
-    1703144751986577901-242ac11b-0001-012 \
     1818767539323343341-242ac11b-0001-012 \
     2190435173075840530-242ac118-0001-012 \
     3791830297704337901-242ac11b-0001-012 \
     4896275633090653715-242ac11b-0001-012 \
-    5034739262512754195-242ac11b-0001-012 \
     5524076507527057901-242ac11b-0001-012 \
     5573468631431057901-242ac11b-0001-012 \
     5626983923939217901-242ac11b-0001-012 \
@@ -75,6 +73,10 @@ IPA_TCR_CACHE_LIST=1546893841758097901-242ac11b-0001-012 \
 
 # missing locus
 #    5919600045815697901-242ac11b-0001-012 \
+
+# multiple IDs in disease_diagnosis
+#    1703144751986577901-242ac11b-0001-012 \
+#    5034739262512754195-242ac11b-0001-012 \
 
 VDJSERVER_TCR_CACHE_LIST=2314581927515778580-242ac117-0001-012 \
     2531647238962745836-242ac114-0001-012 \
@@ -104,7 +106,7 @@ ADC_CACHE_LIST=$(VDJSERVER_TCR_CACHE_LIST) $(IPA_TCR_CACHE_LIST)
 ADC_TRANSFORM_TARGETS := $(addprefix adc-transform-,$(ADC_CACHE_LIST))
 ADC_TRANSFORM_REPERTOIRE_TARGETS := $(addprefix adc-transform-repertoire-,$(ADC_CACHE_LIST))
 ADC_TRANSFORM_CHAIN_TARGETS := $(addprefix adc-transform-chain-,$(ADC_CACHE_LIST))
-ADC_LOAD_TARGETS := $(addprefix load-adc-,$(ADC_CACHE_LIST))
+ADC_LOAD_TARGETS := $(addprefix load-adc-data-,$(ADC_CACHE_LIST))
 
 # note: "help" MUST be the first target in the file, so
 # when the user types "make" they get help info by default
@@ -174,8 +176,8 @@ help:
 	@echo ""
 	@echo "make load-iedb-data     -- Load IEDB data into airrkb (version: $(POSTGRES_DB))"
 	@echo ""
-	@echo "make load-adc-CACHE_ID  -- Load ADC data into airrkb for study CACHE_ID"
-	@echo "make load-adc-data      -- Load all ADC data into airrkb"
+	@echo "make load-adc-data-CACHE_ID  -- Load ADC data into airrkb for study CACHE_ID"
+	@echo "make load-adc-data           -- Load all ADC data into airrkb"
 	@echo "------------------------------------------------------------"
 	@echo ""
 
@@ -228,6 +230,7 @@ ak_schema.py: check-docker ak-schema/project/linkml/ak_schema.yaml
 
 list-adc-cache:
 	@echo $(ADC_CACHE_LIST)
+	@echo $(ADC_LOAD_TARGETS)
 
 #
 # Data extraction
@@ -400,7 +403,7 @@ load-ontology: outside-docker
 load-iedb-data: outside-docker
 	@bash iedb_load.sh
 
-load-adc-%: outside-docker
+load-adc-data-%: outside-docker
 	@bash adc_load.sh $*
 
 load-adc-data: $(ADC_LOAD_TARGETS)
