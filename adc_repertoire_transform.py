@@ -9,8 +9,8 @@ from ak_schema_utils import (
     write_jsonl,
     write_csv,
     write_all_relationships,
-    adc_data_dir,
-    adc_cache_dir
+    ADC_IMPORT_DATA,
+    ADC_TRANSFORM_DATA
 )
 from transform_airr_repertoires import transform_airr_repertoires
 
@@ -28,15 +28,15 @@ def repertoire_transform(cache_id):
 
     study = cache_id
     
-    container = transform_airr_repertoires(adc_cache_dir + '/' + study + '/repertoires.airr.json', AIRRKnowledgeCommons())
+    container = transform_airr_repertoires(ADC_IMPORT_DATA + '/' + study + '/repertoires.airr.json', AIRRKnowledgeCommons())
     
     # output data for just this study
-    directory_name = f'{adc_data_dir}/adc_jsonl/{study}'
+    directory_name = f'{ADC_TRANSFORM_DATA}/adc_jsonl/{study}'
     try:
         os.mkdir(directory_name)
     except FileExistsError:
         pass
-    directory_name = f'{adc_data_dir}/adc_tsv/{study}'
+    directory_name = f'{ADC_TRANSFORM_DATA}/adc_tsv/{study}'
     try:
         os.mkdir(directory_name)
     except FileExistsError:
@@ -51,11 +51,11 @@ def repertoire_transform(cache_id):
             continue
         container_slot = ak_schema_view.get_slot(container_field)
         tname = container_slot.range
-        write_jsonl(container, container_field, f'{adc_data_dir}/adc_jsonl/{study}/{tname}.jsonl')
-        write_csv(container, container_field, f'{adc_data_dir}/adc_tsv/{study}/{tname}.csv')
+        write_jsonl(container, container_field, f'{ADC_TRANSFORM_DATA}/adc_jsonl/{study}/{tname}.jsonl')
+        write_csv(container, container_field, f'{ADC_TRANSFORM_DATA}/adc_tsv/{study}/{tname}.csv')
 
     # CSV relationships
-    write_all_relationships(container, f'{adc_data_dir}/adc_tsv/{study}/')
+    write_all_relationships(container, f'{ADC_TRANSFORM_DATA}/adc_tsv/{study}/')
 
 
 if __name__ == "__main__":

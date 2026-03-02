@@ -51,7 +51,7 @@ def receptor_integrate(cache_id):
     # load AK Assay for study
     print("load AK Assay for study")
     assays = {}
-    assay_file = f'{adc_data_dir}/adc_jsonl/{study}/Assay.jsonl'
+    assay_file = f'{ADC_TRANSFORM_DATA}/adc_jsonl/{study}/Assay.jsonl'
     print(assay_file)
     with open(assay_file, 'r') as f:
         for line in f:
@@ -70,7 +70,7 @@ def receptor_integrate(cache_id):
 
     # Load the AIRR data
     row_cnt = 0
-    data = airr.read_airr(adc_cache_dir + '/' + study + '/repertoires.airr.json')
+    data = airr.read_airr(ADC_IMPORT_DATA + '/' + study + '/repertoires.airr.json')
     cell_id = {}
 
     # Info within Info is IPA
@@ -107,7 +107,7 @@ def receptor_integrate(cache_id):
         prod_cnt = 0
         line_cnt = 0
         first = True
-        reader = gzip.open(adc_cache_dir + '/' + study + '/' + rep['repertoire_id'] + '.airr.tsv.gz', 'rt')
+        reader = gzip.open(ADC_IMPORT_DATA + '/' + study + '/' + rep['repertoire_id'] + '.airr.tsv.gz', 'rt')
         for line in reader:
             line_cnt += 1
             if first:
@@ -175,6 +175,7 @@ def receptor_integrate(cache_id):
 
             if not paired_chain:
                 receptor = make_receptor(container, [chain, None])
+                make_complex(container, receptor, None, None)
                 if type(receptor) == AlphaBetaTCR:
                     tcell_receptors.add(receptor.akc_id)
                 elif type(receptor) == GammaDeltaTCR:
@@ -215,6 +216,7 @@ def receptor_integrate(cache_id):
                 else: # 2 chains, obvious case
                     dist[1] += 1
                     receptor = make_receptor(container, cell_id[c])
+                    make_complex(container, receptor, None, None)
                     if type(receptor) == AlphaBetaTCR:
                         tcell_receptors.add(receptor.akc_id)
                     elif type(receptor) == GammaDeltaTCR:
@@ -257,18 +259,19 @@ def receptor_integrate(cache_id):
                 #print(lenc)
                 #print(cell_id[c])
                 receptor = make_receptor(container, cell_id[c])
+                make_complex(container, receptor, None, None)
                 if type(receptor) == AlphaBetaTCR:
                     tcell_receptors.add(receptor.akc_id)
                 elif type(receptor) == GammaDeltaTCR:
                     tcell_receptors.add(receptor.akc_id)
 
     # output data for just this study
-    directory_name = f'{adc_data_dir}/adc_jsonl/{study}'
+    directory_name = f'{ADC_TRANSFORM_DATA}/adc_jsonl/{study}'
     try:
         os.mkdir(directory_name)
     except FileExistsError:
         pass
-    directory_name = f'{adc_data_dir}/adc_tsv/{study}'
+    directory_name = f'{ADC_TRANSFORM_DATA}/adc_tsv/{study}'
     try:
         os.mkdir(directory_name)
     except FileExistsError:
@@ -295,18 +298,18 @@ def receptor_integrate(cache_id):
 
     # Write everything to JSONL
     for container_field in container_fields:
-        write_jsonl(container, container_field, f'{adc_data_dir}/adc_jsonl/{study}/{container_field}.jsonl')
+        write_jsonl(container, container_field, f'{ADC_TRANSFORM_DATA}/adc_jsonl/{study}/{container_field}.jsonl')
 
     # Write everything to CSV
     for container_field in container_fields:
         container_slot = ak_schema_view.get_slot(container_field)
         tname = container_slot.range
         fname = tname + '.csv'
-        write_csv(container, container_field, f'{adc_data_dir}/adc_tsv/{study}/{fname}')
+        write_csv(container, container_field, f'{ADC_TRANSFORM_DATA}/adc_tsv/{study}/{fname}')
 
     # assay relationships
-    write_relationship_csv('Assay', assays, 'tcell_receptors', f'{adc_data_dir}/adc_tsv/{study}/')
-    write_relationship_csv('Assay', assays, 'tcell_chains', f'{adc_data_dir}/adc_tsv/{study}/')
+    write_relationship_csv('Assay', assays, 'tcell_receptors', f'{ADC_TRANSFORM_DATA}/adc_tsv/{study}/')
+    write_relationship_csv('Assay', assays, 'tcell_chains', f'{ADC_TRANSFORM_DATA}/adc_tsv/{study}/')
 
 if __name__ == "__main__":
     receptor_integrate()

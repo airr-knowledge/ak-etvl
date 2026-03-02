@@ -3,7 +3,7 @@
 # IMPORT_DATA
 # PG_AK_CONN
 
-AIRRKB_IMPORT=${IMPORT_DATA}/ak-data-import/ak-data-load/iedb/iedb_tsv
+AIRRKB_IMPORT=${AIRRKB_LOAD}/iedb/iedb_tsv
 
 docker run -v ${AIRRKB_IMPORT}:/ak_data --network ak-db-network -it postgres:16 psql ${PG_AK_CONN} -c "DROP TABLE IF EXISTS tmp_table;"
 
