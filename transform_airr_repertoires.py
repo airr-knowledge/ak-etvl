@@ -158,11 +158,21 @@ def transform_airr_repertoires(repertoire_filename, container):
             participant = container['participants'][participant_id]
         else:
             sub = rep['subject']
+            sex = sub.get('sex')
+            if sex == 'male':
+                sex = 'PATO:0020001'
+            elif sex == 'female':
+                sex = 'PATO:0020002'
+            elif sex == 'pooled':
+                sex = 'PATO:0020000'
+            else:
+                sex = None
+
             participant = Participant(
                 akc_id(),
                 name=sub['subject_id'],
                 species=adc_ontology(sub.get('species')),
-                sex=sub.get('sex'),
+                sex=sex,
                 age=sub.get('age_min'),
                 # age_max=sub['age_max'],
                 age_event=sub.get('age_event'),
