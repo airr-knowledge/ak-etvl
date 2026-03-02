@@ -1,0 +1,5 @@
+.env
+ak-ontology/src/ontology/imports
+ak-ontology/src/ontology/exports
+ak-ontology/src/ontology/tmp
+ak-ontology/src/ontology/mirror

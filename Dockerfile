@@ -1,8 +1,10 @@
 # set base image (host OS)
-FROM python:3.9
+FROM python:3.9.23
 
 # Install jq so we can process JSON
-RUN apt-get update && apt-get install jq -y
+RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install -y --fix-missing \
+    jq \
+    nano
 
 # https://stackoverflow.com/questions/53835198/integrating-python-poetry-with-docker
 ENV YOUR_ENV=${YOUR_ENV} \
@@ -14,6 +16,9 @@ ENV YOUR_ENV=${YOUR_ENV} \
   PIP_DEFAULT_TIMEOUT=100 \
   POETRY_VIRTUALENVS_CREATE=false \
   POETRY_VERSION=1.1.13
+
+# flag for being in docker
+ENV AKC_DOCKER=1
 
 # System deps:
 RUN pip install "poetry==$POETRY_VERSION"
