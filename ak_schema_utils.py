@@ -20,11 +20,12 @@ from linkml_runtime.loaders import json_loader, yaml_loader
 from ak_schema import *
 
 from linkml.validator import Validator, validate
-from linkml.validator.plugins import PydanticValidationPlugin
+from linkml.validator.plugins import PydanticValidationPlugin, JsonschemaValidationPlugin
 
 validator = Validator(
     schema="ak-schema/project/linkml/ak_schema.yaml",
-    validation_plugins=[PydanticValidationPlugin()]
+#    validation_plugins=[PydanticValidationPlugin()]
+    validation_plugins=[JsonschemaValidationPlugin(closed=True)]
 )
 
 
@@ -367,10 +368,7 @@ def make_chain_from_iedb(row, chain_name):
     #print(row)
     chain = row[chain_name]
     species = url_to_curie(chain['Organism IRI'])
-    # junction_aa = chain['junction_aa']
-    cdr3 = chain['CDR3 Calculated'] or chain['CDR3 Curated']
-    # if cdr3 and cdr3.startswith('C') and (cdr3.endswith('F') or cdr3.endswith('W')):
-    junction_aa = cdr3
+    junction_aa=safe_get_field(chain, ["Junction Calculated"])
 
     # calculate exact match hashes
     # exact nucleotide sequence match, most stringent
@@ -388,7 +386,7 @@ def make_chain_from_iedb(row, chain_name):
     # TODO: maintain source_uri?
     #tcr_curie = curie(row['Receptor']['Group IRI'])
 
-    c =  Chain(
+    c = Chain(
         f'{nt_hash_id}',
         species = species,
         aa_hash = aa_hash,
@@ -403,15 +401,10 @@ def make_chain_from_iedb(row, chain_name):
         junction_aa=junction_aa,
         cdr1_aa=safe_get_field(chain, ["CDR1 Calculated", "CDR1 Curated"]),
         cdr2_aa=safe_get_field(chain, ["CDR2 Calculated", "CDR2 Curated"]),
-        cdr3_aa=safe_get_field(chain, ["CDR3 Calculated", "CDR3 Curated"]),
-        #cdr1_start=safe_get_int_field(chain, ["CDR1 Start Calculated", "CDR1 Start Curated"]),
-        #cdr1_end=safe_get_int_field(chain, ["CDR1 End Calculated", "CDR1 End Curated"]),
-        #cdr2_start=safe_get_int_field(chain, ["CDR2 Start Calculated", "CDR2 Start Curated"]),
-        #cdr2_end=safe_get_int_field(chain, ["CDR2 End Calculated", "CDR2 End Curated"]),
-        #cdr3_start=safe_get_int_field(chain, ["CDR3 Start Calculated", "CDR3 Start Curated"]),
-        #cdr3_end=safe_get_int_field(chain, ["CDR3 End Calculated", "CDR3 End Curated"]),
+        cdr3_aa=safe_get_field(chain, ["CDR3 Calculated", "CDR3 Curated"])
     )
 
+    # validate chain
     s = json.loads(json_dumper.dumps(c))
     del s['@type']
     report = validator.validate(s, "Chain")
