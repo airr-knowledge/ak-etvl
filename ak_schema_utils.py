@@ -19,6 +19,15 @@ from linkml_runtime.loaders import json_loader, yaml_loader
 
 from ak_schema import *
 
+from linkml.validator import Validator, validate
+from linkml.validator.plugins import PydanticValidationPlugin
+
+validator = Validator(
+    schema="ak-schema/project/linkml/ak_schema.yaml",
+    validation_plugins=[PydanticValidationPlugin()]
+)
+
+
 # for access to linkml metadata for the AK schema
 ak_schema_view = SchemaView("ak-schema/project/linkml/ak_schema.yaml")
 
@@ -342,10 +351,10 @@ def make_chain_from_iedb(row, chain_name):
     #print(row)
     chain = row[chain_name]
     species = url_to_curie(chain['Organism IRI'])
-    junction_aa = None
+    # junction_aa = chain['junction_aa']
     cdr3 = chain['CDR3 Calculated'] or chain['CDR3 Curated']
-    if cdr3 and cdr3.startswith('C') and (cdr3.endswith('F') or cdr3.endswith('W')):
-        junction_aa = cdr3
+    # if cdr3 and cdr3.startswith('C') and (cdr3.endswith('F') or cdr3.endswith('W')):
+    junction_aa = cdr3
 
     # calculate exact match hashes
     # exact nucleotide sequence match, most stringent
@@ -387,15 +396,22 @@ def make_chain_from_iedb(row, chain_name):
         cdr3_end=safe_get_int_field(chain, ["CDR3 End Calculated", "CDR3 End Curated"]),
     )
 
-    # exact CDR3 aa sequence and V and J alleles
-    if junction_aa and c['v_call'] and c['j_call']:
-        junction_aa_vj_allele_hash = junction_aa_vj_hash(junction_aa, c['v_call'], c['j_call'])
+    s = json.loads(json_dumper.dumps(c))
+    del s['@type']
+    report = validator.validate(s, "Chain")
+    if not report.results:
+        # exact CDR3 aa sequence and V and J alleles
+        if junction_aa and c['v_call'] and c['j_call']:
+            junction_aa_vj_allele_hash = junction_aa_vj_hash(junction_aa, c['v_call'], c['j_call'])
+        else:
+            junction_aa_vj_allele_hash = None
+        c['junction_aa_vj_allele_hash'] = junction_aa_vj_allele_hash
+        #junction_aa_vj_gene_hash = junction_aa_vj_hash(junction_aa, obj['v_gene'], obj['j_gene'])
+        return c
     else:
-        junction_aa_vj_allele_hash = None
-    c['junction_aa_vj_allele_hash'] = junction_aa_vj_allele_hash
-    #junction_aa_vj_gene_hash = junction_aa_vj_hash(junction_aa, obj['v_gene'], obj['j_gene'])
-
-    return c
+        for result in report.results:
+            print(result.message)
+        return None
 
 def make_receptor(container, chains):
 

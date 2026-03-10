@@ -16,6 +16,12 @@ from linkml_runtime.linkml_model.meta import EnumDefinition, PermissibleValue, S
 from linkml_runtime.dumpers import yaml_dumper, json_dumper, tsv_dumper
 from ak_schema import *
 from ak_schema_utils import *
+from linkml.validator import Validator, validate
+from linkml.validator.plugins import PydanticValidationPlugin
+validator = Validator(
+    schema="ak-schema/project/linkml/ak_schema.yaml",
+    validation_plugins=[PydanticValidationPlugin()]
+)
 
 # todo the other thing is that it's putting in ontology labels instead of IDs, this should be a simple fix, use the field with ontology URI and then there's function that James wrote to convert it to ontology curie
 
@@ -100,21 +106,23 @@ def convert(tcell_path, tcr_path, yaml_path):
         chain_2 = None
         if tcr_row[('Chain 1', 'Type')]:
             chain_1 = make_chain_from_iedb(tcr_row, 'Chain 1')
-            container.chains[chain_1.akc_id] = chain_1
-            for aid in assay_ids:
-                if assay_to_chain.get(aid) is None:
-                    assay_to_chain[aid] = [ chain_1.akc_id ]
-                else:
-                    assay_to_chain[aid].append(chain_1.akc_id)
+            if chain_1:
+                container.chains[chain_1.akc_id] = chain_1
+                for aid in assay_ids:
+                    if assay_to_chain.get(aid) is None:
+                        assay_to_chain[aid] = [ chain_1.akc_id ]
+                    else:
+                        assay_to_chain[aid].append(chain_1.akc_id)
             #chains.append(chain_1)
         if tcr_row[('Chain 2', 'Type')]:
             chain_2 = make_chain_from_iedb(tcr_row, 'Chain 2')
-            container.chains[chain_2.akc_id] = chain_2
-            for aid in assay_ids:
-                if assay_to_chain.get(aid) is None:
-                    assay_to_chain[aid] = [ chain_2.akc_id ]
-                else:
-                    assay_to_chain[aid].append(chain_2.akc_id)
+            if chain_2:
+                container.chains[chain_2.akc_id] = chain_2
+                for aid in assay_ids:
+                    if assay_to_chain.get(aid) is None:
+                        assay_to_chain[aid] = [ chain_2.akc_id ]
+                    else:
+                        assay_to_chain[aid].append(chain_2.akc_id)
             #chains.append(chain_2)
 
         if chain_1 or chain_2:
@@ -262,6 +270,16 @@ def convert(tcell_path, tcr_path, yaml_path):
             source_protein=url_to_curie(assay_row['Epitope']['Molecule Parent IRI']),
             source_organism=url_to_curie(assay_row['Epitope']['Source Organism IRI'])
         )
+        s = json.loads(json_dumper.dumps(epitope))
+        del s['@type']
+        report = validator.validate(s, "PeptidicEpitope")
+        if not report.results:
+            pass
+        else:
+            for result in report.results:
+                print(result.message)
+            # print("Continuing to the next epitope")
+            # continue
         # For each row in the TCR table that matches this assay ID, generate:
         # 2 chains
         # 1 receptor: AlphaBetaTCR or GammaDeltaTCR
