@@ -276,6 +276,22 @@ def junction_aa_vj_hash(junction_aa, v, j):
     h = hashlib.sha256(c.encode('ascii')).hexdigest()
     return h
 
+def tcr_complex_hash(receptor, epitope, mhc):
+    if receptor is not None:
+        h = receptor.akc_id
+    else:
+        h = 'AKC_ID:NULL'
+    if epitope is not None:
+        h = h + '|' + epitope.akc_id
+    else:
+        h = h + '|' + 'AKC_ID:NULL'
+    if mhc is not None:
+        h = h + '|' + mhc.akc_id
+    else:
+        h = h + '|' + 'AKC_ID:NULL'
+    hc = "AKC_HASH:" + seq_hash(h)
+    return hc
+
 def make_chain_from_adc(species, obj):
     if obj['locus'] not in [ 'TRB', 'TRA', 'TRD', 'TRG', 'IGH', 'IGK', 'IGL' ]:
         print('unhandled locus:', obj['locus'])
@@ -379,12 +395,12 @@ def make_chain_from_iedb(row, chain_name):
         cdr1_aa=safe_get_field(chain, ["CDR1 Calculated", "CDR1 Curated"]),
         cdr2_aa=safe_get_field(chain, ["CDR2 Calculated", "CDR2 Curated"]),
         cdr3_aa=safe_get_field(chain, ["CDR3 Calculated", "CDR3 Curated"]),
-        cdr1_start=safe_get_int_field(chain, ["CDR1 Start Calculated", "CDR1 Start Curated"]),
-        cdr1_end=safe_get_int_field(chain, ["CDR1 End Calculated", "CDR1 End Curated"]),
-        cdr2_start=safe_get_int_field(chain, ["CDR2 Start Calculated", "CDR2 Start Curated"]),
-        cdr2_end=safe_get_int_field(chain, ["CDR2 End Calculated", "CDR2 End Curated"]),
-        cdr3_start=safe_get_int_field(chain, ["CDR3 Start Calculated", "CDR3 Start Curated"]),
-        cdr3_end=safe_get_int_field(chain, ["CDR3 End Calculated", "CDR3 End Curated"]),
+        #cdr1_start=safe_get_int_field(chain, ["CDR1 Start Calculated", "CDR1 Start Curated"]),
+        #cdr1_end=safe_get_int_field(chain, ["CDR1 End Calculated", "CDR1 End Curated"]),
+        #cdr2_start=safe_get_int_field(chain, ["CDR2 Start Calculated", "CDR2 Start Curated"]),
+        #cdr2_end=safe_get_int_field(chain, ["CDR2 End Calculated", "CDR2 End Curated"]),
+        #cdr3_start=safe_get_int_field(chain, ["CDR3 Start Calculated", "CDR3 Start Curated"]),
+        #cdr3_end=safe_get_int_field(chain, ["CDR3 End Calculated", "CDR3 End Curated"]),
     )
 
     # exact CDR3 aa sequence and V and J alleles
@@ -552,13 +568,15 @@ def make_complex(container, receptor, epitope, mhc):
         mhc_id = mhc.akc_id
     
     if type(receptor) == AlphaBetaTCR:
-        tcr_complex = TCRpMHCComplex(akc_id(), tcr=receptor_id, epitope=epitope_id, mhc=mhc_id)
+        tcr_complex = TCRpMHCComplex(tcr_complex_hash(receptor, epitope, mhc), tcr=receptor_id, epitope=epitope_id, mhc=mhc_id)
     elif type(receptor) == GammaDeltaTCR:
-        tcr_complex = TCRpMHCComplex(akc_id(), tcr=receptor_id, epitope=epitope_id, mhc=mhc_id)
+        tcr_complex = TCRpMHCComplex(tcr_complex_hash(receptor, epitope, mhc), tcr=receptor_id, epitope=epitope_id, mhc=mhc_id)
+    else:
+        print('ERROR: could not make TCR complex')
 
     if tcr_complex:
-        container.tcr_complex[tcr_complex.akc_id] = tcr_complex
-
+        container.tcr_complexes[tcr_complex.akc_id] = tcr_complex
+    return tcr_complex
 
 
 def check_three(chains):

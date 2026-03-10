@@ -222,7 +222,7 @@ show-paths:
 
 .PHONY: ak-schema
 ak-schema: check-docker
-	cd ak-schema; make all; make install
+	cd ak-schema; make all; make install; make sqlddl
 
 # generate python dataclasses from schema
 ak_schema.py: check-docker ak-schema/project/linkml/ak_schema.yaml
@@ -270,7 +270,7 @@ $(IEDB_TRANSFORM_DATA)/iedb_tsv/: check-docker
 
 iedb-tcr: check-docker $(IEDB_TRANSFORM_DATA)/iedb_tcr.yaml
 
-$(IEDB_TRANSFORM_DATA)/iedb_tcr.yaml: ak_schema.py iedb_transform.py $(IEDB_IMPORT_DATA)/tcell_full_v3.tsv $(IEDB_IMPORT_DATA)/tcr_full_v3.tsv | $(IEDB_TRANSFORM_DATA)/iedb_tsv/
+$(IEDB_TRANSFORM_DATA)/iedb_tcr.yaml: ak_schema.py iedb_transform.py $(IEDB_IMPORT_DATA)/tcell_full_v3.tsv $(IEDB_IMPORT_DATA)/tcr_full_v4.csv | $(IEDB_TRANSFORM_DATA)/iedb_tsv/
 	python3 $(wordlist 2,4,$^) $@
 
 iedb-bcr: check-docker
@@ -386,7 +386,9 @@ list-load: check-docker
 
 create-sql-airrkb: outside-docker
 	docker run -v $(PWD):/work --network ak-db-network -it postgres:16 psql $(PG_CONN) -c "create database $(POSTGRES_DB);"
-	docker run -v $(PWD):/work --network ak-db-network -it postgres:16 psql $(PG_AK_CONN) -f /work/ak-schema/project/sqlddl/ak_schema_modify.sql
+	docker run -v $(PWD):/work --network ak-db-network -it postgres:16 psql $(PG_AK_CONN) -f /work/ak-schema/project/sqlddl/ak_schema.sql
+	docker run -v $(PWD):/work --network ak-db-network -it postgres:16 psql $(PG_AK_CONN) -f /work/ak-schema/project/sqlddl/ak_schema_alter.sql
+#	docker run -v $(PWD):/work --network ak-db-network -it postgres:16 psql $(PG_AK_CONN) -f /work/ak-schema/project/sqlddl/ak_schema_modify.sql
 #	docker run -v $(PWD):/work --network ak-db-network -it postgres:16 psql $(PG_AK_CONN) -f /work/ak-schema/project/sqlddl/ak_schema_postgres.sql
 
 drop-sql-airrkb: outside-docker

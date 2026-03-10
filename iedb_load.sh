@@ -7,7 +7,7 @@ AIRRKB_IMPORT=${AIRRKB_LOAD}/iedb/iedb_tsv
 
 docker run -v ${AIRRKB_IMPORT}:/ak_data --network ak-db-network -it postgres:16 psql ${PG_AK_CONN} -c "DROP TABLE IF EXISTS tmp_table;"
 
-TABLE_NAMES=(Chain AlphaBetaTCR GammaDeltaTCR BCellReceptor Investigation StudyArm Participant Reference StudyEvent LifeEvent ImmuneExposure Specimen Epitope Assay Investigation_assays AKDataSet Conclusion Investigation_participants Investigation_documents Investigation_conclusions Assay_tcell_receptors)
+TABLE_NAMES=(Chain AlphaBetaTCR GammaDeltaTCR BCellReceptor TCRpMHCComplex Investigation StudyArm Participant Reference StudyEvent LifeEvent ImmuneExposure Specimen Epitope Assay Investigation_assays AKDataSet Conclusion Investigation_participants Investigation_documents Investigation_conclusions Assay_tcr_complexes)
 count=0
 for tname in "${TABLE_NAMES[@]}"; do
     file=${tname}.csv
@@ -15,6 +15,7 @@ for tname in "${TABLE_NAMES[@]}"; do
     echo $path
     headers=$(head -n 1 ${path})
 
+    # manually change table name for loading, until linkml supports single table inheritance
     if [[ $tname = "AlphaBetaTCR" ]]
     then
        tname=TCellReceptor
