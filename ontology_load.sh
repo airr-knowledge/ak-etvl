@@ -11,9 +11,14 @@ docker run -v ${AIRRKB_IMPORT}:/ak_data --network ak-db-network -it postgres:16 
 TERM_TABLE_NAME="$1"
 PARENT_TABLE_NAME="${TERM_TABLE_NAME}_parent"
 
-term_file="${TERM_TABLE_NAME}.csv"
-parent_term_file="${PARENT_TABLE_NAME}.csv"
-
+FILE_NAME="$2"
+if [ -z "${FILE_NAME}" ]; then
+    term_file="${TERM_TABLE_NAME}.csv"
+    parent_term_file="${PARENT_TABLE_NAME}.csv"
+else
+    term_file="${FILE_NAME}.csv"
+    parent_term_file="${FILE_NAME}_parent.csv"
+fi
 term_path=${AIRRKB_IMPORT}/${term_file}
 parent_term_path=${AIRRKB_IMPORT}/${parent_term_file}
 

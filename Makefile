@@ -398,6 +398,7 @@ load-ontology: outside-docker
 	@bash ontology_load.sh BiomedicalInvestigations
 	@bash ontology_load.sh Cells
 	@bash ontology_load.sh Diseases
+	@bash ontology_load.sh Diseases ONTIE_Diseases
 	@bash ontology_load.sh PhenotypeAndTraits
 	@bash ontology_load.sh UberAnatomy
 	@bash ontology_load.sh Units
