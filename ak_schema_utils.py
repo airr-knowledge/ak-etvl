@@ -630,38 +630,68 @@ def to_datetime(value):
         return None
     return parser.isoparse(value)
 
-# load AKC json and put into provided container
-def load_akc_objects(container, container_field, container_class):
+def load_akc_objects(container, container_field, container_class, path):
     container_slot = ak_schema_view.get_slot(container_field)
     tname = container_slot.range
-    for study in cache_list:
-        akc_file = f'{ADC_TRANSFORM_DATA}/adc_jsonl/{study}/{tname}.jsonl'
-        with open(akc_file, 'r') as f:
-            for line in f:
-                #print(line)
-                x = json.loads(line)
-                y = json_loader.load_any(x[container_field], container_class)
-                if container_field == 'references':
-                    if container[container_field].get(y.source_uri) is None:
-                        container[container_field][y.source_uri] = y
-                else:
-                    if container[container_field].get(y.akc_id) is None:
-                        container[container_field][y.akc_id] = y
+    akc_file = f'{path}/{tname}.jsonl'
+    with open(akc_file, 'r') as f:
+        for line in f:
+            #print(line)
+            x = json.loads(line)
+            y = json_loader.load_any(x[container_field], container_class)
+            if container_field == 'references':
+                if container[container_field].get(y.source_uri) is None:
+                    container[container_field][y.source_uri] = y
+            else:
+                if container[container_field].get(y.akc_id) is None:
+                    container[container_field][y.akc_id] = y
+
+# load up IEDB objects from the transformed AKC json
+def load_iedb_container(container, path):
     
-# load up ADC objects from the transformed AKC json
-def load_adc_container(container):
+    load_akc_objects(container, 'tcr_complexes', TCRpMHCComplex, path)
+    print(f"Loaded example data with {len(container['tcr_complexes'])} tcr_complexes")
+    load_akc_objects(container, 'investigations', Investigation, path)
+    print(f"Loaded example data with {len(container['investigations'])} investigations")
+    load_akc_objects(container, 'references', Reference, path)
+    load_akc_objects(container, 'study_arms', StudyArm, path)
+    load_akc_objects(container, 'study_events', StudyEvent, path)
+    load_akc_objects(container, 'participants', Participant, path)
+    load_akc_objects(container, 'life_events', LifeEvent, path)
+    load_akc_objects(container, 'immune_exposures', ImmuneExposure, path)
+    load_akc_objects(container, 'specimens', Specimen, path)
+    load_akc_objects(container, 'assays', TCellReceptorEpitopeBindingAssay, path)
+    load_akc_objects(container, 'ab_tcell_receptors', AlphaBetaTCR, path)
+    print(f"Loaded example data with {len(container['ab_tcell_receptors'])} AlphaBetaTCR")
+    load_akc_objects(container, 'epitopes', PeptidicEpitope, path)
+    print(f"Loaded example data with {len(container['epitopes'])} epitopes")
+    load_akc_objects(container, 'chains', Chain, path)
+    print(f"Loaded example data with {len(container['chains'])} chains")
+    return
+    
+def load_adc_container(container, path):
+    # path = '2314581927515778580-242ac117-0001-012'
+    # path = f'{ADC_TRANSFORM_DATA}/adc_jsonl/{study}/'
     # TODO: should just do a loop, but not sure how to get the class
-    load_akc_objects(container, 'investigations', Investigation)
-    load_akc_objects(container, 'references', Reference)
-    load_akc_objects(container, 'study_arms', StudyArm)
-    load_akc_objects(container, 'study_events', StudyEvent)
-    load_akc_objects(container, 'participants', Participant)
-    load_akc_objects(container, 'life_events', LifeEvent)
-    load_akc_objects(container, 'immune_exposures', ImmuneExposure)
-    load_akc_objects(container, 'specimens', Specimen)
+    load_akc_objects(container, 'tcr_complexes', TCRpMHCComplex, path)
+    print(f"Loaded example data with {len(container['tcr_complexes'])} tcr_complexes")
+    load_akc_objects(container, 'investigations', Investigation, path)
+    print(f"Loaded example data with {len(container['investigations'])} investigations")
+    load_akc_objects(container, 'references', Reference, path)
+    load_akc_objects(container, 'study_arms', StudyArm, path)
+    load_akc_objects(container, 'study_events', StudyEvent, path)
+    load_akc_objects(container, 'participants', Participant, path)
+    load_akc_objects(container, 'life_events', LifeEvent, path)
+    load_akc_objects(container, 'immune_exposures', ImmuneExposure, path)
+    load_akc_objects(container, 'specimens', Specimen, path)
     #load_akc_objects(container, 'specimen_processings', CellIsolationProcessing)
-    load_akc_objects(container, 'assays', AIRRSequencingAssay)
-    load_akc_objects(container, 'sequence_data', AIRRSequencingData)
+    load_akc_objects(container, 'assays', AIRRSequencingAssay, path)
+    print(f"Loaded example data with {len(container['assays'])} assays")
+    load_akc_objects(container, 'sequence_data', AIRRSequencingData, path)
+    load_akc_objects(container, 'ab_tcell_receptors', AlphaBetaTCR, path)
+    print(f"Loaded example data with {len(container['ab_tcell_receptors'])} AlphaBetaTCR")
+    load_akc_objects(container, 'chains', Chain, path)
+    print(f"Loaded example data with {len(container['chains'])} chains")
 
 def write_jsonl(container, container_field, outfile, exclude=None):
     print(outfile)

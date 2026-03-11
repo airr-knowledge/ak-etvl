@@ -211,6 +211,7 @@ def convert(tcell_path, tcr_path, yaml_path):
             description=f'study participant for assay {assay_id}',
             species=url_to_curie(assay_row['Host']['IRI']),
             sex=sex_to_curie(assay_row['Host']['Sex']),
+            study_arm=arm.akc_id,
             race=None,
             ethnicity=None,
             geolocation=None
@@ -332,7 +333,6 @@ def convert(tcell_path, tcr_path, yaml_path):
             specimen=specimen.akc_id,
             assay_type=url_to_curie(assay_row['Assay']['IRI']),  # TODO: use label
             epitope=epitope.akc_id,
-            tcell_receptors=list(set([t.akc_id for t in tcell_receptors])),
             tcr_complexes=list(set([t.akc_id for t in tcr_complexes])),
             measurement_category=assay_row['Assay']['Qualitative Measurement']
 #            measurement_value=convert_assay_measurement(assay_row['Assay']['Qualitative Measurement']),

@@ -150,6 +150,7 @@ help:
 	@echo "make iedb-tcr           -- Transform IEDB TCR export file"
 	@echo "make iedb-bcr           -- Transform IEDB BCR export file"
 	@echo "make iedb-copy          -- Copy transformed IEDB data to DB load directory"
+	@echo "make query-iedb         -- Create and save query object for IEDB"
 	@echo ""
 	@echo "make irad-bcr           -- Transform IRAD BCRs"
 	@echo ""
@@ -158,6 +159,7 @@ help:
 	@echo "make adc-transform-repertoire-CACHE_ID  -- Transform ADC repertoires for study CACHE_ID"
 	@echo "make adc-transform-chain-CACHE_ID       -- Transform ADC rearrangements for study CACHE_ID"
 	@echo "make adc-copy                           -- Copy transformed ADC data to DB load directory"
+	@echo "make query-adc-CACHE_ID      		   -- Create and save query object for study CACHE_ID"
 	@echo ""
 	@echo "make vdjbase-transform       -- Transform VDJbase genotypes"
 	@echo "------------------------------------------------------------"
@@ -276,6 +278,8 @@ $(IEDB_TRANSFORM_DATA)/iedb_tcr.yaml: ak_schema.py iedb_transform.py $(IEDB_IMPO
 iedb-bcr: check-docker
 	@echo "Not implemented."
 
+
+
 iedb-copy: check-docker
 	mkdir -p $(AK_DATA_LOAD)/iedb
 	cp -rf $(IEDB_TRANSFORM_DATA)/* $(AK_DATA_LOAD)/iedb
@@ -283,6 +287,8 @@ iedb-copy: check-docker
 # IRAD transform
 irad-bcr: check-docker
 	@echo "Not implemented."
+
+
 
 # ADC repertoire transform
 $(ADC_TRANSFORM_DATA)/adc_tsv/: check-docker
@@ -341,6 +347,17 @@ adc-transform: $(ADC_TRANSFORM_TARGETS)
 adc-copy: check-docker
 	mkdir -p $(AK_DATA_LOAD)/adc
 	cp -rf $(ADC_TRANSFORM_DATA)/* $(AK_DATA_LOAD)/adc
+
+
+# IEDB query object
+query-iedb:
+	echo "Running IEDB query"
+	python3 query_api_script.py query-iedb
+	
+# ADC query object
+query-adc-%:
+	echo "Running ADC query for CACHE-ID $*"
+	python query_api_script.py query-adc --cache-id=$*
 
 # VDJbase transform
 $(VDJBASE_DATA)/vdjbase_tsv/: check-docker

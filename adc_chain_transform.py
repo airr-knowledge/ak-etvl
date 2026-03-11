@@ -298,7 +298,10 @@ def receptor_integrate(cache_id):
 
     # Write everything to JSONL
     for container_field in container_fields:
-        write_jsonl(container, container_field, f'{ADC_TRANSFORM_DATA}/adc_jsonl/{study}/{container_field}.jsonl')
+        container_slot = ak_schema_view.get_slot(container_field)
+        tname = container_slot.range
+        if container_field in ['chains', 'ab_tcell_receptors', 'tcr_complexes', 'gd_tcell_receptors', 'bcell_receptors']:
+            write_jsonl(container, container_field, f'{ADC_TRANSFORM_DATA}/adc_jsonl/{study}/{tname}.jsonl')
 
     # Write everything to CSV
     for container_field in container_fields:
@@ -309,7 +312,6 @@ def receptor_integrate(cache_id):
 
     # assay relationships
     write_relationship_csv('Assay', assays, 'tcell_receptors', f'{ADC_TRANSFORM_DATA}/adc_tsv/{study}/')
-    write_relationship_csv('Assay', assays, 'tcell_chains', f'{ADC_TRANSFORM_DATA}/adc_tsv/{study}/')
 
 if __name__ == "__main__":
     receptor_integrate()
