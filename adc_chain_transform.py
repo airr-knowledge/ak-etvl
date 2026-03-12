@@ -176,7 +176,7 @@ def receptor_integrate(cache_id):
 
             if not paired_chain:
                 receptor = make_receptor(container, [chain, None])
-                trc_c = make_complex(container, receptor, None, None)
+                tcr_c = make_complex(container, receptor, None, None)
                 tcr_complexes.add(tcr_c.akc_id)
                 if type(receptor) == AlphaBetaTCR:
                     tcell_receptors.add(receptor.akc_id)
