@@ -220,6 +220,22 @@ def transform_airr_repertoires(repertoire_filename, container):
                         )
                         container.immune_exposures[ie.akc_id] = ie
 
+            # if no study group for participant, need to add to a placeholder study arm
+            if arm is None:
+                placeholder_name = 'placeholder study arm'
+                arm_id = arm_ids.get(placeholder_name)
+                if arm_id:
+                    arm = container.study_arms[arm_id]
+                else:
+                    arm = StudyArm(
+                        akc_id(),
+                        name=placeholder_name,
+                        investigation=investigation.akc_id
+                    )
+                    arm_ids[placeholder_name] = arm.akc_id
+                    container.study_arms[arm.akc_id] = arm
+                participant.study_arm = arm.akc_id
+
         # specimen processing
         for s in rep['sample']:
             sample_id = s.get('sample_id', rep['subject']['subject_id'])
