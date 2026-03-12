@@ -106,6 +106,7 @@ ADC_CACHE_LIST=$(VDJSERVER_TCR_CACHE_LIST) $(IPA_TCR_CACHE_LIST)
 ADC_TRANSFORM_TARGETS := $(addprefix adc-transform-,$(ADC_CACHE_LIST))
 ADC_TRANSFORM_REPERTOIRE_TARGETS := $(addprefix adc-transform-repertoire-,$(ADC_CACHE_LIST))
 ADC_TRANSFORM_CHAIN_TARGETS := $(addprefix adc-transform-chain-,$(ADC_CACHE_LIST))
+ADC_QUERY_TARGETS := $(addprefix query-adc-,$(ADC_CACHE_LIST))
 ADC_LOAD_TARGETS := $(addprefix load-adc-data-,$(ADC_CACHE_LIST))
 
 # note: "help" MUST be the first target in the file, so
@@ -149,17 +150,19 @@ help:
 	@echo ""
 	@echo "make iedb-tcr           -- Transform IEDB TCR export file"
 	@echo "make iedb-bcr           -- Transform IEDB BCR export file"
+	@echo "make iedb-query         -- Generate query objects for transformed IEDB data"
 	@echo "make iedb-copy          -- Copy transformed IEDB data to DB load directory"
-	@echo "make query-iedb         -- Create and save query object for IEDB"
 	@echo ""
 	@echo "make irad-bcr           -- Transform IRAD BCRs"
 	@echo ""
-	@echo "make adc-transform                      -- Transform ADC rearrangements for all studies"
+	@echo "make adc-transform                      -- Transform ADC repertoires and rearrangements for all studies"
+	@echo "make adc-transform-reperotire           -- Transform ADC repertoires for all studies"
 	@echo "make adc-transform-CACHE_ID             -- Transform ADC repertoires and rearrangements for study CACHE_ID"
 	@echo "make adc-transform-repertoire-CACHE_ID  -- Transform ADC repertoires for study CACHE_ID"
 	@echo "make adc-transform-chain-CACHE_ID       -- Transform ADC rearrangements for study CACHE_ID"
+	@echo "make query-adc                          -- Create and save query object for all studies"
+	@echo "make query-adc-CACHE_ID                 -- Create and save query object for study CACHE_ID"
 	@echo "make adc-copy                           -- Copy transformed ADC data to DB load directory"
-	@echo "make query-adc-CACHE_ID      		   -- Create and save query object for study CACHE_ID"
 	@echo ""
 	@echo "make vdjbase-transform       -- Transform VDJbase genotypes"
 	@echo "------------------------------------------------------------"
@@ -350,14 +353,19 @@ adc-copy: check-docker
 
 
 # IEDB query object
-query-iedb:
-	echo "Running IEDB query"
+iedb-query:
+	@echo "Generate IEDB query objects"
 	python3 query_api_script.py query-iedb
-	
+
 # ADC query object
 query-adc-%:
-	echo "Running ADC query for CACHE-ID $*"
+	@echo "Generate ADC query objects for study cache $*"
 	python query_api_script.py query-adc --cache-id=$*
+
+query-adc: $(ADC_QUERY_TARGETS)
+	@echo ""
+	@echo "DONE"
+	@echo ""
 
 # VDJbase transform
 $(VDJBASE_DATA)/vdjbase_tsv/: check-docker

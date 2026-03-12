@@ -646,52 +646,40 @@ def load_akc_objects(container, container_field, container_class, path):
                 if container[container_field].get(y.akc_id) is None:
                     container[container_field][y.akc_id] = y
 
-# load up IEDB objects from the transformed AKC json
-def load_iedb_container(container, path):
-    
-    load_akc_objects(container, 'tcr_complexes', TCRpMHCComplex, path)
-    print(f"Loaded example data with {len(container['tcr_complexes'])} tcr_complexes")
+# load up AK container objects
+def load_ak_container(container, path, load_type):
     load_akc_objects(container, 'investigations', Investigation, path)
-    print(f"Loaded example data with {len(container['investigations'])} investigations")
+    print(f"Loaded AK data with {len(container['investigations'])} investigations")
     load_akc_objects(container, 'references', Reference, path)
     load_akc_objects(container, 'study_arms', StudyArm, path)
     load_akc_objects(container, 'study_events', StudyEvent, path)
     load_akc_objects(container, 'participants', Participant, path)
     load_akc_objects(container, 'life_events', LifeEvent, path)
     load_akc_objects(container, 'immune_exposures', ImmuneExposure, path)
+    load_akc_objects(container, 'assessments', Assessment, path)
     load_akc_objects(container, 'specimens', Specimen, path)
-    load_akc_objects(container, 'assays', TCellReceptorEpitopeBindingAssay, path)
-    load_akc_objects(container, 'ab_tcell_receptors', AlphaBetaTCR, path)
-    print(f"Loaded example data with {len(container['ab_tcell_receptors'])} AlphaBetaTCR")
-    load_akc_objects(container, 'epitopes', PeptidicEpitope, path)
-    print(f"Loaded example data with {len(container['epitopes'])} epitopes")
-    load_akc_objects(container, 'chains', Chain, path)
-    print(f"Loaded example data with {len(container['chains'])} chains")
-    return
-    
-def load_adc_container(container, path):
-    # path = '2314581927515778580-242ac117-0001-012'
-    # path = f'{ADC_TRANSFORM_DATA}/adc_jsonl/{study}/'
-    # TODO: should just do a loop, but not sure how to get the class
-    load_akc_objects(container, 'tcr_complexes', TCRpMHCComplex, path)
-    print(f"Loaded example data with {len(container['tcr_complexes'])} tcr_complexes")
-    load_akc_objects(container, 'investigations', Investigation, path)
-    print(f"Loaded example data with {len(container['investigations'])} investigations")
-    load_akc_objects(container, 'references', Reference, path)
-    load_akc_objects(container, 'study_arms', StudyArm, path)
-    load_akc_objects(container, 'study_events', StudyEvent, path)
-    load_akc_objects(container, 'participants', Participant, path)
-    load_akc_objects(container, 'life_events', LifeEvent, path)
-    load_akc_objects(container, 'immune_exposures', ImmuneExposure, path)
-    load_akc_objects(container, 'specimens', Specimen, path)
-    #load_akc_objects(container, 'specimen_processings', CellIsolationProcessing)
-    load_akc_objects(container, 'assays', AIRRSequencingAssay, path)
-    print(f"Loaded example data with {len(container['assays'])} assays")
-    load_akc_objects(container, 'sequence_data', AIRRSequencingData, path)
-    load_akc_objects(container, 'ab_tcell_receptors', AlphaBetaTCR, path)
-    print(f"Loaded example data with {len(container['ab_tcell_receptors'])} AlphaBetaTCR")
-    load_akc_objects(container, 'chains', Chain, path)
-    print(f"Loaded example data with {len(container['chains'])} chains")
+    load_akc_objects(container, 'specimen_collections', SpecimenCollection, path)
+    # TODO: need to handle multiple classes
+    #load_akc_objects(container, 'specimen_processings', SpecimenProcessing, path)
+    load_akc_objects(container, 'datasets', AKDataSet, path)
+    load_akc_objects(container, 'transformations', DataTransformation, path)
+    load_akc_objects(container, 'input_output_map', InputOutputDataMap, path)
+    load_akc_objects(container, 'conclusions', Conclusion, path)
+
+    if load_type == 'adc':
+        load_akc_objects(container, 'assays', AIRRSequencingAssay, path)
+        load_akc_objects(container, 'sequence_data', AIRRSequencingData, path)
+    else:
+        load_akc_objects(container, 'assays', TCellReceptorEpitopeBindingAssay, path)
+    print(f"Loaded AK data with {len(container['assays'])} assays")
+
+    # TODO: don't need the receptor/epitope data yet?
+    #load_akc_objects(container, 'tcr_complexes', TCRpMHCComplex, path)
+    #print(f"Loaded AK data with {len(container['tcr_complexes'])} tcr_complexes")
+    #load_akc_objects(container, 'ab_tcell_receptors', AlphaBetaTCR, path)
+    #print(f"Loaded AK data with {len(container['ab_tcell_receptors'])} AlphaBetaTCR")
+    #load_akc_objects(container, 'chains', Chain, path)
+    #print(f"Loaded AK data with {len(container['chains'])} chains")
 
 def write_jsonl(container, container_field, outfile, exclude=None):
     print(outfile)
