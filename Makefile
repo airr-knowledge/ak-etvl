@@ -430,9 +430,11 @@ load-ontology: outside-docker
 
 load-iedb-data: outside-docker
 	@bash iedb_load.sh
+	@bash query_assay_load.sh iedb/iedb_jsonl
 
 load-adc-data-%: outside-docker
 	@bash adc_load.sh $*
+	@bash query_assay_load.sh adc/adc_jsonl/$*
 
 load-adc-data: $(ADC_LOAD_TARGETS)
 
