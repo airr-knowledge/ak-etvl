@@ -19,6 +19,16 @@ from linkml_runtime.loaders import json_loader, yaml_loader
 
 from ak_schema import *
 
+from linkml.validator import Validator, validate
+from linkml.validator.plugins import PydanticValidationPlugin, JsonschemaValidationPlugin
+
+validator = Validator(
+    schema="ak-schema/project/linkml/ak_schema.yaml",
+#    validation_plugins=[PydanticValidationPlugin()]
+    validation_plugins=[JsonschemaValidationPlugin(closed=True)]
+)
+
+
 # for access to linkml metadata for the AK schema
 ak_schema_view = SchemaView("ak-schema/project/linkml/ak_schema.yaml")
 
@@ -276,6 +286,22 @@ def junction_aa_vj_hash(junction_aa, v, j):
     h = hashlib.sha256(c.encode('ascii')).hexdigest()
     return h
 
+def tcr_complex_hash(receptor, epitope, mhc):
+    if receptor is not None:
+        h = receptor.akc_id
+    else:
+        h = 'AKC_ID:NULL'
+    if epitope is not None:
+        h = h + '|' + epitope.akc_id
+    else:
+        h = h + '|' + 'AKC_ID:NULL'
+    if mhc is not None:
+        h = h + '|' + mhc.akc_id
+    else:
+        h = h + '|' + 'AKC_ID:NULL'
+    hc = "AKC_HASH:" + seq_hash(h)
+    return hc
+
 def make_chain_from_adc(species, obj):
     if obj['locus'] not in [ 'TRB', 'TRA', 'TRD', 'TRG', 'IGH', 'IGK', 'IGL' ]:
         print('unhandled locus:', obj['locus'])
@@ -342,10 +368,7 @@ def make_chain_from_iedb(row, chain_name):
     #print(row)
     chain = row[chain_name]
     species = url_to_curie(chain['Organism IRI'])
-    junction_aa = None
-    cdr3 = chain['CDR3 Calculated'] or chain['CDR3 Curated']
-    if cdr3 and cdr3.startswith('C') and (cdr3.endswith('F') or cdr3.endswith('W')):
-        junction_aa = cdr3
+    junction_aa=safe_get_field(chain, ["Junction Calculated"])
 
     # calculate exact match hashes
     # exact nucleotide sequence match, most stringent
@@ -363,7 +386,7 @@ def make_chain_from_iedb(row, chain_name):
     # TODO: maintain source_uri?
     #tcr_curie = curie(row['Receptor']['Group IRI'])
 
-    c =  Chain(
+    c = Chain(
         f'{nt_hash_id}',
         species = species,
         aa_hash = aa_hash,
@@ -378,24 +401,26 @@ def make_chain_from_iedb(row, chain_name):
         junction_aa=junction_aa,
         cdr1_aa=safe_get_field(chain, ["CDR1 Calculated", "CDR1 Curated"]),
         cdr2_aa=safe_get_field(chain, ["CDR2 Calculated", "CDR2 Curated"]),
-        cdr3_aa=safe_get_field(chain, ["CDR3 Calculated", "CDR3 Curated"]),
-        cdr1_start=safe_get_int_field(chain, ["CDR1 Start Calculated", "CDR1 Start Curated"]),
-        cdr1_end=safe_get_int_field(chain, ["CDR1 End Calculated", "CDR1 End Curated"]),
-        cdr2_start=safe_get_int_field(chain, ["CDR2 Start Calculated", "CDR2 Start Curated"]),
-        cdr2_end=safe_get_int_field(chain, ["CDR2 End Calculated", "CDR2 End Curated"]),
-        cdr3_start=safe_get_int_field(chain, ["CDR3 Start Calculated", "CDR3 Start Curated"]),
-        cdr3_end=safe_get_int_field(chain, ["CDR3 End Calculated", "CDR3 End Curated"]),
+        cdr3_aa=safe_get_field(chain, ["CDR3 Calculated", "CDR3 Curated"])
     )
 
-    # exact CDR3 aa sequence and V and J alleles
-    if junction_aa and c['v_call'] and c['j_call']:
-        junction_aa_vj_allele_hash = junction_aa_vj_hash(junction_aa, c['v_call'], c['j_call'])
+    # validate chain
+    s = json.loads(json_dumper.dumps(c))
+    del s['@type']
+    report = validator.validate(s, "Chain")
+    if not report.results:
+        # exact CDR3 aa sequence and V and J alleles
+        if junction_aa and c['v_call'] and c['j_call']:
+            junction_aa_vj_allele_hash = junction_aa_vj_hash(junction_aa, c['v_call'], c['j_call'])
+        else:
+            junction_aa_vj_allele_hash = None
+        c['junction_aa_vj_allele_hash'] = junction_aa_vj_allele_hash
+        #junction_aa_vj_gene_hash = junction_aa_vj_hash(junction_aa, obj['v_gene'], obj['j_gene'])
+        return c
     else:
-        junction_aa_vj_allele_hash = None
-    c['junction_aa_vj_allele_hash'] = junction_aa_vj_allele_hash
-    #junction_aa_vj_gene_hash = junction_aa_vj_hash(junction_aa, obj['v_gene'], obj['j_gene'])
-
-    return c
+        for result in report.results:
+            print(result.message)
+        return None
 
 def make_receptor(container, chains):
 
@@ -552,13 +577,15 @@ def make_complex(container, receptor, epitope, mhc):
         mhc_id = mhc.akc_id
     
     if type(receptor) == AlphaBetaTCR:
-        tcr_complex = TCRpMHCComplex(akc_id(), tcr=receptor_id, epitope=epitope_id, mhc=mhc_id)
+        tcr_complex = TCRpMHCComplex(tcr_complex_hash(receptor, epitope, mhc), tcr=receptor_id, epitope=epitope_id, mhc=mhc_id)
     elif type(receptor) == GammaDeltaTCR:
-        tcr_complex = TCRpMHCComplex(akc_id(), tcr=receptor_id, epitope=epitope_id, mhc=mhc_id)
+        tcr_complex = TCRpMHCComplex(tcr_complex_hash(receptor, epitope, mhc), tcr=receptor_id, epitope=epitope_id, mhc=mhc_id)
+    else:
+        print('ERROR: could not make TCR complex')
 
     if tcr_complex:
-        container.tcr_complex[tcr_complex.akc_id] = tcr_complex
-
+        container.tcr_complexes[tcr_complex.akc_id] = tcr_complex
+    return tcr_complex
 
 
 def check_three(chains):
@@ -603,38 +630,56 @@ def to_datetime(value):
         return None
     return parser.isoparse(value)
 
-# load AKC json and put into provided container
-def load_akc_objects(container, container_field, container_class):
+def load_akc_objects(container, container_field, container_class, path):
     container_slot = ak_schema_view.get_slot(container_field)
     tname = container_slot.range
-    for study in cache_list:
-        akc_file = f'{ADC_TRANSFORM_DATA}/adc_jsonl/{study}/{tname}.jsonl'
-        with open(akc_file, 'r') as f:
-            for line in f:
-                #print(line)
-                x = json.loads(line)
-                y = json_loader.load_any(x[container_field], container_class)
-                if container_field == 'references':
-                    if container[container_field].get(y.source_uri) is None:
-                        container[container_field][y.source_uri] = y
-                else:
-                    if container[container_field].get(y.akc_id) is None:
-                        container[container_field][y.akc_id] = y
-    
-# load up ADC objects from the transformed AKC json
-def load_adc_container(container):
-    # TODO: should just do a loop, but not sure how to get the class
-    load_akc_objects(container, 'investigations', Investigation)
-    load_akc_objects(container, 'references', Reference)
-    load_akc_objects(container, 'study_arms', StudyArm)
-    load_akc_objects(container, 'study_events', StudyEvent)
-    load_akc_objects(container, 'participants', Participant)
-    load_akc_objects(container, 'life_events', LifeEvent)
-    load_akc_objects(container, 'immune_exposures', ImmuneExposure)
-    load_akc_objects(container, 'specimens', Specimen)
-    #load_akc_objects(container, 'specimen_processings', CellIsolationProcessing)
-    load_akc_objects(container, 'assays', AIRRSequencingAssay)
-    load_akc_objects(container, 'sequence_data', AIRRSequencingData)
+    akc_file = f'{path}/{tname}.jsonl'
+    with open(akc_file, 'r') as f:
+        for line in f:
+            #print(line)
+            x = json.loads(line)
+            y = json_loader.load_any(x[container_field], container_class)
+            if container_field == 'references':
+                if container[container_field].get(y.source_uri) is None:
+                    container[container_field][y.source_uri] = y
+            else:
+                if container[container_field].get(y.akc_id) is None:
+                    container[container_field][y.akc_id] = y
+
+# load up AK container objects
+def load_ak_container(container, path, load_type):
+    load_akc_objects(container, 'investigations', Investigation, path)
+    print(f"Loaded AK data with {len(container['investigations'])} investigations")
+    load_akc_objects(container, 'references', Reference, path)
+    load_akc_objects(container, 'study_arms', StudyArm, path)
+    load_akc_objects(container, 'study_events', StudyEvent, path)
+    load_akc_objects(container, 'participants', Participant, path)
+    load_akc_objects(container, 'life_events', LifeEvent, path)
+    load_akc_objects(container, 'immune_exposures', ImmuneExposure, path)
+    load_akc_objects(container, 'assessments', Assessment, path)
+    load_akc_objects(container, 'specimens', Specimen, path)
+    load_akc_objects(container, 'specimen_collections', SpecimenCollection, path)
+    # TODO: need to handle multiple classes
+    #load_akc_objects(container, 'specimen_processings', SpecimenProcessing, path)
+    load_akc_objects(container, 'datasets', AKDataSet, path)
+    load_akc_objects(container, 'transformations', DataTransformation, path)
+    load_akc_objects(container, 'input_output_map', InputOutputDataMap, path)
+    load_akc_objects(container, 'conclusions', Conclusion, path)
+
+    if load_type == 'adc':
+        load_akc_objects(container, 'assays', AIRRSequencingAssay, path)
+        load_akc_objects(container, 'sequence_data', AIRRSequencingData, path)
+    else:
+        load_akc_objects(container, 'assays', TCellReceptorEpitopeBindingAssay, path)
+    print(f"Loaded AK data with {len(container['assays'])} assays")
+
+    # TODO: don't need the receptor/epitope data yet?
+    #load_akc_objects(container, 'tcr_complexes', TCRpMHCComplex, path)
+    #print(f"Loaded AK data with {len(container['tcr_complexes'])} tcr_complexes")
+    #load_akc_objects(container, 'ab_tcell_receptors', AlphaBetaTCR, path)
+    #print(f"Loaded AK data with {len(container['ab_tcell_receptors'])} AlphaBetaTCR")
+    #load_akc_objects(container, 'chains', Chain, path)
+    #print(f"Loaded AK data with {len(container['chains'])} chains")
 
 def write_jsonl(container, container_field, outfile, exclude=None):
     print(outfile)
