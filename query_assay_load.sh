@@ -5,6 +5,7 @@
 
 PATH_NAME="$1"
 AIRRKB_IMPORT=${AIRRKB_LOAD}/${PATH_NAME}
+echo ${AIRRKB_IMPORT}/QueryAssay.jsonl
 
 docker run -v ${AIRRKB_IMPORT}:/ak_data --network ak-db-network -it postgres:16 psql ${PG_AK_CONN} -c "DROP TABLE IF EXISTS tmp_table;"
 

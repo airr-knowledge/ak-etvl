@@ -425,6 +425,8 @@ load-ontology: outside-docker
 	@bash ontology_load.sh Diseases
 	@bash ontology_load.sh Diseases ONTIE_Diseases
 	@bash ontology_load.sh PhenotypeAndTraits
+	@bash ontology_load.sh TaxonomicSpecies
+	@bash ontology_load.sh TaxonomicSpecies ONTIE_organisms
 	@bash ontology_load.sh UberAnatomy
 	@bash ontology_load.sh Units
 
