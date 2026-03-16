@@ -27,7 +27,10 @@ def create_object(output_path, path, load_type):
             study_arm = container["study_arms"][participant["study_arm"]]
             investigation = container["investigations"][study_arm["investigation"]]
 
-            investigation.inclusion_exclusion_criteria = investigation.inclusion_exclusion_criteria.replace('\n','')
+            if investigation.inclusion_exclusion_criteria is not None:
+                investigation.inclusion_exclusion_criteria = investigation.inclusion_exclusion_criteria.replace('\n','')
+            if investigation.description is not None:
+                investigation.description = investigation.description.replace('\n','')
 
             experiment = QueryExperiment(akc_id=assay_id)
 
