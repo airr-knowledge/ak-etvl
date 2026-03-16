@@ -91,6 +91,7 @@ def receptor_integrate(cache_id):
         print(assay_akc_id)
         tcell_receptors = set()
         tcell_chains = set()
+        tcr_complexes = set()
 
         paired_chain = False
         if "contains_paired_chain" in rep['study']['keywords_study']:
@@ -175,7 +176,8 @@ def receptor_integrate(cache_id):
 
             if not paired_chain:
                 receptor = make_receptor(container, [chain, None])
-                make_complex(container, receptor, None, None)
+                tcr_c = make_complex(container, receptor, None, None)
+                tcr_complexes.add(tcr_c.akc_id)
                 if type(receptor) == AlphaBetaTCR:
                     tcell_receptors.add(receptor.akc_id)
                 elif type(receptor) == GammaDeltaTCR:
@@ -216,7 +218,8 @@ def receptor_integrate(cache_id):
                 else: # 2 chains, obvious case
                     dist[1] += 1
                     receptor = make_receptor(container, cell_id[c])
-                    make_complex(container, receptor, None, None)
+                    tcr_c = make_complex(container, receptor, None, None)
+                    tcr_complexes.add(tcr_c.akc_id)
                     if type(receptor) == AlphaBetaTCR:
                         tcell_receptors.add(receptor.akc_id)
                     elif type(receptor) == GammaDeltaTCR:
@@ -229,11 +232,11 @@ def receptor_integrate(cache_id):
         print(row_cnt, 'records for study cache:', study)
         total_rep_cnt += 1
 
-        # connect chains/receptors to assay
-        assays[assay_akc_id]['tcell_chains'] = list(tcell_chains)
-        print(f'{len(tcell_chains)} TCR chains')
-        assays[assay_akc_id]['tcell_receptors'] = list(tcell_receptors)
-        print(f'{len(tcell_receptors)} TCR receptors')
+        # connect TCR complex to assay
+        assays[assay_akc_id]['tcr_complexes'] = list(tcr_complexes)
+        print(f'{len(tcr_complexes)} TCR complexes')
+        #assays[assay_akc_id]['tcell_receptors'] = list(tcell_receptors)
+        #print(f'{len(tcell_receptors)} TCR receptors')
 
     # here we match at the study level for IPA
     if not cell_within_repertoire:
@@ -259,7 +262,8 @@ def receptor_integrate(cache_id):
                 #print(lenc)
                 #print(cell_id[c])
                 receptor = make_receptor(container, cell_id[c])
-                make_complex(container, receptor, None, None)
+                tcr_c = make_complex(container, receptor, None, None)
+                tcr_complexes.add(tcr_c.akc_id)
                 if type(receptor) == AlphaBetaTCR:
                     tcell_receptors.add(receptor.akc_id)
                 elif type(receptor) == GammaDeltaTCR:
@@ -281,8 +285,11 @@ def receptor_integrate(cache_id):
     print(f'Finished study {study}')
     print(total_rep_cnt, 'total ADC repertoires')
     print(len(container['chains']), 'total chains')
+    print()
     print(len(container['ab_tcell_receptors']), 'total alpha/beta TCRs')
     print(len(container['gd_tcell_receptors']), 'total gamma/delta TCRs')
+    print(len(container['tcr_complexes']), 'TCRpMHC complexes')
+    print()
     print(len(container['bcell_receptors']), 'total BCRs')
     print()
     print(len(exact_match), 'nucleotide match')
@@ -296,20 +303,22 @@ def receptor_integrate(cache_id):
 
     container_fields = [x.name for x in dataclasses.fields(container)]
 
-    # Write everything to JSONL
-    for container_field in container_fields:
-        write_jsonl(container, container_field, f'{ADC_TRANSFORM_DATA}/adc_jsonl/{study}/{container_field}.jsonl')
-
-    # Write everything to CSV
+    # Write receptor data to JSONL
     for container_field in container_fields:
         container_slot = ak_schema_view.get_slot(container_field)
         tname = container_slot.range
-        fname = tname + '.csv'
-        write_csv(container, container_field, f'{ADC_TRANSFORM_DATA}/adc_tsv/{study}/{fname}')
+        if container_field in ['chains', 'ab_tcell_receptors', 'tcr_complexes', 'gd_tcell_receptors', 'bcell_receptors']:
+            write_jsonl(container, container_field, f'{ADC_TRANSFORM_DATA}/adc_jsonl/{study}/{tname}.jsonl')
+
+    # Write receptor data to CSV
+    for container_field in container_fields:
+        container_slot = ak_schema_view.get_slot(container_field)
+        tname = container_slot.range
+        if container_field in ['chains', 'ab_tcell_receptors', 'tcr_complexes', 'gd_tcell_receptors', 'bcell_receptors']:
+            write_csv(container, container_field, f'{ADC_TRANSFORM_DATA}/adc_tsv/{study}/{tname}.csv')
 
     # assay relationships
-    write_relationship_csv('Assay', assays, 'tcell_receptors', f'{ADC_TRANSFORM_DATA}/adc_tsv/{study}/')
-    write_relationship_csv('Assay', assays, 'tcell_chains', f'{ADC_TRANSFORM_DATA}/adc_tsv/{study}/')
+    write_relationship_csv('Assay', assays, 'tcr_complexes', f'{ADC_TRANSFORM_DATA}/adc_tsv/{study}/')
 
 if __name__ == "__main__":
     receptor_integrate()

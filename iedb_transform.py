@@ -16,6 +16,12 @@ from linkml_runtime.linkml_model.meta import EnumDefinition, PermissibleValue, S
 from linkml_runtime.dumpers import yaml_dumper, json_dumper, tsv_dumper
 from ak_schema import *
 from ak_schema_utils import *
+from linkml.validator import Validator, validate
+from linkml.validator.plugins import PydanticValidationPlugin
+validator = Validator(
+    schema="ak-schema/project/linkml/ak_schema.yaml",
+    validation_plugins=[PydanticValidationPlugin()]
+)
 
 # todo the other thing is that it's putting in ontology labels instead of IDs, this should be a simple fix, use the field with ontology URI and then there's function that James wrote to convert it to ontology curie
 
@@ -44,8 +50,8 @@ def get_tcr_df_for_assay(tcr_df, assay_id):
     return tcr_df_for_assay
 
 
-def read_double_header_df(path):
-    df = pd.read_csv(path, header=[0, 1], sep="\t", low_memory=False)
+def read_double_header_df(path, separator):
+    df = pd.read_csv(path, header=[0, 1], sep=separator, low_memory=False)
     df = df.where(pd.notnull(df), None)
 
     return df
@@ -75,8 +81,8 @@ def convert(tcell_path, tcr_path, yaml_path):
     """Convert an input TCell and TCR TSV file to YAML."""
 
     print("Reading TCR export data files")
-    tcr_df = read_double_header_df(tcr_path)
-    assay_df = read_double_header_df(tcell_path)
+    tcr_df = read_double_header_df(tcr_path, separator=",")
+    assay_df = read_double_header_df(tcell_path, separator="\t")
 
     # many assays have no associated receptor data.
     # For now, subset assay table to include only assays with receptors
@@ -100,21 +106,23 @@ def convert(tcell_path, tcr_path, yaml_path):
         chain_2 = None
         if tcr_row[('Chain 1', 'Type')]:
             chain_1 = make_chain_from_iedb(tcr_row, 'Chain 1')
-            container.chains[chain_1.akc_id] = chain_1
-            for aid in assay_ids:
-                if assay_to_chain.get(aid) is None:
-                    assay_to_chain[aid] = [ chain_1.akc_id ]
-                else:
-                    assay_to_chain[aid].append(chain_1.akc_id)
+            if chain_1:
+                container.chains[chain_1.akc_id] = chain_1
+                for aid in assay_ids:
+                    if assay_to_chain.get(aid) is None:
+                        assay_to_chain[aid] = [ chain_1.akc_id ]
+                    else:
+                        assay_to_chain[aid].append(chain_1.akc_id)
             #chains.append(chain_1)
         if tcr_row[('Chain 2', 'Type')]:
             chain_2 = make_chain_from_iedb(tcr_row, 'Chain 2')
-            container.chains[chain_2.akc_id] = chain_2
-            for aid in assay_ids:
-                if assay_to_chain.get(aid) is None:
-                    assay_to_chain[aid] = [ chain_2.akc_id ]
-                else:
-                    assay_to_chain[aid].append(chain_2.akc_id)
+            if chain_2:
+                container.chains[chain_2.akc_id] = chain_2
+                for aid in assay_ids:
+                    if assay_to_chain.get(aid) is None:
+                        assay_to_chain[aid] = [ chain_2.akc_id ]
+                    else:
+                        assay_to_chain[aid].append(chain_2.akc_id)
             #chains.append(chain_2)
 
         if chain_1 or chain_2:
@@ -203,6 +211,7 @@ def convert(tcell_path, tcr_path, yaml_path):
             description=f'study participant for assay {assay_id}',
             species=url_to_curie(assay_row['Host']['IRI']),
             sex=sex_to_curie(assay_row['Host']['Sex']),
+            study_arm=arm.akc_id,
             race=None,
             ethnicity=None,
             geolocation=None
@@ -255,6 +264,7 @@ def convert(tcell_path, tcr_path, yaml_path):
             life_event=life_event_2.akc_id,
             tissue=url_to_curie(assay_row['Effector Cell']['Source Tissue IRI'])
         )
+        mhc = None
         epitope = PeptidicEpitope(
             akc_id(),
             # curie(row['Epitope']['IEDB IRI']), # should store as ForeignObject
@@ -262,6 +272,16 @@ def convert(tcell_path, tcr_path, yaml_path):
             source_protein=url_to_curie(assay_row['Epitope']['Molecule Parent IRI']),
             source_organism=url_to_curie(assay_row['Epitope']['Source Organism IRI'])
         )
+        s = json.loads(json_dumper.dumps(epitope))
+        del s['@type']
+        report = validator.validate(s, "PeptidicEpitope")
+        if not report.results:
+            pass
+        else:
+            for result in report.results:
+                print(result.message)
+            # print("Continuing to the next epitope")
+            # continue
         # For each row in the TCR table that matches this assay ID, generate:
         # 2 chains
         # 1 receptor: AlphaBetaTCR or GammaDeltaTCR
@@ -275,6 +295,14 @@ def convert(tcell_path, tcr_path, yaml_path):
         tcell_chains = assay_to_chain.get(assay_id)
         if tcell_chains is None:
             tcell_chains = []
+
+        # make TCR complexes
+        tcr_complexes = []
+        for tcell_receptor in tcell_receptors:
+            c = make_complex(container, tcell_receptor, epitope, mhc)
+            if c:
+                tcr_complexes.append(c)
+
 
 #        for tcr_idx, tcr_row in get_tcr_df_for_assay(tcr_df, assay_id).iterrows():
 #            tcr_curie = url_to_curie(
@@ -305,8 +333,7 @@ def convert(tcell_path, tcr_path, yaml_path):
             specimen=specimen.akc_id,
             assay_type=url_to_curie(assay_row['Assay']['IRI']),  # TODO: use label
             epitope=epitope.akc_id,
-            tcell_receptors=list(set([t.akc_id for t in tcell_receptors])),
-            #tcell_chains=list(set(tcell_chains)),
+            tcr_complexes=list(set([t.akc_id for t in tcr_complexes])),
             measurement_category=assay_row['Assay']['Qualitative Measurement']
 #            measurement_value=convert_assay_measurement(assay_row['Assay']['Qualitative Measurement']),
 #            measurement_unit=convert_assay_unit`'UO:0000232' # bit
@@ -342,12 +369,6 @@ def convert(tcell_path, tcr_path, yaml_path):
         container.datasets[dataset.akc_id] = dataset
         container.conclusions[conclusion.akc_id] = conclusion
         container.epitopes[epitope.akc_id] = epitope
-#        for chain in chains:
-#            container.chains[chain.akc_id] = chain
-        #        for tcell_receptor in ab_tcell_receptors:
-        #            container.ab_tcell_receptors[tcell_receptor.akc_id] = tcell_receptor
-        #        for tcell_receptor in gd_tcell_receptors:
-        #            container.gd_tcell_receptors[tcell_receptor.akc_id] = tcell_receptor
 
         row_cnt += 1
         if assay_idx % 100 == 0:
@@ -370,7 +391,7 @@ def convert(tcell_path, tcr_path, yaml_path):
     # CSV relationships
     write_all_relationships(container, f'{IEDB_TRANSFORM_DATA}/iedb_tsv/')
     # assay relationships
-    write_relationship_csv('Assay', container.assays, 'tcell_receptors', f'{IEDB_TRANSFORM_DATA}/iedb_tsv/')
+    write_relationship_csv('Assay', container.assays, 'tcr_complexes', f'{IEDB_TRANSFORM_DATA}/iedb_tsv/')
 
 
 if __name__ == "__main__":
