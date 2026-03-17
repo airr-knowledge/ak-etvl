@@ -392,14 +392,14 @@ def process_assay(container, tcr_assay_df, assay_to_receptor, assay_to_chain, ty
                 akc_id(),
                 participant=participant.akc_id,
                 study_event=None,
-                life_event_type=url_to_curie(assay_row['1st in vivo Process']['Process Type']),
+                life_event_type=assay_row['1st in vivo Process']['Process Type'], # todo add curie url to IEDB export
             )
 
             immune_exposure = ImmuneExposure(
                 akc_id(),
                 exposure_material=url_to_curie(assay_row['1st immunogen']['Source Organism IRI']),
                 disease=url_to_curie(assay_row['1st in vivo Process']['Disease IRI']),
-                disease_stage=url_to_curie(assay_row['1st in vivo Process']['Disease Stage']),
+                disease_stage=assay_row['1st in vivo Process']['Disease Stage'], # todo add curie URL to IEDB output
             )
 
             specimen_collection_life_event = LifeEvent(
