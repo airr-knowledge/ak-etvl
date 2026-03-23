@@ -304,11 +304,11 @@ def receptor_integrate(cache_id):
     container_fields = [x.name for x in dataclasses.fields(container)]
 
     # Write receptor data to JSONL
-    for container_field in container_fields:
-        container_slot = ak_schema_view.get_slot(container_field)
-        tname = container_slot.range
-        if container_field in ['chains', 'ab_tcell_receptors', 'tcr_complexes', 'gd_tcell_receptors', 'bcell_receptors']:
-            write_jsonl(container, container_field, f'{ADC_TRANSFORM_DATA}/adc_jsonl/{study}/{tname}.jsonl')
+#    for container_field in container_fields:
+#        container_slot = ak_schema_view.get_slot(container_field)
+#        tname = container_slot.range
+#        if container_field in ['chains', 'ab_tcell_receptors', 'tcr_complexes', 'gd_tcell_receptors', 'bcell_receptors']:
+#            write_jsonl(container, container_field, f'{ADC_TRANSFORM_DATA}/adc_jsonl/{study}/{tname}.jsonl')
 
     # Write receptor data to CSV
     for container_field in container_fields:
