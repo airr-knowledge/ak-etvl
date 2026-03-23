@@ -409,6 +409,13 @@ def process_assay(container, tcr_assay_df, assay_to_receptor, assay_to_chain, ty
                 life_event_type='OBI:0000659',  # = specimen collection process
             )
 
+            container.study_arms[arm.akc_id] = arm
+            container.study_events[study_event.akc_id] = study_event
+            container.participants[participant.akc_id] = participant
+            container.life_events[exposure_life_event.akc_id] = exposure_life_event
+            container.life_events[specimen_collection_life_event.akc_id] = specimen_collection_life_event
+            container.immune_exposures[immune_exposure.akc_id] = immune_exposure
+
             assay = make_iedb_assay(container, assay_row, assay_to_receptor, specimen_collection_life_event, type)
 
             if assay is None:
@@ -434,12 +441,6 @@ def process_assay(container, tcr_assay_df, assay_to_receptor, assay_to_chain, ty
             )
             investigation.conclusions.append(conclusion.akc_id)
 
-            container.study_arms[arm.akc_id] = arm
-            container.study_events[study_event.akc_id] = study_event
-            container.participants[participant.akc_id] = participant
-            container.life_events[exposure_life_event.akc_id] = exposure_life_event
-            container.life_events[specimen_collection_life_event.akc_id] = specimen_collection_life_event
-            container.immune_exposures[immune_exposure.akc_id] = immune_exposure
             container.datasets[dataset.akc_id] = dataset
             container.conclusions[conclusion.akc_id] = conclusion
 
