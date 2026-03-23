@@ -74,12 +74,29 @@ def transform_airr_repertoires(repertoire_filename, container):
             archival_id = archival_id.replace('BioProject: ', '')
 
         if archival_id not in investigations:
+            # convert investigation type from NCIT to OBI
+            study_type = adc_ontology(rep['study']['study_type'])
+            if study_type == 'NCIT:C15197': # case-control
+                investigation_type = 'OBI:0003692'
+            elif study_type == 'NCIT:C15273': # longitudinal
+                investigation_type = 'OBI:0003694'
+            elif study_type == 'NCIT:C15601': # phase II clinical trial
+                investigation_type = 'OBI:0003701'
+            elif study_type == 'NCIT:C16084': # observational
+                investigation_type = 'OBI:0003693'
+            elif study_type == 'NCIT:C63536': # generic
+                investigation_type = 'OBI:0000066'
+            elif study_type == 'NCIT:C93130': # animal
+                investigation_type = 'OBI:0003696'
+            else:
+                investigation_type = study_type
+
             investigation = Investigation(
                 akc_id(),
                 name=rep['study'].get('study_title'),
                 description=rep['study'].get('study_description'),
                 archival_id=archival_id,
-                investigation_type=adc_ontology(rep['study']['study_type']),
+                investigation_type=investigation_type,
                 inclusion_exclusion_criteria=rep['study'].get('inclusion_exclusion_criteria'),
                 release_date=to_datetime(rep['study'].get('adc_release_date')),
                 update_date=to_datetime(rep['study'].get('adc_update_date'))
@@ -141,11 +158,21 @@ def transform_airr_repertoires(repertoire_filename, container):
             participant = container['participants'][participant_id]
         else:
             sub = rep['subject']
+            sex = sub.get('sex')
+            if sex == 'male':
+                sex = 'PATO:0020001'
+            elif sex == 'female':
+                sex = 'PATO:0020002'
+            elif sex == 'pooled':
+                sex = 'PATO:0020000'
+            else:
+                sex = None
+
             participant = Participant(
                 akc_id(),
                 name=sub['subject_id'],
                 species=adc_ontology(sub.get('species')),
-                sex=sub.get('sex'),
+                sex=sex,
                 age=sub.get('age_min'),
                 # age_max=sub['age_max'],
                 age_event=sub.get('age_event'),
@@ -192,6 +219,22 @@ def transform_airr_repertoires(repertoire_filename, container):
                             disease_stage=diag.get('disease_stage')
                         )
                         container.immune_exposures[ie.akc_id] = ie
+
+            # if no study group for participant, need to add to a placeholder study arm
+            if arm is None:
+                placeholder_name = 'placeholder study arm'
+                arm_id = arm_ids.get(placeholder_name)
+                if arm_id:
+                    arm = container.study_arms[arm_id]
+                else:
+                    arm = StudyArm(
+                        akc_id(),
+                        name=placeholder_name,
+                        investigation=investigation.akc_id
+                    )
+                    arm_ids[placeholder_name] = arm.akc_id
+                    container.study_arms[arm.akc_id] = arm
+                participant.study_arm = arm.akc_id
 
         # specimen processing
         for s in rep['sample']:
