@@ -364,6 +364,12 @@ def safe_get_int_field(chain, fields):
     safe_get_field(chain, fields, expected_type=int)
 
 
+def safe_get_sequence(sequence, min_len):
+    if type(sequence) is str:
+        if len(sequence) >= min_len:
+            return sequence
+
+
 def make_iedb_chain(container, iedb_chain, validate_data=True):
     '''Given a row dictionary and a chain name ("Chain 1" or "Chain 2"), return a new Chain object.
     Use Calculated columns only'''
