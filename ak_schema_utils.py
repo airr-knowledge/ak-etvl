@@ -696,7 +696,7 @@ def to_datetime(value):
         return None
     return parser.isoparse(value)
 
-def load_akc_objects(container, container_field, container_class, path):
+def load_akc_objects(container, container_field, container_class, path, check_type=False):
     container_slot = ak_schema_view.get_slot(container_field)
     tname = container_slot.range
     akc_file = f'{path}/{tname}.jsonl'
@@ -704,7 +704,16 @@ def load_akc_objects(container, container_field, container_class, path):
         for line in f:
             #print(line)
             x = json.loads(line)
-            y = json_loader.load_any(x[container_field], container_class)
+            if check_type:
+                if x[container_field]['type'] == 'TCellReceptorEpitopeBindingAssay':
+                    y = json_loader.load_any(x[container_field], TCellReceptorEpitopeBindingAssay)
+                elif x[container_field]['type'] == 'AntibodyAntigenBindingAssay':
+                    y = json_loader.load_any(x[container_field], AntibodyAntigenBindingAssay)
+                else:
+                    print(f"Unknown assay type: {x['type']}")
+                    continue
+            else:
+                y = json_loader.load_any(x[container_field], container_class)
             if container_field == 'references':
                 if container[container_field].get(y.source_uri) is None:
                     container[container_field][y.source_uri] = y
@@ -736,7 +745,7 @@ def load_ak_container(container, path, load_type):
         load_akc_objects(container, 'assays', AIRRSequencingAssay, path)
         load_akc_objects(container, 'sequence_data', AIRRSequencingData, path)
     else:
-        load_akc_objects(container, 'assays', TCellReceptorEpitopeBindingAssay, path)
+        load_akc_objects(container, 'assays', TCellReceptorEpitopeBindingAssay, path, True)
     print(f"Loaded AK data with {len(container['assays'])} assays")
 
     # TODO: don't need the receptor/epitope data yet?
