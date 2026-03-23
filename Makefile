@@ -154,8 +154,7 @@ help:
 	@echo "------------------------------------------------------------"
 	@echo "make ogrdb-transform    -- Transform OGRDB germlines"
 	@echo ""
-	@echo "make iedb-tcr           -- Transform IEDB TCR export file"
-	@echo "make iedb-bcr           -- Transform IEDB BCR export file"
+	@echo "make iedb-transform     -- Transform IEDB TCR and BCR export files"
 	@echo "make iedb-query         -- Generate query objects for transformed IEDB data"
 	@echo "make iedb-copy          -- Copy transformed IEDB data to DB load directory"
 	@echo ""
@@ -279,14 +278,8 @@ $(IEDB_TRANSFORM_DATA)/iedb_tsv/: check-docker
 	mkdir -p $@
 	mkdir -p $(IEDB_TRANSFORM_DATA)/iedb_jsonl/
 
-iedb-tcr: check-docker $(IEDB_TRANSFORM_DATA)/iedb_tcr.yaml
-
-$(IEDB_TRANSFORM_DATA)/iedb_tcr.yaml: ak_schema.py iedb_transform.py $(IEDB_IMPORT_DATA)/tcell_full_v3.tsv $(IEDB_IMPORT_DATA)/tcr_full_v4.csv | $(IEDB_TRANSFORM_DATA)/iedb_tsv/
-	python3 $(wordlist 2,4,$^) $@
-
-iedb-bcr: check-docker
-	@echo "Not implemented."
-
+iedb-transform: check-docker ak_schema.py iedb_transform.py $(IEDB_IMPORT_DATA)/tcell_table_export_v4.tsv $(IEDB_IMPORT_DATA)/tcr_full_v4.csv $(IEDB_IMPORT_DATA)/bcell_table_export_v4.tsv $(IEDB_IMPORT_DATA)/bcr_full_v4.csv | $(IEDB_TRANSFORM_DATA)/iedb_tsv/
+	python3 $(wordlist 3,7,$^)
 
 
 iedb-copy: check-docker
