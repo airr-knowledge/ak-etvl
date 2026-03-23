@@ -51,16 +51,22 @@ IPA_TCR_CACHE_LIST=1546893841758097901-242ac11b-0001-012 \
     4896275633090653715-242ac11b-0001-012 \
     5524076507527057901-242ac11b-0001-012 \
     5573468631431057901-242ac11b-0001-012 \
-    5626983923939217901-242ac11b-0001-012 \
     7625215465378419181-242ac11b-0001-012 \
     7636497343395917330-242ac117-0001-012 \
     8434237213378080275-242ac11b-0001-012 \
-    8498404024780320275-242ac11b-0001-012 \
     8575123754278514195-242ac11b-0001-012 \
     970356185718124050-242ac117-0001-012
 
 # needs error fixed
 #IPA_TCR_CACHE_LIST=\
+
+# TODO: IPA paired chain not making Assay_tcr_complexes
+# TODO: no TCR complexes being made
+# 2190435173075840530-242ac118-0001-012
+
+# TODO: investigate data issue
+#    5626983923939217901-242ac11b-0001-012 \
+#    8498404024780320275-242ac11b-0001-012 \
 
 # data issue
 #    7430997044253299181-242ac11b-0001-012 \
@@ -439,6 +445,9 @@ load-adc-data-%: outside-docker
 	@bash query_assay_load.sh adc/adc_jsonl/$*
 
 load-adc-data: $(ADC_LOAD_TARGETS)
+
+load-adc-query-data-%: outside-docker
+	@bash query_assay_load.sh adc/adc_jsonl/$*
 
 load-clean: check-docker
 	rm -r $(AK_DATA_LOAD)
