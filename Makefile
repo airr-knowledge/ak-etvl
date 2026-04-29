@@ -45,24 +45,28 @@ IPA_TCR_CACHE_LIST=1546893841758097901-242ac11b-0001-012 \
     1589929414064017901-242ac11b-0001-012 \
     1631719445854097901-242ac11b-0001-012 \
     1665177241089937901-242ac11b-0001-012 \
-    1703144751986577901-242ac11b-0001-012 \
     1818767539323343341-242ac11b-0001-012 \
     2190435173075840530-242ac118-0001-012 \
     3791830297704337901-242ac11b-0001-012 \
     4896275633090653715-242ac11b-0001-012 \
-    5034739262512754195-242ac11b-0001-012 \
     5524076507527057901-242ac11b-0001-012 \
     5573468631431057901-242ac11b-0001-012 \
-    5626983923939217901-242ac11b-0001-012 \
     7625215465378419181-242ac11b-0001-012 \
     7636497343395917330-242ac117-0001-012 \
     8434237213378080275-242ac11b-0001-012 \
-    8498404024780320275-242ac11b-0001-012 \
     8575123754278514195-242ac11b-0001-012 \
     970356185718124050-242ac117-0001-012
 
 # needs error fixed
 #IPA_TCR_CACHE_LIST=\
+
+# TODO: IPA paired chain not making Assay_tcr_complexes
+# TODO: no TCR complexes being made
+# 2190435173075840530-242ac118-0001-012
+
+# TODO: investigate data issue
+#    5626983923939217901-242ac11b-0001-012 \
+#    8498404024780320275-242ac11b-0001-012 \
 
 # data issue
 #    7430997044253299181-242ac11b-0001-012 \
@@ -75,6 +79,10 @@ IPA_TCR_CACHE_LIST=1546893841758097901-242ac11b-0001-012 \
 
 # missing locus
 #    5919600045815697901-242ac11b-0001-012 \
+
+# multiple IDs in disease_diagnosis
+#    1703144751986577901-242ac11b-0001-012 \
+#    5034739262512754195-242ac11b-0001-012 \
 
 VDJSERVER_TCR_CACHE_LIST=2314581927515778580-242ac117-0001-012 \
     2531647238962745836-242ac114-0001-012 \
@@ -104,7 +112,8 @@ ADC_CACHE_LIST=$(VDJSERVER_TCR_CACHE_LIST) $(IPA_TCR_CACHE_LIST)
 ADC_TRANSFORM_TARGETS := $(addprefix adc-transform-,$(ADC_CACHE_LIST))
 ADC_TRANSFORM_REPERTOIRE_TARGETS := $(addprefix adc-transform-repertoire-,$(ADC_CACHE_LIST))
 ADC_TRANSFORM_CHAIN_TARGETS := $(addprefix adc-transform-chain-,$(ADC_CACHE_LIST))
-ADC_LOAD_TARGETS := $(addprefix load-adc-,$(ADC_CACHE_LIST))
+ADC_QUERY_TARGETS := $(addprefix query-adc-,$(ADC_CACHE_LIST))
+ADC_LOAD_TARGETS := $(addprefix load-adc-data-,$(ADC_CACHE_LIST))
 
 # note: "help" MUST be the first target in the file, so
 # when the user types "make" they get help info by default
@@ -145,16 +154,19 @@ help:
 	@echo "------------------------------------------------------------"
 	@echo "make ogrdb-transform    -- Transform OGRDB germlines"
 	@echo ""
-	@echo "make iedb-tcr           -- Transform IEDB TCR export file"
-	@echo "make iedb-bcr           -- Transform IEDB BCR export file"
+	@echo "make iedb-transform     -- Transform IEDB TCR and BCR export files"
+	@echo "make iedb-query         -- Generate query objects for transformed IEDB data"
 	@echo "make iedb-copy          -- Copy transformed IEDB data to DB load directory"
 	@echo ""
 	@echo "make irad-bcr           -- Transform IRAD BCRs"
 	@echo ""
-	@echo "make adc-transform                      -- Transform ADC rearrangements for all studies"
+	@echo "make adc-transform                      -- Transform ADC repertoires and rearrangements for all studies"
+	@echo "make adc-transform-reperotire           -- Transform ADC repertoires for all studies"
 	@echo "make adc-transform-CACHE_ID             -- Transform ADC repertoires and rearrangements for study CACHE_ID"
 	@echo "make adc-transform-repertoire-CACHE_ID  -- Transform ADC repertoires for study CACHE_ID"
 	@echo "make adc-transform-chain-CACHE_ID       -- Transform ADC rearrangements for study CACHE_ID"
+	@echo "make query-adc                          -- Create and save query object for all studies"
+	@echo "make query-adc-CACHE_ID                 -- Create and save query object for study CACHE_ID"
 	@echo "make adc-copy                           -- Copy transformed ADC data to DB load directory"
 	@echo ""
 	@echo "make vdjbase-transform       -- Transform VDJbase genotypes"
@@ -174,8 +186,8 @@ help:
 	@echo ""
 	@echo "make load-iedb-data     -- Load IEDB data into airrkb (version: $(POSTGRES_DB))"
 	@echo ""
-	@echo "make load-adc-CACHE_ID  -- Load ADC data into airrkb for study CACHE_ID"
-	@echo "make load-adc-data      -- Load all ADC data into airrkb"
+	@echo "make load-adc-data-CACHE_ID  -- Load ADC data into airrkb for study CACHE_ID"
+	@echo "make load-adc-data           -- Load all ADC data into airrkb"
 	@echo "------------------------------------------------------------"
 	@echo ""
 
@@ -220,7 +232,7 @@ show-paths:
 
 .PHONY: ak-schema
 ak-schema: check-docker
-	cd ak-schema; make all; make install
+	cd ak-schema; make all; make install; make sqlddl
 
 # generate python dataclasses from schema
 ak_schema.py: check-docker ak-schema/project/linkml/ak_schema.yaml
@@ -228,6 +240,7 @@ ak_schema.py: check-docker ak-schema/project/linkml/ak_schema.yaml
 
 list-adc-cache:
 	@echo $(ADC_CACHE_LIST)
+	@echo $(ADC_LOAD_TARGETS)
 
 #
 # Data extraction
@@ -265,13 +278,9 @@ $(IEDB_TRANSFORM_DATA)/iedb_tsv/: check-docker
 	mkdir -p $@
 	mkdir -p $(IEDB_TRANSFORM_DATA)/iedb_jsonl/
 
-iedb-tcr: check-docker $(IEDB_TRANSFORM_DATA)/iedb_tcr.yaml
+iedb-transform: check-docker ak_schema.py iedb_transform.py $(IEDB_IMPORT_DATA)/tcell_table_export_v4.tsv $(IEDB_IMPORT_DATA)/tcr_full_v4.csv $(IEDB_IMPORT_DATA)/bcell_table_export_v4.tsv $(IEDB_IMPORT_DATA)/bcr_full_v4.csv | $(IEDB_TRANSFORM_DATA)/iedb_tsv/
+	python3 $(wordlist 3,7,$^)
 
-$(IEDB_TRANSFORM_DATA)/iedb_tcr.yaml: ak_schema.py iedb_transform.py $(IEDB_IMPORT_DATA)/tcell_full_v3.tsv $(IEDB_IMPORT_DATA)/tcr_full_v3.tsv | $(IEDB_TRANSFORM_DATA)/iedb_tsv/
-	python3 $(wordlist 2,4,$^) $@
-
-iedb-bcr: check-docker
-	@echo "Not implemented."
 
 iedb-copy: check-docker
 	mkdir -p $(AK_DATA_LOAD)/iedb
@@ -280,6 +289,8 @@ iedb-copy: check-docker
 # IRAD transform
 irad-bcr: check-docker
 	@echo "Not implemented."
+
+
 
 # ADC repertoire transform
 $(ADC_TRANSFORM_DATA)/adc_tsv/: check-docker
@@ -339,6 +350,22 @@ adc-copy: check-docker
 	mkdir -p $(AK_DATA_LOAD)/adc
 	cp -rf $(ADC_TRANSFORM_DATA)/* $(AK_DATA_LOAD)/adc
 
+
+# IEDB query object
+iedb-query:
+	@echo "Generate IEDB query objects"
+	python3 query_api_script.py query-iedb
+
+# ADC query object
+query-adc-%:
+	@echo "Generate ADC query objects for study cache $*"
+	python query_api_script.py query-adc --cache-id=$*
+
+query-adc: $(ADC_QUERY_TARGETS)
+	@echo ""
+	@echo "DONE"
+	@echo ""
+
 # VDJbase transform
 $(VDJBASE_DATA)/vdjbase_tsv/: check-docker
 	mkdir -p $@
@@ -383,7 +410,9 @@ list-load: check-docker
 
 create-sql-airrkb: outside-docker
 	docker run -v $(PWD):/work --network ak-db-network -it postgres:16 psql $(PG_CONN) -c "create database $(POSTGRES_DB);"
-	docker run -v $(PWD):/work --network ak-db-network -it postgres:16 psql $(PG_AK_CONN) -f /work/ak-schema/project/sqlddl/ak_schema_modify.sql
+	docker run -v $(PWD):/work --network ak-db-network -it postgres:16 psql $(PG_AK_CONN) -f /work/ak-schema/project/sqlddl/ak_schema.sql
+	docker run -v $(PWD):/work --network ak-db-network -it postgres:16 psql $(PG_AK_CONN) -f /work/ak-schema/project/sqlddl/ak_schema_alter.sql
+#	docker run -v $(PWD):/work --network ak-db-network -it postgres:16 psql $(PG_AK_CONN) -f /work/ak-schema/project/sqlddl/ak_schema_modify.sql
 #	docker run -v $(PWD):/work --network ak-db-network -it postgres:16 psql $(PG_AK_CONN) -f /work/ak-schema/project/sqlddl/ak_schema_postgres.sql
 
 drop-sql-airrkb: outside-docker
@@ -393,17 +422,25 @@ load-ontology: outside-docker
 	@bash ontology_load.sh BiomedicalInvestigations
 	@bash ontology_load.sh Cells
 	@bash ontology_load.sh Diseases
+	@bash ontology_load.sh Diseases ONTIE_Diseases
 	@bash ontology_load.sh PhenotypeAndTraits
+	@bash ontology_load.sh TaxonomicSpecies
+	@bash ontology_load.sh TaxonomicSpecies ONTIE_organisms
 	@bash ontology_load.sh UberAnatomy
 	@bash ontology_load.sh Units
 
 load-iedb-data: outside-docker
 	@bash iedb_load.sh
+	@bash query_assay_load.sh iedb/iedb_jsonl
 
-load-adc-%: outside-docker
+load-adc-data-%: outside-docker
 	@bash adc_load.sh $*
+	@bash query_assay_load.sh adc/adc_jsonl/$*
 
 load-adc-data: $(ADC_LOAD_TARGETS)
+
+load-adc-query-data-%: outside-docker
+	@bash query_assay_load.sh adc/adc_jsonl/$*
 
 load-clean: check-docker
 	rm -r $(AK_DATA_LOAD)
