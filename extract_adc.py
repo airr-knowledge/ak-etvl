@@ -75,11 +75,14 @@ for study in data["result"]:
 
         # overwrite only if new one is vdjserver and existing is not
         if repository_id == "vdjserver" and existing["repository_id"] != "vdjserver":
+            print(f"Warning: duplicate study id ({study_id}), using vdjserver ({cache_id}) versus {existing['repository_id']} repository.")
             api_studies[study_id] = {
                 "cache_id": cache_id,
                 "repository_id": repository_id,
                 "download_url": download_url,
             }
+        else:
+            print(f"Warning: duplicate study id ({study_id}), using vdjserver ({existing['cache_id']}) versus {repository_id} repository.")
 
 print(f"Total API study ids: {len(api_studies)}")
 
