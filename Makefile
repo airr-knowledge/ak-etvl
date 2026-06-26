@@ -252,7 +252,7 @@ extract-iedb:
 	@echo "Not implemented."
 
 extract-adc:
-	@echo "Not implemented."
+	python extract_adc.py $(ADC_IMPORT_DATA)
 
 extract-irad:
 	@echo "Not implemented."
