@@ -26,14 +26,6 @@ validator = Validator(
 
 ak_schema_view = SchemaView("ak-schema/project/linkml/ak_schema.yaml")
 
-
-def id(input):  # todo same as ak_schema_utils??
-    """Convert a URL to an ID."""
-    for prefix, url in curie_prefix_to_url.items():
-        if input.startswith(url):
-            return input.replace(url, '')
-    return input
-
 def safe_get_assay_ids_per_tcr(tcr_df):
     # resolving inconsistent input types (str/int/nan)
     return tcr_df[("Assay", "IEDB IDs")].astype(str).str.split(', ')
@@ -167,9 +159,7 @@ def validate_epitope(epitope_obj, epitope_type):
 def make_peptidic_epitope(epitope_df, validate_data=True):
     epitope = PeptidicEpitope(
         akc_id(),
-        sequence_aa=safe_get_peptide_sequence(epitope_df['Name']), # todo store modifications
-        source_protein=url_to_curie(epitope_df['Molecule Parent IRI']),
-        source_organism=url_to_curie(epitope_df['Source Organism IRI'])
+        sequence_aa=safe_get_peptide_sequence(epitope_df['Name']) # todo store modifications
     )
 
     if validate_data:
@@ -181,9 +171,7 @@ def make_discontinuous_epitope(epitope_df, validate_data=True):
     # todo DiscontinuousEpitope to be added to schema, skipped for now
     epitope = DiscontinuousEpitope(
         akc_id(),
-        positional_residues=epitope_df['Name'],
-        source_protein=url_to_curie(epitope_df['Molecule Parent IRI']),
-        source_organism=url_to_curie(epitope_df['Source Organism IRI'])
+        positional_residues=epitope_df['Name']
     )
 
     if validate_data:
@@ -195,9 +183,7 @@ def make_non_peptidic_epitope(epitope_df, validate_data=True):
     # todo NonPeptidicEpitope to be added to schema, skipped for now
     epitope = NonPeptidicEpitope(
         akc_id(),
-        name=epitope_df['Name'],
-        source_molecule=url_to_curie(epitope_df['Molecule Parent IRI']),
-        source_organism=url_to_curie(epitope_df['Source Organism IRI'])
+        name=epitope_df['Name']
     )
 
     if validate_data:
@@ -208,7 +194,8 @@ def make_non_peptidic_epitope(epitope_df, validate_data=True):
 
 def make_epitope(container, epitope_df):
     # todo
-    #    store as ForeignObject: curie(epitope_df['IEDB IRI'])
+    #    There should not be a need to create akc_id for an epitope?
+    #    It is uniquely defined by its IEDB_EPITOPE:xxx reference?
 
     if epitope_df['Object Type'] == 'Linear peptide':
         epitope = make_peptidic_epitope(epitope_df)
@@ -225,14 +212,19 @@ def make_epitope(container, epitope_df):
     return epitope
 
 
-def make_antigen(container, epitope_df):
+def make_antigen_epitope(container, epitope_df):
+    epitope = make_epitope(container, epitope_df)
+    if epitope:
+        eid = epitope.akc_id
+    else:
+        eid = None
     antigen = Antigen(akc_id(), # todo should akc_id be based on molecule IRI? -> group together same antigen?
-                      source_protein = url_to_curie(epitope_df['Molecule Parent IRI']),
-                      source_organism = url_to_curie(epitope_df['Source Organism IRI'])
+                      source_molecule = url_to_curie(epitope_df['Molecule Parent IRI']),
+                      source_organism = url_to_curie(epitope_df['Source Organism IRI']),
+                      epitope = eid
                       )
 
-    # todo antigens need to be in the AIRRKnowledgeCommons container if they are to be stored
-    # container.antigens[antigen.akc_id] = epitope
+    container.antigens[antigen.akc_id] = antigen
     return antigen
 
 
@@ -254,32 +246,34 @@ def safe_make_mhc(mhc_row):
         )
         return mhc
 
-def make_iedb_tcr_complexes(container, assay_row, tcell_receptors, epitope):
+def make_iedb_tcr_complexes(container, assay_row, tcell_receptors, antigen):
     tcr_complexes = []
 
+    if antigen.epitope:
+        epitope = container.epitopes[antigen.epitope]
+    else:
+        epitope = None
     if type(epitope) == PeptidicEpitope:
         mhc = safe_make_mhc(assay_row["MHC Restriction"])
 
         for tcell_receptor in tcell_receptors:
-            c = make_tcr_pmhc_complex(container, tcell_receptor, epitope, mhc)
+            c = make_tcr_pmhc_complex(container, tcell_receptor, antigen, mhc)
             if c:
                 tcr_complexes.append(c)
     else:
         for tcell_receptor in tcell_receptors:
-            c = make_tcr_epitope_nonmhc_complex(container, tcell_receptor, epitope)
+            c = make_tcr_epitope_nonmhc_complex(container, tcell_receptor, antigen)
             if c:
                 tcr_complexes.append(c)
 
     return tcr_complexes
 
 
-def make_iedb_bcr_complexes(container, assay_row,  bcell_receptors, epitope):
+def make_iedb_bcr_complexes(container, assay_row,  bcell_receptors, antigen):
     bcr_complexes = []
 
-    antigen = make_antigen(container, assay_row['Epitope'])
-
     for bcell_receptor in bcell_receptors:
-        c = make_antibody_antigen_complex(container, bcell_receptor, antigen, epitope)
+        c = make_antibody_antigen_complex(container, bcell_receptor, antigen)
         if c:
             bcr_complexes.append(c)
 
@@ -288,18 +282,18 @@ def make_iedb_bcr_complexes(container, assay_row,  bcell_receptors, epitope):
 def make_iedb_assay(container, assay_row, assay_to_receptor, specimen_collection_life_event, type):
     assay_id = get_assay_id_from_row(assay_row)
     receptors = assay_to_receptor.get(assay_id, [])
-    epitope = make_epitope(container, assay_row['Epitope'])
+    antigen = make_antigen_epitope(container, assay_row['Epitope'])
 
     if len(receptors) == 0:
         print("Skipping Assay with no receptors")
         return None
 
-    if epitope is None:
+    if antigen is None:
         print("Skipping undefined epitope (different epitope types to be implemented)") # todo
         return None
 
     if type == "TCR":
-        receptor_epitope_complexes = make_iedb_tcr_complexes(container, assay_row, receptors, epitope)
+        receptor_epitope_complexes = make_iedb_tcr_complexes(container, assay_row, receptors, antigen)
 
         specimen = Specimen(
             akc_id(),
@@ -309,7 +303,6 @@ def make_iedb_assay(container, assay_row, assay_to_receptor, specimen_collection
 
         assay = TCellReceptorEpitopeBindingAssay(
             akc_id=akc_id(),
-            epitope=epitope.akc_id,
             tcr_complexes=list(sorted(set([t.akc_id for t in receptor_epitope_complexes]))),
             measurement_category=assay_row['Assay']['Qualitative Measurement'],
             specimen=specimen.akc_id,
@@ -320,7 +313,7 @@ def make_iedb_assay(container, assay_row, assay_to_receptor, specimen_collection
         )
 
     elif type == "BCR":
-        receptor_epitope_complexes = make_iedb_bcr_complexes(container, assay_row, receptors, epitope)
+        receptor_epitope_complexes = make_iedb_bcr_complexes(container, assay_row, receptors, antigen)
 
         specimen = Specimen(
             akc_id=akc_id(),
@@ -330,8 +323,6 @@ def make_iedb_assay(container, assay_row, assay_to_receptor, specimen_collection
 
         assay = AntibodyAntigenBindingAssay(
             akc_id=akc_id(),
-            # epitope=epitope.akc_id,
-            # antigen=antigen.akc_id,
             # antibody_complexes=list(sorted(set([b.akc_id for b in receptor_epitope_complexes]))),
             # measurement_category=assay_row['Assay']['Qualitative Measure'], # todo add to assay
             specimen=specimen.akc_id,

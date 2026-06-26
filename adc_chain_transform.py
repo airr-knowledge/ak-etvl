@@ -137,7 +137,13 @@ def receptor_integrate(cache_id):
                             row[f] = to_bool(values[idx])
                         elif t == 'int':
                             #print(line_cnt, len(values), idx)
-                            row[f] = to_int(values[idx])
+                            try:
+                                row[f] = to_int(values[idx])
+                            except ValueError:
+                                print(values[idx], len(values[idx]))
+                                print(f"cannot convert value for field: {f} to type {t}, setting value to None and continuing.")
+                                print(row)
+                                row[f] = None
                         elif t == 'str':
                             if len(values[idx]) == 0:
                                 row[f] = None
@@ -146,7 +152,7 @@ def receptor_integrate(cache_id):
                         else:
                             row[f] = values[idx]
                     except IndexError:
-                        print(idx, 'index not found for', f)
+                        print(idx, 'index not found for field:', f, ', setting to None.')
                         row[f] = None
                         
             row_cnt = row_cnt + 1
@@ -160,6 +166,9 @@ def receptor_integrate(cache_id):
                 continue
             if len(row['junction_aa']) < 3:
                 continue
+            if not row['locus']:
+                print(row)
+                continue
             cnt = 1
             if row['duplicate_count']:
                 cnt = row['duplicate_count']
@@ -169,6 +178,10 @@ def receptor_integrate(cache_id):
             if rep.get('subject') and rep['subject'].get('species') and rep['subject']['species'].get('id'):
                 species = rep['subject']['species']['id']
             chain = make_chain_from_adc(species, row)
+            if not chain:
+                print("Could not make chain, skipping.")
+                print(row)
+                continue
             #print(chain.locus)
             if str(chain.locus) in ['TRA', 'TRB', 'TRG', 'TRD']:
                 tcell_chains.add(chain.akc_id)

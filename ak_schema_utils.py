@@ -28,6 +28,7 @@ validator = Validator(
     validation_plugins=[JsonschemaValidationPlugin(closed=True)]
 )
 
+from adc_study_list import cache_list
 
 # for access to linkml metadata for the AK schema
 ak_schema_view = SchemaView("ak-schema/project/linkml/ak_schema.yaml")
@@ -68,7 +69,8 @@ vdjserver_tcr_cache_list = [
     '6270798281029250580-242ac117-0001-012', # PRJNA680539
     '6295837940364930580-242ac117-0001-012', # BIOPROJECT:PRJNA639580
     '6484265580256563691-242ac113-0001-012', # ImmuneCODE-COVID-Release-002: COVID-19-HUniv12Oct
-    '6496720985414963691-242ac113-0001-012', # PRJNA593622
+    #    '6496720985414963691-242ac113-0001-012', # PRJNA593622, old cache
+    'f40880d7-4f6a-48d4-9b2f-1a030dd65778', # PRJNA593622, new cache
     '6522963235593523691-242ac113-0001-012', # ImmuneCODE-COVID-Release-002: COVID-19-Adaptive
     '6550279227596083691-242ac113-0001-012', # ImmuneCODE-COVID-Release-002: COVID-19-BWNW
     '6563292978502963691-242ac113-0001-012', # PRJNA362309
@@ -302,9 +304,14 @@ def tcr_complex_hash(receptor, epitope, mhc):
     hc = "AKC_HASH:" + seq_hash(h)
     return hc
 
+# compute all the secondary hashes on just the chain fields in one place
+def compute_chain_hashes(chain):
+    return None
+
 def make_chain_from_adc(species, obj):
     if obj['locus'] not in [ 'TRB', 'TRA', 'TRD', 'TRG', 'IGH', 'IGK', 'IGL' ]:
         print('unhandled locus:', obj['locus'])
+        print(obj)
         return None
 
     # calculate exact match hashes
@@ -343,7 +350,7 @@ def make_chain_from_adc(species, obj):
     )
     return chain
 
-chain_types = {
+iedb_chain_map = {
     'alpha': 'TRA',
     'beta': 'TRB',
     'gamma': 'TRG',
@@ -381,7 +388,7 @@ def make_iedb_chain(container, iedb_chain, validate_data=True):
     # - find a place to maintain the IEDB reference
     # - discuss (VJ) hashes: cannot presume allele from VJ? do we need both V and J for hash?
 
-    if iedb_chain["Type"] not in chain_types:
+    if iedb_chain["Type"] not in iedb_chain_map:
         if iedb_chain["Type"] is not None:
             print("Unsupported chain:", iedb_chain["Type"])
         return None
@@ -398,47 +405,138 @@ def make_iedb_chain(container, iedb_chain, validate_data=True):
     else:
         nt_hash_id = akc_id()
 
-    # exact aa sequence match
-    if type(aa_vdj_sequence) is str:
-        aa_hash = seq_hash(aa_vdj_sequence)
-    else:
-        aa_hash = None # todo why does nt get akc_id() as hash and protein does not?
+    c = None
+    locus = iedb_chain_map[iedb_chain['Type']]
+    if locus == 'TRA':
+        c = AlphaChain(
+            akc_id=f'{nt_hash_id}',
+            species=species,
+            # complete_vdj=None,
+            sequence=nt_vdj_sequence,
+            sequence_aa=aa_vdj_sequence,
+            locus=locus,
+            v_call=iedb_chain["Calculated V Gene"],
+            d_call=iedb_chain["Calculated D Gene"],
+            j_call=iedb_chain["Calculated J Gene"],
+            junction_aa=iedb_chain["Junction Calculated"],
+            cdr1_aa=iedb_chain["CDR1 Calculated"],
+            cdr2_aa=iedb_chain["CDR2 Calculated"],
+            cdr3_aa=iedb_chain["CDR3 Calculated"]
+        )
+        container.alpha_chains[c.akc_id] = c
+    elif locus == 'TRB':
+        c = BetaChain(
+            akc_id=f'{nt_hash_id}',
+            species=species,
+            # complete_vdj=None,
+            sequence=nt_vdj_sequence,
+            sequence_aa=aa_vdj_sequence,
+            locus=locus,
+            v_call=iedb_chain["Calculated V Gene"],
+            d_call=iedb_chain["Calculated D Gene"],
+            j_call=iedb_chain["Calculated J Gene"],
+            junction_aa=iedb_chain["Junction Calculated"],
+            cdr1_aa=iedb_chain["CDR1 Calculated"],
+            cdr2_aa=iedb_chain["CDR2 Calculated"],
+            cdr3_aa=iedb_chain["CDR3 Calculated"]
+        )
+        container.beta_chains[c.akc_id] = c
+    elif locus == 'TRG':
+        c = GammaChain(
+            akc_id=f'{nt_hash_id}',
+            species=species,
+            # complete_vdj=None,
+            sequence=nt_vdj_sequence,
+            sequence_aa=aa_vdj_sequence,
+            locus=locus,
+            v_call=iedb_chain["Calculated V Gene"],
+            d_call=iedb_chain["Calculated D Gene"],
+            j_call=iedb_chain["Calculated J Gene"],
+            junction_aa=iedb_chain["Junction Calculated"],
+            cdr1_aa=iedb_chain["CDR1 Calculated"],
+            cdr2_aa=iedb_chain["CDR2 Calculated"],
+            cdr3_aa=iedb_chain["CDR3 Calculated"]
+        )
+        container.gamma_chains[c.akc_id] = c
+    elif locus == 'TRD':
+        c = DeltaChain(
+            akc_id=f'{nt_hash_id}',
+            species=species,
+            # complete_vdj=None,
+            sequence=nt_vdj_sequence,
+            sequence_aa=aa_vdj_sequence,
+            locus=locus,
+            v_call=iedb_chain["Calculated V Gene"],
+            d_call=iedb_chain["Calculated D Gene"],
+            j_call=iedb_chain["Calculated J Gene"],
+            junction_aa=iedb_chain["Junction Calculated"],
+            cdr1_aa=iedb_chain["CDR1 Calculated"],
+            cdr2_aa=iedb_chain["CDR2 Calculated"],
+            cdr3_aa=iedb_chain["CDR3 Calculated"]
+        )
+        container.delta_chains[c.akc_id] = c
+    elif locus == 'IGH':
+        c = HeavyChain(
+            akc_id=f'{nt_hash_id}',
+            species=species,
+            # complete_vdj=None,
+            sequence=nt_vdj_sequence,
+            sequence_aa=aa_vdj_sequence,
+            locus=locus,
+            v_call=iedb_chain["Calculated V Gene"],
+            d_call=iedb_chain["Calculated D Gene"],
+            j_call=iedb_chain["Calculated J Gene"],
+            junction_aa=iedb_chain["Junction Calculated"],
+            cdr1_aa=iedb_chain["CDR1 Calculated"],
+            cdr2_aa=iedb_chain["CDR2 Calculated"],
+            cdr3_aa=iedb_chain["CDR3 Calculated"]
+        )
+        container.heavy_chains[c.akc_id] = c
+    elif locus == 'IGK':
+        c = KappaChain(
+            akc_id=f'{nt_hash_id}',
+            species=species,
+            # complete_vdj=None,
+            sequence=nt_vdj_sequence,
+            sequence_aa=aa_vdj_sequence,
+            locus=locus,
+            v_call=iedb_chain["Calculated V Gene"],
+            d_call=iedb_chain["Calculated D Gene"],
+            j_call=iedb_chain["Calculated J Gene"],
+            junction_aa=iedb_chain["Junction Calculated"],
+            cdr1_aa=iedb_chain["CDR1 Calculated"],
+            cdr2_aa=iedb_chain["CDR2 Calculated"],
+            cdr3_aa=iedb_chain["CDR3 Calculated"]
+        )
+        container.kappa_chains[c.akc_id] = c
+    elif locus == 'IGL':
+        c = LambdaChain(
+            akc_id=f'{nt_hash_id}',
+            species=species,
+            # complete_vdj=None,
+            sequence=nt_vdj_sequence,
+            sequence_aa=aa_vdj_sequence,
+            locus=locus,
+            v_call=iedb_chain["Calculated V Gene"],
+            d_call=iedb_chain["Calculated D Gene"],
+            j_call=iedb_chain["Calculated J Gene"],
+            junction_aa=iedb_chain["Junction Calculated"],
+            cdr1_aa=iedb_chain["CDR1 Calculated"],
+            cdr2_aa=iedb_chain["CDR2 Calculated"],
+            cdr3_aa=iedb_chain["CDR3 Calculated"]
+        )
+        container.lambda_chains[c.akc_id] = c
 
-    c = Chain(
-        akc_id=f'{nt_hash_id}',
-        species=species,
-        aa_hash=aa_hash,
-        # complete_vdj=None,
-        sequence=nt_vdj_sequence,
-        sequence_aa=aa_vdj_sequence,
-        locus=chain_types[iedb_chain['Type']],
-        v_call=iedb_chain["Calculated V Gene"],
-        d_call=iedb_chain["Calculated D Gene"],
-        j_call=iedb_chain["Calculated J Gene"],
-        junction_aa=iedb_chain["Junction Calculated"],
-        cdr1_aa=iedb_chain["CDR1 Calculated"],
-        cdr2_aa=iedb_chain["CDR2 Calculated"],
-        cdr3_aa=iedb_chain["CDR3 Calculated"]
-    )
+    compute_chain_hashes(c)
+    #validate_chain(c)
 
-    if validate_data:
-        s = json.loads(json_dumper.dumps(c))
-        del s['@type']
-        report = validator.validate(s, "Chain")
+    # if validate_data:
+    #     s = json.loads(json_dumper.dumps(c))
+    #     del s['@type']
+    #     report = validator.validate(s, "Chain")
 
-        for result in report.results:
-            print(result.message)
-
-    if c['junction_aa'] and c['v_call'] and c['j_call']:
-        v = c['v_call'].split("*")[0]
-        j = c['j_call'].split("*")[0]
-        junction_aa_vj_gene_hash = junction_aa_vj_hash(c['junction_aa'], v, j)
-    else:
-        junction_aa_vj_gene_hash = None
-
-    c['junction_aa_vj_gene_hash'] = junction_aa_vj_gene_hash
-
-    container.chains[c.akc_id] = c
+    #     for result in report.results:
+    #         print(result.message)
 
     return c
 
@@ -587,6 +685,7 @@ def make_receptor(container, chains):
 
 
 def make_adc_complex(container, receptor, epitope, mhc):
+    print(type(receptor))
     tcr_complex = None
     receptor_id = None
     if receptor:
@@ -608,36 +707,52 @@ def make_adc_complex(container, receptor, epitope, mhc):
     return tcr_complex
 
 
-def make_tcr_pmhc_complex(container, receptor, epitope, mhc):
+def make_tcr_pmhc_complex(container, receptor, antigen, mhc):
     assert type(receptor) in (AlphaBetaTCR, GammaDeltaTCR), "Expected alphabeta or gammadelta TCR, found: " + str(type(receptor))
+    epitope = container.epitopes[antigen.epitope]
     assert type(epitope) == PeptidicEpitope, "Expected peptidic epitope, found: " + str(type(epitope))
 
     mro_mhc = mhc.gene if mhc is not None else None
 
-    complex = TCRpMHCComplex(akc_id=tcr_complex_hash(receptor, epitope, mhc),
-                                 tcr=receptor.akc_id,
-                                 epitope=epitope.akc_id,
-                                 mhc=mro_mhc)
+    if type(receptor) == AlphaBetaTCR:
+        complex = TCRpMHCComplex(akc_id=tcr_complex_hash(receptor, epitope, mhc),
+                                    ab_tcr=receptor.akc_id,
+                                    antigen=antigen.akc_id,
+                                    mhc=mro_mhc)
+    else:
+        complex = TCRpMHCComplex(akc_id=tcr_complex_hash(receptor, epitope, mhc),
+                                    gd_tcr=receptor.akc_id,
+                                    antigen=antigen.akc_id,
+                                    mhc=mro_mhc)
 
     if complex:
         container.tcr_complexes[complex.akc_id] = complex
 
     return complex
 
-def make_tcr_epitope_nonmhc_complex(container, receptor, epitope):
+def make_tcr_epitope_nonmhc_complex(container, receptor, antigen):
     assert type(receptor) in (AlphaBetaTCR, GammaDeltaTCR), "Expected AlphaBetaTCR or GammaDeltaTCR, found: " + str(type(receptor))
-    assert type(epitope) in (DiscontinuousEpitope, NonPeptidicEpitope), "Expected DiscontinuousEpitope or NonPeptidicEpitope, found: " + str(type(epitope))
+    if antigen.epitope:
+        epitope = container.epitopes[antigen.epitope]
+        assert type(epitope) in (DiscontinuousEpitope, NonPeptidicEpitope), "Expected DiscontinuousEpitope or NonPeptidicEpitope, found: " + str(type(epitope))
+    else:
+        epitope = None
 
-    complex = TCREpitopeComplex(akc_id=tcr_complex_hash(receptor, epitope, None),
-                                tcr=receptor.akc_id,
-                                epitope=epitope.akc_id)
+    if type(receptor) == AlphaBetaTCR:
+        complex = TCRpMHCComplex(akc_id=tcr_complex_hash(receptor, epitope, None),
+                                    ab_tcr=receptor.akc_id,
+                                    antigen=antigen.akc_id)
+    else:
+        complex = TCRpMHCComplex(akc_id=tcr_complex_hash(receptor, epitope, None),
+                                    gd_tcr=receptor.akc_id,
+                                    antigen=antigen.akc_id)
 
     if complex:
         container.tcr_complexes[complex.akc_id] = complex
 
     return complex
 
-def make_antibody_antigen_complex(container, receptor, antigen, epitope):
+def make_antibody_antigen_complex(container, receptor, antigen):
     assert type(receptor) == BCellReceptor, "Expected BCellReceptor, found: " + str(type(receptor))
     assert type(antigen) == Antigen, "Expected Antigen, found: " + str(type(antigen))
     # assert type(epitope) in (PeptidicEpitope, DiscontinuousEpitope, NonPeptidicEpitope), "Expected PeptidicEpitope, DiscontinuousEpitope, NonPeptidicEpitope, found: " + str(type(epitope))
@@ -645,11 +760,9 @@ def make_antibody_antigen_complex(container, receptor, antigen, epitope):
     complex = AntibodyAntigenComplex(akc_id=akc_id(),   # todo implement hash # bcr_complex_hash(receptor, epitope, antigen) ??
                                      antibody=receptor.akc_id,
                                      antigen=antigen.akc_id)
-                                     # epitope=epitope.akc_id)
 
-    # todo uncomment if bcr_complexes gets added to AKC object
-    # if complex:
-    #     container.bcr_complexes[complex.akc_id] = complex
+    if complex:
+        container.antigen_complexes[complex.akc_id] = complex
 
     return complex
 
