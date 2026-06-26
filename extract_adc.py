@@ -240,7 +240,7 @@ remaining_cache_ids = sorted( d.name for d in Path(path).iterdir() if d.is_dir()
 # Write remaining cache_ids to a text file
 # ==================================================================================
 
-output_file = "remaining_cache_ids.txt"
+output_file = "adc_cache_list.txt"
 
 with open(output_file, "w") as f:
     for cache_id in remaining_cache_ids:
