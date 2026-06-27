@@ -28,6 +28,12 @@ export IEDB_TRANSFORM_DATA
 
 VDJBASE_DATA=$(AK_DATA)/vdjbase
 
+VDJBASE_IMPORT_DATA=$(AK_IMPORT_DATA)/vdjbase
+export VDJBASE_IMPORT_DATA
+
+VDJBASE_TRANSFORM_DATA=$(AK_TRANSFORM_DATA)/vdjbase
+export VDJBASE_TRANSFORM_DATA
+
 # transformed data ready for DB load
 # inside docker
 AK_DATA_LOAD=$(AK_DATA)/ak-data-load/$(POSTGRES_DB)
@@ -259,7 +265,8 @@ extract-irad:
 
 extract-vdjbase:
 	@echo "Downloading VDJbase data."
-	bash download_vdjbase_data.sh
+	# bash download_vdjbase_data.sh
+	python3 extract_vdjbase.py $(VDJBASE_IMPORT_DATA) TRB
 
 data-fixes: check-docker
 	@echo "Fixing data errors."
