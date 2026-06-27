@@ -250,7 +250,7 @@ extract-ogrdb:
 	@echo "Not implemented."
 
 extract-iedb:
-	@echo "Not implemented."
+	python extract_iedb.py $(IEDB_IMPORT_DATA)
 
 extract-adc:
 	python extract_adc.py $(ADC_IMPORT_DATA)
@@ -279,7 +279,7 @@ $(IEDB_TRANSFORM_DATA)/iedb_tsv/: check-docker
 	mkdir -p $@
 	mkdir -p $(IEDB_TRANSFORM_DATA)/iedb_jsonl/
 
-iedb-transform: check-docker ak_schema.py iedb_transform.py $(IEDB_IMPORT_DATA)/tcell_table_export_v4.tsv $(IEDB_IMPORT_DATA)/tcr_full_v4.csv $(IEDB_IMPORT_DATA)/bcell_table_export_v4.tsv $(IEDB_IMPORT_DATA)/bcr_full_v4.csv | $(IEDB_TRANSFORM_DATA)/iedb_tsv/
+iedb-transform: check-docker ak_schema.py iedb_transform.py $(IEDB_IMPORT_DATA)/tcell_table_export_v3.tsv $(IEDB_IMPORT_DATA)/tcr_full_v3.csv $(IEDB_IMPORT_DATA)/bcell_table_export_v3.tsv $(IEDB_IMPORT_DATA)/bcr_full_v3.csv | $(IEDB_TRANSFORM_DATA)/iedb_tsv/
 	python3 $(wordlist 3,7,$^)
 
 
