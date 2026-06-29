@@ -56,11 +56,11 @@ def get_n_previous_receptors():
             previous_date_bcrs = previous_bcrs["date"].tolist()[0]
 
     if not IEDB_TCR_TSV.is_file() and previous_n_tcrs > 0:
-        print(f"Expected TCR file at: {IEDB_TCR_TSV}")
+        print(f"Expected TCR file at: {IEDB_TCR_TSV}, a new TCR set will be downloaded")
         previous_n_tcrs = 0
 
     if not IEDB_BCR_TSV.is_file():
-        print(f"Expected BCR file at: {IEDB_BCR_TSV}")
+        print(f"Expected BCR file at: {IEDB_BCR_TSV}, a new BCR set will be downloaded")
         previous_n_bcrs = 0
 
     return {"TCR": {"n_prev": previous_n_tcrs,
@@ -106,9 +106,12 @@ def move_old_data(receptor_file_path, cell_file_path, date_prev):
     safe_move(new_folder, receptor_file_path)
     safe_move(new_folder, cell_file_path)
 
+    print(f"Previous data from {date_prev} has been moved to {new_folder}")
 
 
 def download_and_extract_receptors(receptor_file_path, receptor_type):
+    print(f"Downloading {receptor_type} data...")
+
     url = f"https://www.iedb.org/downloader.php?file_name=doc/{receptor_type.lower()}_full_v3_tsv.zip"
 
     response = requests.get(url, headers=HEADERS, stream=True, timeout=60)
@@ -124,24 +127,47 @@ def download_and_extract_receptors(receptor_file_path, receptor_type):
     with zipfile.ZipFile(tmp_zip_file, "r") as zip_ref:
         zip_ref.extractall(IEDB_LATEST_DATA_PATH)
 
+    assert receptor_file_path.is_file(), f"Expected zip file to contain {receptor_file_path.name}"
+
     tmp_zip_file.unlink()
 
-def download_and_extract_cells(cell_file_path, receptor_type):
-    # todo download nd extract cells with receptor data
-        # select only tcells where receptors is not null:
-        # https://query-api.iedb.org/tcell_search?receptor_group_ids=not.is.null&select=*&limit=25s
-    print("Tcell and Bcell retrieval has not yet been implemented")
+    print(f"...New {receptor_type} data is available at {IEDB_LATEST_DATA_PATH}")
 
-    # url = f"https://query-api.iedb.org/{receptor_type[0].lower()}cell_search?receptor_group_ids=not.is.null"
-    #
-    #
-    # # headers = {"accept": "text/csv"}
-    #
-    # r = requests.get(url, headers=HEADERS, stream=True, timeout=60)
-    # r.raise_for_status()
-    #
-    # with open(cell_file_path, "wb") as f:
-    #     f.write(r.content)
+
+def download_and_extract_cells(cell_file_path, receptor_type, limit = 10000):
+    print(f"Downloading {receptor_type[0]} cell assays...")
+
+    tb = receptor_type[0].lower()
+
+    offset = 0
+    first = True
+
+    while True:
+        r = requests.get(
+            f"{IEDB_QUERY_API_URL}/{tb}cell_search",
+            params={
+                "receptor_group_ids": "not.is.null",
+                # "select": f"{tb}cell_id",
+                "limit": limit,
+                "offset": offset,
+                "order": f"{tb}cell_id",
+                "select": "{tb}cell_export(*)"
+            },
+            headers=HEADERS,
+        )
+
+        r.raise_for_status()
+
+        if len(r.json()) == 0:
+            break
+
+        partial_df = pd.DataFrame(r.json())
+        partial_df.to_csv(cell_file_path, mode="w" if first else "a", index=False, header=first)
+
+        first = False
+        offset += limit
+
+    print(f"...{receptor_type[0]} cell assays have been written to {cell_file_path}")
 
 
 def update_import_details(n_receptors, receptor_type):
@@ -161,6 +187,7 @@ def update_import_details(n_receptors, receptor_type):
         import_details_df = pd.DataFrame([row_to_add], columns=["date", "n", "receptor_type", "is_latest"])
 
     import_details_df.to_csv(IEDB_IMPORT_DETAILS_PATH, index=False)
+    print(f"Import details have been updated to include the latest {receptor_type} data ({today_str}).")
 
 
 def retrieve_new_receptor_data(n_now, n_prev, date_prev, receptor_file_path, cell_file_path, receptor_type):
@@ -172,6 +199,8 @@ def retrieve_new_receptor_data(n_now, n_prev, date_prev, receptor_file_path, cel
         download_and_extract_receptors(receptor_file_path, receptor_type)
         download_and_extract_cells(cell_file_path, receptor_type)
         update_import_details(n_now, receptor_type)
+    else:
+        print(f"Number of {receptor_type} is the same as the latest data {n_prev} ({date_prev}). No new data will be retrieved. To force new data retrieval, please delete or move {IEDB_LATEST_DATA_PATH}.")
 
 
 def main():
