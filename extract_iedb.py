@@ -12,7 +12,7 @@ IEDB_IMPORT_DATA = Path(sys.argv[1])
 
 
 IEDB_IMPORT_DETAILS_PATH = IEDB_IMPORT_DATA / "import_details.csv"
-IEDB_LATEST_DATA_PATH = IEDB_IMPORT_DATA / "latest_data"
+IEDB_LATEST_DATA_PATH = IEDB_IMPORT_DATA
 IEDB_PREV_DATA_PATH = IEDB_IMPORT_DATA / "previous_data"
 
 IEDB_TCR_TSV = IEDB_LATEST_DATA_PATH / "tcr_full_v3.tsv"
@@ -32,11 +32,11 @@ IEDB_QUERY_API_URL = "https://query-api.iedb.org"
 
 
 def setup():
-    if not IEDB_PREV_DATA_PATH.is_dir():
-        os.makedirs(IEDB_PREV_DATA_PATH)
-
     if not IEDB_LATEST_DATA_PATH.is_dir():
         os.makedirs(IEDB_LATEST_DATA_PATH)
+
+    if not IEDB_PREV_DATA_PATH.is_dir():
+        os.makedirs(IEDB_PREV_DATA_PATH)
 
 def get_n_previous_receptors():
     previous_n_tcrs, previous_n_bcrs = 0, 0
