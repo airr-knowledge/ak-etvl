@@ -17,8 +17,8 @@ IEDB_PREV_DATA_PATH = IEDB_IMPORT_DATA / "previous_data"
 
 IEDB_TCR_TSV = IEDB_LATEST_DATA_PATH / "tcr_full_v3.tsv"
 IEDB_BCR_TSV = IEDB_LATEST_DATA_PATH / "bcr_full_v3.tsv"
-IEDB_TCELL_TSV = IEDB_LATEST_DATA_PATH / "tcell_full_v3.tsv"
-IEDB_BCELL_TSV = IEDB_LATEST_DATA_PATH / "bcell_full_v3.tsv"
+IEDB_TCELL_TSV = IEDB_LATEST_DATA_PATH / "tcell_assays.tsv"
+IEDB_BCELL_TSV = IEDB_LATEST_DATA_PATH / "bcell_assays.tsv"
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0",
@@ -108,6 +108,32 @@ def move_old_data(receptor_file_path, cell_file_path, date_prev):
 
     print(f"Previous data from {date_prev} has been moved to {new_folder}")
 
+#
+# def download_and_extract_receptors(receptor_file_path, receptor_type):
+#     print(f"Downloading {receptor_type} data...")
+#
+#     url = f"https://www.iedb.org/downloader.php?file_name=doc/{receptor_type.lower()}_full_v3_tsv.zip"
+#
+#     response = requests.get(url, headers=HEADERS, stream=True, timeout=60)
+#     response.raise_for_status()
+#
+#     tmp_zip_file = IEDB_LATEST_DATA_PATH / f"tmp_{receptor_type}.zip"
+#     tmp_zip_file.parent.mkdir(exist_ok=True)
+#
+#     with open(tmp_zip_file, "wb") as f:
+#         for chunk in response.iter_content(chunk_size=8192):
+#             f.write(chunk)
+#
+#     with zipfile.ZipFile(tmp_zip_file, "r") as zip_ref:
+#         zip_ref.extractall(IEDB_LATEST_DATA_PATH)
+#
+#     assert receptor_file_path.is_file(), f"Expected zip file to contain {receptor_file_path.name}"
+#
+#     tmp_zip_file.unlink()
+#
+#     print(f"...New {receptor_type} data is available at {IEDB_LATEST_DATA_PATH}")
+
+
 
 def download_and_extract_receptors(receptor_file_path, receptor_type):
     print(f"Downloading {receptor_type} data...")
@@ -134,6 +160,7 @@ def download_and_extract_receptors(receptor_file_path, receptor_type):
     print(f"...New {receptor_type} data is available at {IEDB_LATEST_DATA_PATH}")
 
 
+
 def download_and_extract_cells(cell_file_path, receptor_type, limit = 10000):
     print(f"Downloading {receptor_type[0]} cell assays...")
 
@@ -151,7 +178,7 @@ def download_and_extract_cells(cell_file_path, receptor_type, limit = 10000):
                 "limit": limit,
                 "offset": offset,
                 "order": f"{tb}cell_id",
-                "select": "{tb}cell_export(*)"
+                # "select": f"{tb}cell_export(*)"
             },
             headers=HEADERS,
         )
