@@ -266,7 +266,7 @@ extract-irad:
 extract-vdjbase:
 	@echo "Downloading VDJbase data."
 	# bash download_vdjbase_data.sh
-	python3 extract_vdjbase.py $(VDJBASE_IMPORT_DATA) TRB
+	python3 extract_vdjbase.py $(VDJBASE_IMPORT_DATA)
 
 data-fixes: check-docker
 	@echo "Fixing data errors."
