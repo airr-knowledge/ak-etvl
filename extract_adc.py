@@ -240,13 +240,62 @@ remaining_cache_ids = sorted( d.name for d in Path(path).iterdir() if d.is_dir()
 # Write remaining cache_ids to a text file
 # ==================================================================================
 
-output_file = "adc_cache_list.txt"
+output_file = "cache_lists/adc_cache_list.txt"
 
 with open(output_file, "w") as f:
     for cache_id in remaining_cache_ids:
         f.write(f"{cache_id}\n")
 
 print(f"Wrote {len(remaining_cache_ids)} cache IDs to {output_file}")
+
+# ==================================================================================
+# Create separate lists for TCR, BCR and paired_chain
+# ==================================================================================
+
+TCR_cache_ids = []
+BCR_cache_ids = []
+TCR_paired_cache_ids = []
+BCR_paired_cache_ids = []
+
+for cache_id in remaining_cache_ids:
+    repertoire_data = airr.read_airr(f"{path}/{cache_id}/repertoires.airr.json")
+
+    for rep in repertoire_data["Repertoire"]:
+        study = rep.get("study", {})
+
+        if 'contains_ig' in study.get("keywords_study"):
+            if 'contains_paired_chain' in study.get("keywords_study"):
+                BCR_paired_cache_ids.append(cache_id)
+            else:
+                BCR_cache_ids.append(cache_id)
+        elif 'contains_tr':
+            if 'contains_paired_chain' in study.get("keywords_study"):
+                TCR_paired_cache_ids.append(cache_id)
+            else:
+                TCR_cache_ids.append(cache_id)
+        else:
+            print(f"Study is missing keywords, cannot determine if TCR or BCR: {cache_id}")
+        break
+
+with open('cache_lists/adc_TCR_cache_list.txt', "w") as f:
+    for cache_id in TCR_cache_ids:
+        f.write(f"{cache_id}\n")
+print(f"Wrote {len(TCR_cache_ids)} cache IDs to adc_TCR_cache_list.txt")
+
+with open('cache_lists/adc_TCR_paired_cache_list.txt', "w") as f:
+    for cache_id in TCR_paired_cache_ids:
+        f.write(f"{cache_id}\n")
+print(f"Wrote {len(TCR_paired_cache_ids)} cache IDs to adc_TCR_paired_cache_list.txt")
+
+with open('cache_lists/adc_BCR_cache_list.txt', "w") as f:
+    for cache_id in BCR_cache_ids:
+        f.write(f"{cache_id}\n")
+print(f"Wrote {len(BCR_cache_ids)} cache IDs to adc_BCR_cache_list.txt")
+
+with open('cache_lists/adc_BCR_paired_cache_list.txt', "w") as f:
+    for cache_id in BCR_paired_cache_ids:
+        f.write(f"{cache_id}\n")
+print(f"Wrote {len(BCR_paired_cache_ids)} cache IDs to adc_BCR_paired_cache_list.txt")
 
         
 # # 13 new studies that is downloaded on 06/22/2026
