@@ -1,7 +1,7 @@
 # centralized ADC study list
 
-cache_file = 'adc_cache_list.txt'
-exclude_file = 'adc_cache_exclude.txt'
+cache_file = 'cache_lists/adc_cache_list.txt'
+exclude_file = 'cache_lists/adc_cache_exclude.txt'
 
 def read_list_from_file():
     with open(cache_file, 'r') as file:
