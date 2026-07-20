@@ -31,6 +31,7 @@ RUN pip install appengine-python-standard
 RUN pip install cruft
 
 # AIRR requirements
+RUN pip install biopython
 RUN pip install airr
 
 RUN mkdir /ak-etvl
