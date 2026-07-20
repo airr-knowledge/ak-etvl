@@ -11,6 +11,7 @@ import hashlib
 import itertools
 import uuid
 from dateutil import parser
+from Bio.Seq import Seq
 
 from linkml_runtime.utils.schemaview import SchemaView
 from linkml_runtime.linkml_model.meta import EnumDefinition, PermissibleValue, SchemaDefinition
@@ -28,6 +29,7 @@ validator = Validator(
     validation_plugins=[JsonschemaValidationPlugin(closed=True)]
 )
 
+# ADC study(cache) list
 from adc_study_list import read_list_from_file
 cache_list = read_list_from_file()
 
@@ -35,8 +37,12 @@ cache_list = read_list_from_file()
 ak_schema_view = SchemaView("ak-schema/project/linkml/ak_schema.yaml")
 
 # data import/export directories
+# The Makefile defines these in the environment
 # set ak_data_dir from the environment variable AK_DATA_DIR if it exists
-ak_data_dir = os.environ.get('AK_DATA_DIR', '/ak_data')
+AK_DATA = os.environ.get('AK_DATA')
+if not AK_DATA:
+    print("AK_DATA is not defined.")
+    sys.exit(1)
 
 ADC_IMPORT_DATA = os.environ.get('ADC_IMPORT_DATA')
 if not ADC_IMPORT_DATA:
@@ -55,184 +61,13 @@ IEDB_TRANSFORM_DATA = os.environ.get('IEDB_TRANSFORM_DATA')
 if not IEDB_TRANSFORM_DATA:
     print("IEDB_TRANSFORM_DATA is not defined.")
 
-vdjbase_data_dir = ak_data_dir + '/vdjbase'
 
-ak_load_dir = ak_data_dir + '/ak-data-load'
-
-# # ADC study list
-# vdjserver_tcr_cache_list = [
-#     '2314581927515778580-242ac117-0001-012', # PRJNA608742
-#     '2531647238962745836-242ac114-0001-012', # PRJNA724733
-#     '3567053283467128340-242ac117-0001-012', # PRJNA606979
-#     '4086105921948741140-242ac114-0001-012', # PRJNA747292
-#     '4507038074455191060-242ac114-0001-012', # PRJNA472381
-#     '5861142787889753620-242ac114-0001-012', # 4505707319090933270-242ac113-0001-012
-#     '6270798281029250580-242ac117-0001-012', # PRJNA680539
-#     '6295837940364930580-242ac117-0001-012', # BIOPROJECT:PRJNA639580
-#     '6484265580256563691-242ac113-0001-012', # ImmuneCODE-COVID-Release-002: COVID-19-HUniv12Oct
-#     #    '6496720985414963691-242ac113-0001-012', # PRJNA593622, old cache
-#     'f40880d7-4f6a-48d4-9b2f-1a030dd65778', # PRJNA593622, new cache
-#     '6522963235593523691-242ac113-0001-012', # ImmuneCODE-COVID-Release-002: COVID-19-Adaptive
-#     '6550279227596083691-242ac113-0001-012', # ImmuneCODE-COVID-Release-002: COVID-19-BWNW
-#     '6563292978502963691-242ac113-0001-012', # PRJNA362309
-# #    '6577294571887923691-242ac113-0001-012', # dewitt-2015-jvi
-#     '6618998704332083691-242ac113-0001-012', # ImmuneCODE-COVID-Release-002: COVID-19-IRST/AUSL
-#     '6633086197062963691-242ac113-0001-012', # ImmuneCODE-COVID-Release-002: COVID-19-ISB
-#     '6647517287177523691-242ac113-0001-012', # 3276777473314001386-242ac116-0001-012
-#     '6661390031543603691-242ac113-0001-012', # ImmuneCODE-COVID-Release-002: COVID-19-DLS
-#     '6675219826236723691-242ac113-0001-012', # ImmuneCODE-COVID-Release-002: COVID-19-NIH/NIAID
-#     '6716408562605363691-242ac113-0001-012', # langkuhs-2018-plosone
-#     '6824255191407923691-242ac113-0001-012', # emerson-2017-natgen
-#     '6838858080214323691-242ac113-0001-012', # 1371444213709729305-242ac11c-0001-012
-# #    '6874985559628780011-242ac117-0001-012', # TCR:PRJNA511481
-#     '6906582706313892331-242ac117-0001-012', # 4995411523885404651-242ac118-0001-012
-# ]
-# vdjserver_ig_cache_list = [
-#     '138180023656967700-242ac114-0001-012',  # PRJNA549712
-#     '1767545687058878956-242ac117-0001-012', # PRJNA578389
-#     '2678435128703839765-242ac117-0001-012', # PRJNA642962
-#     '6378122916818653676-242ac117-0001-012', # PRJNA624801
-#     '6470478735236403691-242ac113-0001-012', # PRJEB18631
-#     '6536105835519283691-242ac113-0001-012', # PRJNA645245
-#     '6590523071159603691-242ac113-0001-012', # PRJNA260556
-#     '6603493872393523691-242ac113-0001-012', # PRJNA283640
-#     '6688405375835443691-242ac113-0001-012', # PRJNA349143
-#     '6701977472490803691-242ac113-0001-012', # PRJNA248475
-#     '6853976365096243691-242ac113-0001-012', # PRJNA406949
-#     '6869481197034803691-242ac113-0001-012', # robins-bcell-2016
-#     '6883611639438643691-242ac113-0001-012', # PRJNA272713
-#     '6897613232823603691-242ac113-0001-012', # PRJNA315079
-# ]
-# vdjserver_both_cache_list = [
-#     '6508961642208563691-242ac113-0001-012', # PRJNA300878
-# ]
-
-# ipa_tcr_cache_list = [
-#     '1546893841758097901-242ac11b-0001-012', # PRJNA316033
-#     '1589929414064017901-242ac11b-0001-012', # PRJNA315543
-#     '1631719445854097901-242ac11b-0001-012', # PRJNA506151
-#     '1665177241089937901-242ac11b-0001-012', # PRJNA325416
-#     '1703144751986577901-242ac11b-0001-012', # PRJNA356992
-#     '1818767539323343341-242ac11b-0001-012', # PRJNA330606
-#     '2190435173075840530-242ac118-0001-012', # DOI:10.21417/B7C88S
-#     '3791830297704337901-242ac11b-0001-012', # PRJNA493983
-#     '4896275633090653715-242ac11b-0001-012', # PRJNA633317
-#     '5034739262512754195-242ac11b-0001-012', # PRJNA311704-001
-#     '5524076507527057901-242ac11b-0001-012', # IR-Binder-000002
-#     '5573468631431057901-242ac11b-0001-012', # IR-Efimov-000001
-#     '5626983923939217901-242ac11b-0001-012', # IR-Binder-000001
-#     '5875190083975057901-242ac11b-0001-012', # PRJCA002413
-#     '5919600045815697901-242ac11b-0001-012', # IR-Efimov-000002
-#     '620211697973137901-242ac11b-0001-012',  # PRJNA312319
-#     '7430997044253299181-242ac11b-0001-012', # PRJNA229070
-#     '7625215465378419181-242ac11b-0001-012', # PRJNA321261
-#     '7636497343395917330-242ac117-0001-012', # PRJNA744851
-#     '8434237213378080275-242ac11b-0001-012', # DOI:10.21417/AMM2022JCII
-#     '8498404024780320275-242ac11b-0001-012', # DOI:10.1172/JCI.insight.88242
-#     '8575123754278514195-242ac11b-0001-012', # PRJNA509910
-#     '970356185718124050-242ac117-0001-012',  # DOI:10.1073/pnas.2107208118
-# ]
-
-# ipa_ig_cache_list = [
-#     '3860335026075537901-242ac11b-0001-012', # PRJNA381394
-#     '4121328567672434195-242ac11b-0001-012', # IR-Roche-000001
-#     '5348884791523217901-242ac11b-0001-012', # PRJNA741267
-#     '5398534613464977901-242ac11b-0001-012', # PRJNA752617
-#     '5444748461569937901-242ac11b-0001-012', # PRJNA715378
-#     '5481255683585937901-242ac11b-0001-012', # PRJNA731610
-#     '5667442515867537901-242ac11b-0001-012', # PRJNA628125
-#     '5710177440462737901-242ac11b-0001-012', # PRJNA648677
-#     '5755875892492177901-242ac11b-0001-012', # PRJNA638224
-#     '5786885556369297901-242ac11b-0001-012', # PRJNA624801
-#     '5833099404474257901-242ac11b-0001-012', # PRJNA630455
-#     '5963881158637457901-242ac11b-0001-012', # PRJNA669143
-#     '6007990472767377901-242ac11b-0001-012', # E-MTAB-9995
-#     '7038437033398899181-242ac11b-0001-012', # PRJEB8745
-#     '7094829953995379181-242ac11b-0001-012', # PRJEB1289
-#     '7145639417107059181-242ac11b-0001-012', # PRJEB9332
-#     '7198897011577459181-242ac11b-0001-012', # PRJNA206548
-#     '7245411507393139181-242ac11b-0001-012', # PRJNA248411
-#     '7285655350956659181-242ac11b-0001-012', # PRJNA195543
-#     '7326070993212019181-242ac11b-0001-012', # PRJNA188191
-#     '7391397445784179181-242ac11b-0001-012', # SRP001460
-#     '7480260319138419181-242ac11b-0001-012', # PRJNA280743
-#     '7525572224111219181-242ac11b-0001-012', # PRJNA368623
-#     '7573504059134579181-242ac11b-0001-012', # PRJNA275625
-# ]
-
-# ipa_both_cache_list = []
-
-# # IPA studies with repertoire_id issue
-# # 1546893841758097901-242ac11b-0001-012
-# # 1589929414064017901-242ac11b-0001-012
-# # 1631719445854097901-242ac11b-0001-012
-# # 1665177241089937901-242ac11b-0001-012
-# # 1703144751986577901-242ac11b-0001-012
-# # 1818767539323343341-242ac11b-0001-012
-# # 3791830297704337901-242ac11b-0001-012
-# # 3860335026075537901-242ac11b-0001-012
-# # 620211697973137901-242ac11b-0001-012
-# # 7038437033398899181-242ac11b-0001-012
-# # 7094829953995379181-242ac11b-0001-012
-# # 7145639417107059181-242ac11b-0001-012
-# # 7198897011577459181-242ac11b-0001-012
-# # 7245411507393139181-242ac11b-0001-012
-# # 7285655350956659181-242ac11b-0001-012
-# # 7326070993212019181-242ac11b-0001-012
-# # 7391397445784179181-242ac11b-0001-012
-# # 7430997044253299181-242ac11b-0001-012
-# # 7480260319138419181-242ac11b-0001-012
-# # 7525572224111219181-242ac11b-0001-012
-# # 7573504059134579181-242ac11b-0001-012
-# # 7625215465378419181-242ac11b-0001-012
-
-# # These are studies that are duplicated in VDJServer
-# ipa_duplicate_skip_list = [
-#     '1522853638492131821-242ac11b-0001-012', # ImmuneCODE-COVID-Release-002: COVID-19-Adaptive
-#     '1602911828889571821-242ac11b-0001-012', # ImmuneCODE-COVID-Release-002: COVID-19-ISB
-#     '1737559053619171821-242ac11b-0001-012', # ImmuneCODE-COVID-Release-002: COVID-19-DLS
-#     '1791374993838051821-242ac11b-0001-012', # ImmuneCODE-COVID-Release-002: COVID-19-BWNW
-#     '3700170190827613715-242ac11b-0001-012', # ImmuneCODE-COVID-Release-002: COVID-19-HUniv12Oct
-#     '3759956135587933715-242ac11b-0001-012', # ImmuneCODE-COVID-Release-002: COVID-19-IRST/AUSL
-#     '3808446316359773715-242ac11b-0001-012', # ImmuneCODE-COVID-Release-002: COVID-19-NIH/NIAID
-#     '4944293367459933715-242ac11b-0001-012', # PRJNA608742
-# ]
-
-# other_cache_list = [
-#     '7009307527175794195-242ac11b-0001-012', # TAZQRXHQ
-#     '7088807371824754195-242ac11b-0001-012', # ADFPAKLS
-#     '7137855898345074195-242ac11b-0001-012', # 2YNBAIAJ
-#     '7194248818941554195-242ac11b-0001-012', # 6R5ENPH5
-#     '7274092260974194195-242ac11b-0001-012', # NYEKYTEN
-#     '7333319859986034195-242ac11b-0001-012', # BIJ6B5TC
-# ]
-
-# test_cache_list = [
-# #    '2314581927515778580-242ac117-0001-012', # PRJNA608742
-# #    '4507038074455191060-242ac114-0001-012', # PRJNA472381
-# #    '2531647238962745836-242ac114-0001-012', # PRJNA724733
-# #    '6270798281029250580-242ac117-0001-012', # PRJNA680539
-#     '6508961642208563691-242ac113-0001-012', # PRJNA300878
-# ]
-
-# vdjbase_cache_list = [
-#     'vdjbase-2025-08-231-0001-012',
-# ]
-
-# cache_list = []
-# cache_list.extend(ipa_tcr_cache_list)
-# cache_list.extend(ipa_ig_cache_list)
-# cache_list.extend(ipa_both_cache_list)
-
-# cache_list.extend(vdjserver_tcr_cache_list)
-# cache_list.extend(vdjserver_ig_cache_list)
-# cache_list.extend(vdjserver_both_cache_list)
-
-# cache_list.extend(other_cache_list)
-# #cache_list.extend(vdjbase_cache_list)
-
-# #cache_list.extend(test_cache_list)
-
+# load germlines
+from gldb import *
+# human IG is OGRDB
+human_IG_germline = loadGermline('germlines/ogrdb_human_germline.airr.json')
+# human TCR is VDJServer/IMGT
+human_TCR_germline = loadGermline('germlines/new_vdjserver_human_germline.airr.json')
 
 curie_prefix_to_url = {curie.prefix: str(curie) for curie in globals().values() if isinstance(curie, CurieNamespace)}
 
@@ -309,7 +144,86 @@ def tcr_complex_hash(receptor, epitope, mhc):
 def compute_chain_hashes(chain):
     return None
 
-def make_chain_from_adc(species, obj):
+# infer (if possible) the complete VDJ sequence from existing sequence and germline
+def infer_vdj_sequence(chain, annotations):
+    debug_msg = True
+    if annotations is None:
+        return None
+    if (annotations['j_germline_end'] is None) or (annotations['j_sequence_end'] is None) or (annotations['v_germline_start'] is None) or (annotations['v_sequence_start'] is None):
+        return None
+    if annotations['rev_comp']:
+        print(f"sequence is reverse complement.")
+        #debug_msg = True
+        #sys.exit(1)
+
+    if debug_msg:
+        print(chain)
+        print(annotations)
+
+    v_info = None
+    j_info = None
+    if type(chain) in [ BetaChain, AlphaChain, GammaChain, DeltaChain ]:
+        v_info = lookupAllele(human_TCR_germline, chain.v_call)
+        j_info = lookupAllele(human_TCR_germline, chain.j_call)
+    elif type(chain) in [ HeavyChain, KappaChain, LambdaChain ]:
+        v_info = lookupAllele(human_IG_germline, chain.v_call)
+        j_info = lookupAllele(human_IG_germline, chain.j_call)
+
+    if v_info is None:
+        return None
+    if v_info['coding_sequence'] is None:
+        print(f"germline allele description {v_info['label']} is missing coding_sequence.")
+        return None
+    if j_info is None:
+        return None
+    if j_info['coding_sequence'] is None:
+        print(f"germline allele description {j_info['label']} is missing coding_sequence.")
+        return None
+
+    trimmed_sequence = chain.sequence
+    if debug_msg:
+        print(v_info['coding_sequence'])
+        print(len(v_info['coding_sequence']))
+        print(j_info['coding_sequence'])
+        print(len(j_info['coding_sequence']))
+        print(trimmed_sequence)
+        print(len(trimmed_sequence))
+
+    # J gene, four possible overlap scenarios
+    if annotations['j_germline_end'] == len(j_info['coding_sequence']):
+        # sequence has end of J
+        if len(trimmed_sequence) > annotations['j_sequence_end']:
+            # extra sequence at end to be trimmed
+            trimmed_sequence = trimmed_sequence[0:annotations['j_sequence_end']]
+    else:
+        if len(trimmed_sequence) > annotations['j_sequence_end']:
+            # extra sequence at end to be trimmed
+            trimmed_sequence = trimmed_sequence[0:annotations['j_sequence_end']]
+        # sequence is missing J end, need to add
+        trimmed_sequence = trimmed_sequence + j_info['coding_sequence'][annotations['j_germline_end']:]
+
+    # V gene, four possible overlap scenarios
+    if annotations['v_germline_start'] == 1:
+        # sequence has start of V
+        if annotations['v_sequence_start'] > 1:
+            # extra sequence at the beginning to be trimmed
+            trimmed_sequence = trimmed_sequence[annotations['v_sequence_start'] - 1:]
+    else:
+        if annotations['v_sequence_start'] > 1:
+            # extra sequence at the beginning to be trimmed
+            trimmed_sequence = trimmed_sequence[annotations['v_sequence_start'] - 1:]
+        # sequence is missing V start, need to add
+        trimmed_sequence = v_info['coding_sequence'][0:annotations['v_germline_start'] - 1] + trimmed_sequence
+    chain.infer_vdj_sequence = trimmed_sequence
+    chain.infer_vdj_sequence_aa = str(Seq(trimmed_sequence).translate())
+    if debug_msg:
+        print(chain.infer_vdj_sequence)
+        print(chain.infer_vdj_sequence_aa)
+        print(chain)
+        if len(chain.infer_vdj_sequence_aa) == 0:
+            sys.exit(1)
+
+def make_chain_from_adc(container, species, obj):
     if obj['locus'] not in [ 'TRB', 'TRA', 'TRD', 'TRG', 'IGH', 'IGK', 'IGL' ]:
         print('unhandled locus:', obj['locus'])
         print(obj)
@@ -322,33 +236,102 @@ def make_chain_from_adc(species, obj):
     else:
         nt_hash_id = seq_hash_id(species, obj['sequence'])
 
-    # exact aa sequence match
-    if obj['sequence_aa'] is None:
-        aa_hash = None
-    else:
-        aa_hash = seq_hash(obj['sequence_aa'])
+    chain = None
+    if obj['locus'] == 'TRA':
+        chain = AlphaChain(
+            f'{nt_hash_id}',
+            species = species,
+            complete_vdj = obj['complete_vdj'],
+            sequence = obj['sequence'],
+            sequence_aa = obj['sequence_aa'],
+            locus = LocusEnum(obj['locus']),
+            junction_aa = obj['junction_aa'],
+            v_call = obj['v_call'],
+            j_call = obj['j_call'],
+        )
+        container.alpha_chains[chain.akc_id] = chain
+    elif obj['locus'] == 'TRB':
+        chain = BetaChain(
+            f'{nt_hash_id}',
+            species = species,
+            complete_vdj = obj['complete_vdj'],
+            sequence = obj['sequence'],
+            sequence_aa = obj['sequence_aa'],
+            locus = LocusEnum(obj['locus']),
+            junction_aa = obj['junction_aa'],
+            v_call = obj['v_call'],
+            j_call = obj['j_call'],
+        )
+        container.beta_chains[chain.akc_id] = chain
+    elif obj['locus'] == 'TRG':
+        chain = GammaChain(
+            f'{nt_hash_id}',
+            species = species,
+            complete_vdj = obj['complete_vdj'],
+            sequence = obj['sequence'],
+            sequence_aa = obj['sequence_aa'],
+            locus = LocusEnum(obj['locus']),
+            junction_aa = obj['junction_aa'],
+            v_call = obj['v_call'],
+            j_call = obj['j_call'],
+        )
+        container.gamma_chains[chain.akc_id] = chain
+    elif obj['locus'] == 'TRD':
+        chain = DeltaChain(
+            f'{nt_hash_id}',
+            species = species,
+            complete_vdj = obj['complete_vdj'],
+            sequence = obj['sequence'],
+            sequence_aa = obj['sequence_aa'],
+            locus = LocusEnum(obj['locus']),
+            junction_aa = obj['junction_aa'],
+            v_call = obj['v_call'],
+            j_call = obj['j_call'],
+        )
+        container.delta_chains[chain.akc_id] = chain
+    elif obj['locus'] == 'IGH':
+        chain = HeavyChain(
+            f'{nt_hash_id}',
+            species = species,
+            complete_vdj = obj['complete_vdj'],
+            sequence = obj['sequence'],
+            sequence_aa = obj['sequence_aa'],
+            locus = LocusEnum(obj['locus']),
+            junction_aa = obj['junction_aa'],
+            v_call = obj['v_call'],
+            j_call = obj['j_call'],
+        )
+        container.heavy_chains[chain.akc_id] = chain
+    elif obj['locus'] == 'IGK':
+        chain = KappaChain(
+            f'{nt_hash_id}',
+            species = species,
+            complete_vdj = obj['complete_vdj'],
+            sequence = obj['sequence'],
+            sequence_aa = obj['sequence_aa'],
+            locus = LocusEnum(obj['locus']),
+            junction_aa = obj['junction_aa'],
+            v_call = obj['v_call'],
+            j_call = obj['j_call'],
+        )
+        container.kappa_chains[chain.akc_id] = chain
+    elif obj['locus'] == 'IGL':
+        chain = LambdaChain(
+            f'{nt_hash_id}',
+            species = species,
+            complete_vdj = obj['complete_vdj'],
+            sequence = obj['sequence'],
+            sequence_aa = obj['sequence_aa'],
+            locus = LocusEnum(obj['locus']),
+            junction_aa = obj['junction_aa'],
+            v_call = obj['v_call'],
+            j_call = obj['j_call'],
+        )
+        container.lambda_chains[chain.akc_id] = chain
 
-    # exact CDR3 aa sequence and V and J alleles
-    if obj['junction_aa'] and obj['v_call'] and obj['j_call']:
-        junction_aa_vj_allele_hash = junction_aa_vj_hash(obj['junction_aa'], obj['v_call'], obj['j_call'])
-    else:
-        junction_aa_vj_allele_hash = None
-    #junction_aa_vj_gene_hash = junction_aa_vj_hash(obj['junction_aa'], obj['v_gene'], obj['j_gene'])
+    compute_chain_hashes(chain)
+    #validate_chain(chain)
 
-    chain = Chain(
-        f'{nt_hash_id}',
-        species = species,
-        aa_hash = aa_hash,
-        junction_aa_vj_allele_hash = junction_aa_vj_allele_hash,
-        #junction_aa_vj_gene_hash = junction_aa_vj_gene_hash,
-        complete_vdj = obj['complete_vdj'],
-        sequence = obj['sequence'],
-        sequence_aa = obj['sequence_aa'],
-        locus = LocusEnum(obj['locus']),
-        junction_aa = obj['junction_aa'],
-        v_call = obj['v_call'],
-        j_call = obj['j_call'],
-    )
     return chain
 
 iedb_chain_map = {
@@ -685,27 +668,39 @@ def make_receptor(container, chains):
     return receptor
 
 
-def make_adc_complex(container, receptor, epitope, mhc):
-    print(type(receptor))
+def make_adc_complex(container, receptor, antigen, mhc):
+    assert type(receptor) in (AlphaBetaTCR, GammaDeltaTCR, BCellReceptor), "Unknown receptor type, found: " + str(type(receptor))
+
     tcr_complex = None
     receptor_id = None
     if receptor:
         receptor_id = receptor.akc_id
-    epitope_id = None
-    if epitope:
-        epitope_id = epitope.akc_id
+    antigen_id = None
+    epitope = None
+    if antigen:
+        antigen_id = antigen.akc_id
+        if antigen.epitope:
+            epitope = container.epitopes[antigen.epitope]
     mhc_id = None
     if mhc:
         mhc_id = mhc.akc_id
 
-    if type(receptor) in (AlphaBetaTCR, GammaDeltaTCR):
-        tcr_complex = TCRpMHCComplex(tcr_complex_hash(receptor, epitope, mhc), tcr=receptor_id, epitope=epitope_id, mhc=mhc_id)
+    complex = None
+    if type(receptor) == AlphaBetaTCR:
+        complex = TCRpMHCComplex(tcr_complex_hash(receptor, epitope, mhc), ab_tcr=receptor_id, antigen=antigen_id, mhc=mhc_id)
+        if complex:
+            container.tcr_complexes[complex.akc_id] = complex
+    elif type(receptor) == GammaDeltaTCR:
+        complex = TCRpMHCComplex(tcr_complex_hash(receptor, epitope, mhc), gd_tcr=receptor_id, antigen=antigen_id, mhc=mhc_id)
+        if complex:
+            container.tcr_complexes[complex.akc_id] = complex
     else:
-        print('ERROR: could not make TCR complex')
+        # todo akc_id needs to be hash
+        complex = AntibodyAntigenComplex(akc_id=akc_id(), antibody=receptor_id, antigen=antigen_id)
+        if complex:
+            container.antibody_complexes[complex.akc_id] = complex
 
-    if tcr_complex:
-        container.tcr_complexes[tcr_complex.akc_id] = tcr_complex
-    return tcr_complex
+    return complex
 
 
 def make_tcr_pmhc_complex(container, receptor, antigen, mhc):
@@ -763,7 +758,7 @@ def make_antibody_antigen_complex(container, receptor, antigen):
                                      antigen=antigen.akc_id)
 
     if complex:
-        container.antigen_complexes[complex.akc_id] = complex
+        container.antibody_complexes[complex.akc_id] = complex
 
     return complex
 
@@ -869,6 +864,36 @@ def load_ak_container(container, path, load_type):
     #print(f"Loaded AK data with {len(container['ab_tcell_receptors'])} AlphaBetaTCR")
     #load_akc_objects(container, 'chains', Chain, path)
     #print(f"Loaded AK data with {len(container['chains'])} chains")
+
+def ak_container_summary(container):
+    print()
+    print(f'Container Summary')
+    print(f'-----------------')
+    print()
+    print(len(container.ab_tcell_receptors), 'total alpha/beta TCRs')
+    print(len(container.beta_chains), 'total beta chains')
+    print(len(container.alpha_chains), 'total alpha chains')
+    print()
+    print(len(container.gd_tcell_receptors), 'total gamma/delta TCRs')
+    print(len(container.gamma_chains), 'total gamma chains')
+    print(len(container.delta_chains), 'total delta chains')
+    print()
+    print(len(container.tcr_complexes), 'TCRpMHC complexes')
+    print(len(container.epitopes), 'epitopes')
+    print(len(container.antigens), 'antigens')
+    print()
+    print(len(container.bcell_receptors), 'total BCRs')
+    print(len(container.heavy_chains), 'total heavy chains')
+    print(len(container.kappa_chains), 'total kappa chains')
+    print(len(container.lambda_chains), 'total lambda chains')
+    print()
+    print(len(container.antibody_complexes), 'Antibody antigen complexes')
+    print()
+    print(len(container.receptor_composites), 'Receptor composites')
+    print()
+    print(f'-----------------')
+  
+
 
 def write_jsonl(container, container_field, outfile, exclude=None):
     print(outfile)
