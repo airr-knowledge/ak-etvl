@@ -11,9 +11,12 @@ export PG_AK_CONN
 export POSTGRES_DB
 
 # docker maps this path to the local host where the data resides
-AK_DATA=/ak_data
+AK_DATA ?= /ak_data
+export AK_DATA
 AK_IMPORT_DATA=$(AK_DATA)/data-extract
+export AK_IMPORT_DATA
 AK_TRANSFORM_DATA=$(AK_DATA)/ak-transform-data/$(POSTGRES_DB)
+export AK_TRANSFORM_DATA
 
 # data import directories
 ADC_IMPORT_DATA=$(AK_IMPORT_DATA)/vdjserver-adc-cache/cache
