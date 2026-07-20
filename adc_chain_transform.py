@@ -1,8 +1,9 @@
-
-# TODO list
-# - we want to be able to process each cache ID separately
-# - switch to process only specific cache IDs
-# - create output folder for each cache ID
+#
+# ADC to AKC data transform for rearrangement AIRR TSVs
+# Use Makefile to run
+# Processes one study(cache) given as input
+# Assumes the repertoire metadata has been transformed
+#
 
 import dataclasses
 import click
@@ -33,6 +34,9 @@ def receptor_integrate(cache_id):
     fields = [ 'productive', 'junction', 'junction_aa', 'complete_vdj', 'sequence', 'sequence_aa', 'locus', 'v_call', 'j_call', 'duplicate_count', 'cell_id' ]
     field_types = [ 'bool', 'str', 'str', 'bool', 'str', 'str', 'str', 'str', 'str', 'int', 'str' ]
 
+    annotation_fields = ['v_sequence_start', 'v_germline_start', 'j_sequence_end', 'j_germline_end', 'rev_comp']
+    annotation_types = ['int', 'int', 'int', 'int', 'bool']
+
     if cache_id not in cache_list:
         print(f"Given cache id: {cache_id} is not in the study list")
         sys.exit(1)
@@ -40,31 +44,18 @@ def receptor_integrate(cache_id):
     study = cache_id
     total_rep_cnt = 0
     container = AIRRKnowledgeCommons()
-    exact_match = {}
-    exact_aa_match = {}
-    junction_exact_match = {}
-    junction_exact_aa_match = {}
-    junction_exact_aa_and_vj_match = {}
 
     print('Processing study cache:', study)
 
-    # load AK Assay for study
-    print("load AK Assay for study")
-    assays = {}
-    assay_file = f'{ADC_TRANSFORM_DATA}/adc_jsonl/{study}/Assay.jsonl'
-    print(assay_file)
-    with open(assay_file, 'r') as f:
-        for line in f:
-            #print(line)
-            x = json.loads(line)
-            y = json_loader.load_any(x['assays'], AIRRSequencingAssay)
-            if assays.get(y.akc_id) is None:
-                assays[y.akc_id] = y
-    print(len(assays))
-    #print(assays)
+    # load AK container
+    print("load AK study data")
+
+    study_data = f'{ADC_TRANSFORM_DATA}/adc_jsonl/{study}'
+    load_ak_container(container, study_data, "adc")
+
     assay_by_rep_id = {}
-    for akc_id in assays:
-        assay = assays[akc_id]
+    for akc_id in container.assays:
+        assay = container.assays[akc_id]
         assay_by_rep_id[assay.repertoire_id] = akc_id
     print(len(assay_by_rep_id))
 
@@ -88,7 +79,7 @@ def receptor_integrate(cache_id):
 
         # link to AK assay
         assay_akc_id = assay_by_rep_id[rep['repertoire_id']]
-        print(assay_akc_id)
+        print(f"AKC assay id: {assay_akc_id}")
         tcell_receptors = set()
         tcell_chains = set()
         tcr_complexes = set()
@@ -97,14 +88,12 @@ def receptor_integrate(cache_id):
         if "contains_paired_chain" in rep['study']['keywords_study']:
             paired_chain = True
 
-        #if rep['sample'][0]['physical_linkage'] == 'hetero_head-head':
-        #    print('skipping Georgiou study:', study)
-        #    break
-
         # match up paired chains using cell_id, but only within the repertoire
         if cell_within_repertoire:
             cell_id = {}
 
+        # custom AIRR TSV parser as it is faster
+        # we only need a few columns
         prod_cnt = 0
         line_cnt = 0
         first = True
@@ -114,16 +103,24 @@ def receptor_integrate(cache_id):
             if first:
                 headers = line.strip().split('\t')
                 field_idx = []
+                annotation_idx = []
                 for f in fields:
                     try:
                         idx = headers.index(f)
                     except ValueError:
                         idx = None
                     field_idx.append(idx)
+                for f in annotation_fields:
+                    try:
+                        idx = headers.index(f)
+                    except ValueError:
+                        idx = None
+                    annotation_idx.append(idx)
                 first = False
                 continue
 
             row = {}
+            annotation_row = {}
             values = line.strip().split('\t')
             for (f, idx, t) in zip(fields, field_idx, field_types):
                 if idx is None:
@@ -154,7 +151,37 @@ def receptor_integrate(cache_id):
                     except IndexError:
                         print(idx, 'index not found for field:', f, ', setting to None.')
                         row[f] = None
-                        
+
+            for (f, idx, t) in zip(annotation_fields, annotation_idx, annotation_types):
+                if idx is None:
+                    annotation_row[f] = None
+                else:
+                    try:
+                        if idx > len(values):
+                            annotation_row[f] = None
+                            continue
+                        if t == 'bool':
+                            annotation_row[f] = to_bool(values[idx])
+                        elif t == 'int':
+                            #print(line_cnt, len(values), idx)
+                            try:
+                                annotation_row[f] = to_int(values[idx])
+                            except ValueError:
+                                print(values[idx], len(values[idx]))
+                                print(f"cannot convert value for field: {f} to type {t}, setting value to None and continuing.")
+                                print(annotation_row)
+                                annotation_row[f] = None
+                        elif t == 'str':
+                            if len(values[idx]) == 0:
+                                annotation_row[f] = None
+                            else:
+                                annotation_row[f] = values[idx]
+                        else:
+                            annotation_row[f] = values[idx]
+                    except IndexError:
+                        print(idx, 'index not found for field:', f, ', setting to None.')
+                        annotation_row[f] = None
+
             row_cnt = row_cnt + 1
             #print(row)
             #break
@@ -172,41 +199,51 @@ def receptor_integrate(cache_id):
             cnt = 1
             if row['duplicate_count']:
                 cnt = row['duplicate_count']
+            #print(row['sequence'])
+            #print(annotation_row)
 
             # make chain
             species = None
             if rep.get('subject') and rep['subject'].get('species') and rep['subject']['species'].get('id'):
                 species = rep['subject']['species']['id']
-            chain = make_chain_from_adc(species, row)
-            if not chain:
-                print("Could not make chain, skipping.")
-                print(row)
-                continue
-            #print(chain.locus)
-            if str(chain.locus) in ['TRA', 'TRB', 'TRG', 'TRD']:
-                tcell_chains.add(chain.akc_id)
-            container.chains[chain.akc_id] = chain
+            # multiple V/J calls?
+            v_calls = [item.strip() for item in row['v_call'].split(",")]
+            j_calls = [item.strip() for item in row['j_call'].split(",")]
 
-            if not paired_chain:
-                receptor = make_receptor(container, [chain, None])
-                tcr_c = make_adc_complex(container, receptor, None, None)
-                tcr_complexes.add(tcr_c.akc_id)
-                if type(receptor) == AlphaBetaTCR:
-                    tcell_receptors.add(receptor.akc_id)
-                elif type(receptor) == GammaDeltaTCR:
-                    tcell_receptors.add(receptor.akc_id)
+            for v_name in v_calls:
+                row['v_call'] = v_name
+                for j_name in j_calls:
+                    row['j_call'] = j_name
+                    chain = make_chain_from_adc(container, species, row)
+                    if not chain:
+                        print("Could not make chain, skipping.")
+                        print(row)
+                        continue
+                    infer_vdj_sequence(chain, annotation_row)
 
-            # gather chains by cell_id
-            if row.get('cell_id') is not None and len(row['cell_id']) != 0:
-                if cell_id.get(row['cell_id']) is None:
-                    cell_id[row['cell_id']] = [ chain ]
-                else:
-                    cell_id[row['cell_id']].append(chain)
+                    if type(chain) in [ BetaChain, AlphaChain, GammaChain, DeltaChain ]:
+                        tcell_chains.add(chain.akc_id)
 
-            prod_cnt = prod_cnt + 1
-            if prod_cnt % 10000 == 0:
-                print('Processed', prod_cnt, 'productive rearrangements.')
+                    if not paired_chain:
+                        receptor = make_receptor(container, [chain, None])
+                        tcr_c = make_adc_complex(container, receptor, None, None)
+                        tcr_complexes.add(tcr_c.akc_id)
+                        if type(receptor) == AlphaBetaTCR:
+                            tcell_receptors.add(receptor.akc_id)
+                        elif type(receptor) == GammaDeltaTCR:
+                            tcell_receptors.add(receptor.akc_id)
 
+                    # gather chains by cell_id
+                    if row.get('cell_id') is not None and len(row['cell_id']) != 0:
+                        if cell_id.get(row['cell_id']) is None:
+                            cell_id[row['cell_id']] = [ chain ]
+                        else:
+                            cell_id[row['cell_id']].append(chain)
+
+                    prod_cnt = prod_cnt + 1
+                    if prod_cnt % 10000 == 0:
+                        print('Processed', prod_cnt, 'productive rearrangements.')
+        sys.exit(1)
 
         # generate receptors for pairs
         # we create the receptors for single chains in the outer loop
@@ -246,7 +283,7 @@ def receptor_integrate(cache_id):
         total_rep_cnt += 1
 
         # connect TCR complex to assay
-        assays[assay_akc_id]['tcr_complexes'] = list(tcr_complexes)
+        container.assays[assay_akc_id]['tcr_complexes'] = list(tcr_complexes)
         print(f'{len(tcr_complexes)} TCR complexes')
         #assays[assay_akc_id]['tcell_receptors'] = list(tcell_receptors)
         #print(f'{len(tcell_receptors)} TCR receptors')
@@ -297,22 +334,8 @@ def receptor_integrate(cache_id):
     print()
     print(f'Finished study {study}')
     print(total_rep_cnt, 'total ADC repertoires')
-    print(len(container['chains']), 'total chains')
     print()
-    print(len(container['ab_tcell_receptors']), 'total alpha/beta TCRs')
-    print(len(container['gd_tcell_receptors']), 'total gamma/delta TCRs')
-    print(len(container['tcr_complexes']), 'TCRpMHC complexes')
-    print()
-    print(len(container['bcell_receptors']), 'total BCRs')
-    print()
-    print(len(exact_match), 'nucleotide match')
-    print(len(junction_exact_match), 'junction nucleotide match')
-    print(len(exact_aa_match), 'aa match')
-    print(len(junction_exact_aa_match), 'junction aa match')
-    print(len(junction_exact_aa_and_vj_match), 'junction aa and V/J gene match')
-
-    # output yaml file
-    #    yaml_dumper.dump(container, output)
+    ak_container_summary(container)
 
     container_fields = [x.name for x in dataclasses.fields(container)]
 
@@ -331,7 +354,7 @@ def receptor_integrate(cache_id):
             write_csv(container, container_field, f'{ADC_TRANSFORM_DATA}/adc_tsv/{study}/{tname}.csv')
 
     # assay relationships
-    write_relationship_csv('Assay', assays, 'tcr_complexes', f'{ADC_TRANSFORM_DATA}/adc_tsv/{study}/')
+    write_relationship_csv('Assay', container.assays, 'tcr_complexes', f'{ADC_TRANSFORM_DATA}/adc_tsv/{study}/')
 
 if __name__ == "__main__":
     receptor_integrate()
