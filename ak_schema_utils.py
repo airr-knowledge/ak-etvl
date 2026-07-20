@@ -47,11 +47,10 @@ if not AK_DATA:
 ADC_IMPORT_DATA = os.environ.get('ADC_IMPORT_DATA')
 if not ADC_IMPORT_DATA:
     print("ADC_IMPORT_DATA is not defined.")
-    sys.exit(1)
+
 ADC_TRANSFORM_DATA = os.environ.get('ADC_TRANSFORM_DATA')
 if not ADC_TRANSFORM_DATA:
     print("ADC_TRANSFORM_DATA is not defined.")
-    sys.exit(1)
 
 IEDB_IMPORT_DATA = os.environ.get('IEDB_IMPORT_DATA')
 if not IEDB_IMPORT_DATA:
@@ -124,21 +123,18 @@ def junction_aa_vj_hash(junction_aa, v, j):
     h = hashlib.sha256(c.encode('ascii')).hexdigest()
     return h
 
+def safe_get_object_hash(object):
+    if object is None:
+        return "AKC_ID:NULL"
+
+    return object.akc_id
+
 def tcr_complex_hash(receptor, epitope, mhc):
-    if receptor is not None:
-        h = receptor.akc_id
-    else:
-        h = 'AKC_ID:NULL'
-    if epitope is not None:
-        h = h + '|' + epitope.akc_id
-    else:
-        h = h + '|' + 'AKC_ID:NULL'
-    if mhc is not None:
-        h = h + '|' + mhc.gene # todo mhc does not have akc_id; gene is MRO
-    else:
-        h = h + '|' + 'AKC_ID:NULL'
-    hc = "AKC_HASH:" + seq_hash(h)
-    return hc
+    object_ids = [safe_get_object_hash(receptor), safe_get_object_hash(epitope), safe_get_object_hash(mhc)]
+    object_ids = "|".join(object_ids)
+
+    return "AKC_HASH:" + seq_hash(object_ids)
+
 
 # compute all the secondary hashes on just the chain fields in one place
 def compute_chain_hashes(chain):
@@ -366,15 +362,13 @@ def make_iedb_chain(container, iedb_chain, validate_data=True):
     Use Calculated columns only'''
 
     # Todo:
-    # - Use Junction Calculated is to be added to IEDB export (use internal file for now)
-    # - Use V Domain Calculated is to be added to IEDB export (use internal file for now)
     # - Account for CDR3-only NT sequence: do we want to keep nt seq if it is only CDR3? need length restriction?
     # - find a place to maintain the IEDB reference
     # - discuss (VJ) hashes: cannot presume allele from VJ? do we need both V and J for hash?
 
     if iedb_chain["Type"] not in iedb_chain_map:
         if iedb_chain["Type"] is not None:
-            print("Unsupported chain:", iedb_chain["Type"])
+            print(f"Unsupported chain: {iedb_chain['Type']}. This receptor will be omitted.")
         return None
 
     species = url_to_curie(iedb_chain['Organism IRI'])
@@ -704,46 +698,28 @@ def make_adc_complex(container, receptor, antigen, mhc):
 
 
 def make_tcr_pmhc_complex(container, receptor, antigen, mhc):
-    assert type(receptor) in (AlphaBetaTCR, GammaDeltaTCR), "Expected alphabeta or gammadelta TCR, found: " + str(type(receptor))
-    epitope = container.epitopes[antigen.epitope]
-    assert type(epitope) == PeptidicEpitope, "Expected peptidic epitope, found: " + str(type(epitope))
-
-    mro_mhc = mhc.gene if mhc is not None else None
-
-    if type(receptor) == AlphaBetaTCR:
-        complex = TCRpMHCComplex(akc_id=tcr_complex_hash(receptor, epitope, mhc),
-                                    ab_tcr=receptor.akc_id,
-                                    antigen=antigen.akc_id,
-                                    mhc=mro_mhc)
-    else:
-        complex = TCRpMHCComplex(akc_id=tcr_complex_hash(receptor, epitope, mhc),
-                                    gd_tcr=receptor.akc_id,
-                                    antigen=antigen.akc_id,
-                                    mhc=mro_mhc)
-
-    if complex:
-        container.tcr_complexes[complex.akc_id] = complex
-
-    return complex
-
-def make_tcr_epitope_nonmhc_complex(container, receptor, antigen):
-    assert type(receptor) in (AlphaBetaTCR, GammaDeltaTCR), "Expected AlphaBetaTCR or GammaDeltaTCR, found: " + str(type(receptor))
-    if antigen.epitope:
+    if antigen is not None:
         epitope = container.epitopes[antigen.epitope]
-        assert type(epitope) in (DiscontinuousEpitope, NonPeptidicEpitope), "Expected DiscontinuousEpitope or NonPeptidicEpitope, found: " + str(type(epitope))
     else:
         epitope = None
 
-    if type(receptor) == AlphaBetaTCR:
-        complex = TCRpMHCComplex(akc_id=tcr_complex_hash(receptor, epitope, None),
-                                    ab_tcr=receptor.akc_id,
-                                    antigen=antigen.akc_id)
-    else:
-        complex = TCRpMHCComplex(akc_id=tcr_complex_hash(receptor, epitope, None),
-                                    gd_tcr=receptor.akc_id,
-                                    antigen=antigen.akc_id)
+    complex = TCRpMHCComplex(akc_id=tcr_complex_hash(receptor, epitope, mhc))
 
-    if complex:
+    if mhc is not None:
+        complex.mhc=mhc.akc_id
+
+    if antigen is not None:
+        complex.antigen=antigen.akc_id
+
+    if type(receptor) == AlphaBetaTCR:
+        complex.ab_tcr=receptor.akc_id
+    elif type(receptor) == GammaDeltaTCR:
+        complex.gd_tcr=receptor.akc_id
+    else:
+        print(f"Unsupported TCR type: {receptor.__class__.__name__}, complex will not be made")
+        return None
+
+    if complex is not None:
         container.tcr_complexes[complex.akc_id] = complex
 
     return complex

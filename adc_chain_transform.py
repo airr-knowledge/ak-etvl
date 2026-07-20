@@ -268,7 +268,7 @@ def receptor_integrate(cache_id):
                 else: # 2 chains, obvious case
                     dist[1] += 1
                     receptor = make_receptor(container, cell_id[c])
-                    tcr_c = make_adc_complex(container, receptor, None, None)
+                    tcr_c = make_tcr_pmhc_complex(container, receptor, None, None)
                     tcr_complexes.add(tcr_c.akc_id)
                     if type(receptor) == AlphaBetaTCR:
                         tcell_receptors.add(receptor.akc_id)
@@ -312,7 +312,7 @@ def receptor_integrate(cache_id):
                 #print(lenc)
                 #print(cell_id[c])
                 receptor = make_receptor(container, cell_id[c])
-                tcr_c = make_adc_complex(container, receptor, None, None)
+                tcr_c = make_tcr_pmhc_complex(container, receptor, None, None)
                 tcr_complexes.add(tcr_c.akc_id)
                 if type(receptor) == AlphaBetaTCR:
                     tcell_receptors.add(receptor.akc_id)

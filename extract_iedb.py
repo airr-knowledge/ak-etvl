@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 import shutil
 import zipfile
-from datetime import date
+from datetime import date, datetime
 
 
 IEDB_IMPORT_DATA = Path(sys.argv[1])
@@ -56,11 +56,11 @@ def get_n_previous_receptors():
             previous_date_bcrs = previous_bcrs["date"].tolist()[0]
 
     if not IEDB_TCR_TSV.is_file() and previous_n_tcrs > 0:
-        print(f"Expected TCR file at: {IEDB_TCR_TSV}, a new TCR set will be downloaded")
+        print(f"No TCR file at: {IEDB_TCR_TSV}, a new TCR set will be downloaded")
         previous_n_tcrs = 0
 
     if not IEDB_BCR_TSV.is_file():
-        print(f"Expected BCR file at: {IEDB_BCR_TSV}, a new BCR set will be downloaded")
+        print(f"No BCR file at: {IEDB_BCR_TSV}, a new BCR set will be downloaded")
         previous_n_bcrs = 0
 
     return {"TCR": {"n_prev": previous_n_tcrs,
@@ -134,24 +134,32 @@ def download_and_extract_receptors(receptor_file_path, receptor_type):
     print(f"...New {receptor_type} data is available at {IEDB_LATEST_DATA_PATH}")
 
 
-def download_and_extract_cells(cell_file_path, receptor_type, limit = 10000):
-    print(f"Downloading {receptor_type[0]} cell assays...")
+
+def download_and_extract_cells_api_cell_export(cell_file_path, receptor_type, limit = 100):
+    '''
+    Note: this way of calling the API is currently too slow to retrieve the full dataset.
+    An alternative implementation for getting the full set is found in download_and_extract_cells
+    '''
+    print(f"Downloading {receptor_type[0]} cell assays (this will take a while)...")
 
     tb = receptor_type[0].lower()
 
     offset = 0
     first = True
 
+    export_fields = TCELL_EXPORT_FIELDS if receptor_type == "TCR" else BCELL_EXPORT_FIELDS
+
     while True:
+        print(" Current offset:", offset, f"({datetime.now()})")
+
         r = requests.get(
             f"{IEDB_QUERY_API_URL}/{tb}cell_search",
             params={
                 "receptor_group_ids": "not.is.null",
-                # "select": f"{tb}cell_id",
                 "limit": limit,
                 "offset": offset,
                 "order": f"{tb}cell_id",
-                "select": "{tb}cell_export(*)"
+                "select": f"{tb}cell_export({export_fields})"
             },
             headers=HEADERS,
         )
@@ -161,13 +169,59 @@ def download_and_extract_cells(cell_file_path, receptor_type, limit = 10000):
         if len(r.json()) == 0:
             break
 
-        partial_df = pd.DataFrame(r.json())
-        partial_df.to_csv(cell_file_path, mode="w" if first else "a", index=False, header=first)
+        partial_df = pd.DataFrame([assay_data[f"{tb}cell_export"][0] for assay_data in r.json()])
+        partial_df.to_csv(cell_file_path, mode="w" if first else "a", index=False, header=first, sep="\t")
 
         first = False
         offset += limit
 
     print(f"...{receptor_type[0]} cell assays have been written to {cell_file_path}")
+
+
+def get_assay_ids(receptor_file_path):
+    assay_ids = pd.read_csv(receptor_file_path, sep="\t", header=[0, 1], dtype=str)[("Assay", "IEDB IDs")]
+    assay_ids = assay_ids.apply(lambda x: set() if pd.isna(x) else set(id.strip() for id in x.split(",")))
+    assay_ids = set().union(*assay_ids)
+
+    return assay_ids
+
+def remove_assays_without_receptors(cell_file_path, receptor_file_path):
+    print("...Removing assays without receptors...")
+    receptor_assay_ids = get_assay_ids(receptor_file_path)
+    cell_df = pd.read_csv(cell_file_path, sep="\t", header=[0, 1])
+
+    is_receptor_assay = cell_df["Assay ID"]["IEDB IRI"].apply(lambda x: x.rsplit("/", 1)[-1] in receptor_assay_ids)
+    cell_df = cell_df[is_receptor_assay]
+    cell_df.to_csv(cell_file_path, index=False, sep="\t")
+
+
+def download_and_extract_cells(cell_file_path, receptor_file_path, receptor_type):
+    bt = receptor_type[0].lower()
+
+    print(f"Downloading {bt}-cell data...")
+
+    url = f"https://www.iedb.org/downloader.php?file_name=doc/{bt}cell_full_v3_tsv.zip"
+
+    response = requests.get(url, headers=HEADERS, stream=True, timeout=60)
+    response.raise_for_status()
+
+    tmp_zip_file = IEDB_LATEST_DATA_PATH / f"tmp_{receptor_type}.zip"
+    tmp_zip_file.parent.mkdir(exist_ok=True)
+
+    with open(tmp_zip_file, "wb") as f:
+        for chunk in response.iter_content(chunk_size=8192):
+            f.write(chunk)
+
+    with zipfile.ZipFile(tmp_zip_file, "r") as zip_ref:
+        zip_ref.extractall(IEDB_LATEST_DATA_PATH)
+
+    assert cell_file_path.is_file(), f"Expected zip file to contain {cell_file_path.name}"
+
+    tmp_zip_file.unlink()
+
+    remove_assays_without_receptors(cell_file_path, receptor_file_path)
+
+    print(f"...New {bt}-cell data is available at {IEDB_LATEST_DATA_PATH}")
 
 
 def update_import_details(n_receptors, receptor_type):
@@ -197,10 +251,10 @@ def retrieve_new_receptor_data(n_now, n_prev, date_prev, receptor_file_path, cel
 
         move_old_data(receptor_file_path, cell_file_path, date_prev)
         download_and_extract_receptors(receptor_file_path, receptor_type)
-        download_and_extract_cells(cell_file_path, receptor_type)
+        download_and_extract_cells(cell_file_path, receptor_file_path, receptor_type)
         update_import_details(n_now, receptor_type)
     else:
-        print(f"Number of {receptor_type} is the same as the latest data {n_prev} ({date_prev}). No new data will be retrieved. To force new data retrieval, please delete or move {IEDB_LATEST_DATA_PATH}.")
+        print(f"Number of {receptor_type} is the same as the latest data {n_prev} ({date_prev}). No new data will be retrieved. To force new data retrieval, please delete or move the data in {IEDB_LATEST_DATA_PATH}.")
 
 
 def main():
