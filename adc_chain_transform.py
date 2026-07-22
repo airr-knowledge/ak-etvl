@@ -78,11 +78,9 @@ def receptor_integrate(cache_id):
         print('Processing repertoire:', rep['repertoire_id'], 'for study id:', rep['study']['study_id'])
 
         # link to AK assay
+        # TODO: need to handle multiple
         assay_akc_id = assay_by_rep_id[rep['repertoire_id']]
         print(f"AKC assay id: {assay_akc_id}")
-        tcell_receptors = set()
-        tcell_chains = set()
-        tcr_complexes = set()
 
         paired_chain = False
         if "contains_paired_chain" in rep['study']['keywords_study']:
@@ -214,24 +212,15 @@ def receptor_integrate(cache_id):
                 row['v_call'] = v_name
                 for j_name in j_calls:
                     row['j_call'] = j_name
-                    chain = make_chain_from_adc(container, species, row)
+                    chain = make_chain(container, species, row, annotation_row)
                     if not chain:
                         print("Could not make chain, skipping.")
                         print(row)
                         continue
-                    infer_vdj_sequence(chain, annotation_row)
-
-                    if type(chain) in [ BetaChain, AlphaChain, GammaChain, DeltaChain ]:
-                        tcell_chains.add(chain.akc_id)
 
                     if not paired_chain:
-                        receptor = make_receptor(container, [chain, None])
-                        tcr_c = make_adc_complex(container, receptor, None, None)
-                        tcr_complexes.add(tcr_c.akc_id)
-                        if type(receptor) == AlphaBetaTCR:
-                            tcell_receptors.add(receptor.akc_id)
-                        elif type(receptor) == GammaDeltaTCR:
-                            tcell_receptors.add(receptor.akc_id)
+                        receptor = make_receptor(container, species, [chain, None])
+                        make_complex(container, receptor, None, None, [ assay_akc_id ])
 
                     # gather chains by cell_id
                     if row.get('cell_id') is not None and len(row['cell_id']) != 0:
@@ -243,7 +232,6 @@ def receptor_integrate(cache_id):
                     prod_cnt = prod_cnt + 1
                     if prod_cnt % 10000 == 0:
                         print('Processed', prod_cnt, 'productive rearrangements.')
-        sys.exit(1)
 
         # generate receptors for pairs
         # we create the receptors for single chains in the outer loop
@@ -267,13 +255,8 @@ def receptor_integrate(cache_id):
                     dist[3] += 1
                 else: # 2 chains, obvious case
                     dist[1] += 1
-                    receptor = make_receptor(container, cell_id[c])
-                    tcr_c = make_tcr_pmhc_complex(container, receptor, None, None)
-                    tcr_complexes.add(tcr_c.akc_id)
-                    if type(receptor) == AlphaBetaTCR:
-                        tcell_receptors.add(receptor.akc_id)
-                    elif type(receptor) == GammaDeltaTCR:
-                        tcell_receptors.add(receptor.akc_id)
+                    receptor = make_receptor(container, species, cell_id[c])
+                    make_complex(container, receptor, None, None, [ assay_akc_id ])
 
             print('cell_id distribution:', dist)
             print('TCR three chain distribution:', tcr_three)
@@ -281,43 +264,6 @@ def receptor_integrate(cache_id):
         print(prod_cnt, 'productive rearrangements for repertoire:', rep['repertoire_id'])
         print(row_cnt, 'records for study cache:', study)
         total_rep_cnt += 1
-
-        # connect TCR complex to assay
-        container.assays[assay_akc_id]['tcr_complexes'] = list(tcr_complexes)
-        print(f'{len(tcr_complexes)} TCR complexes')
-        #assays[assay_akc_id]['tcell_receptors'] = list(tcell_receptors)
-        #print(f'{len(tcell_receptors)} TCR receptors')
-
-    # here we match at the study level for IPA
-    if not cell_within_repertoire:
-        print(f"cell_within_repertoire is {cell_within_repertoire}")
-        print(len(cell_id), 'unique cell ids')
-        dist = [ 0, 0, 0, 0 ]
-        tcr_three = [ 0, 0, 0, 0 ]
-        for c in cell_id:
-            lenc = len(cell_id[c])
-            if lenc < 2: # validation error?
-                dist[0] += 1
-            elif lenc == 3:
-                dist[2] += 1
-                #t = check_three(cell_id[c])
-                #tcr_three[0] += t[0]
-                #tcr_three[1] += t[1]
-                #tcr_three[2] += t[2]
-                #tcr_three[3] += t[3]
-            elif lenc > 3:
-                dist[3] += 1
-            else: # 2 chains, obvious case
-                dist[1] += 1
-                #print(lenc)
-                #print(cell_id[c])
-                receptor = make_receptor(container, cell_id[c])
-                tcr_c = make_tcr_pmhc_complex(container, receptor, None, None)
-                tcr_complexes.add(tcr_c.akc_id)
-                if type(receptor) == AlphaBetaTCR:
-                    tcell_receptors.add(receptor.akc_id)
-                elif type(receptor) == GammaDeltaTCR:
-                    tcell_receptors.add(receptor.akc_id)
 
     # output data for just this study
     directory_name = f'{ADC_TRANSFORM_DATA}/adc_jsonl/{study}'
@@ -350,12 +296,11 @@ def receptor_integrate(cache_id):
     for container_field in container_fields:
         container_slot = ak_schema_view.get_slot(container_field)
         tname = container_slot.range
-        if container_field in ['chains', 'ab_tcell_receptors', 'tcr_complexes', 'gd_tcell_receptors', 'bcell_receptors']:
+        if container_field in ['chains', 'ab_tcell_receptors', 'tcr_complexes', 'gd_tcell_receptors', 'bcell_receptors', 'antibody_complexes', 'receptor_composites']:
             write_csv(container, container_field, f'{ADC_TRANSFORM_DATA}/adc_tsv/{study}/{tname}.csv')
 
     # assay relationships
-    write_relationship_csv('Assay', container.assays, 'tcr_complexes', f'{ADC_TRANSFORM_DATA}/adc_tsv/{study}/')
+    write_relationship_csv('Assay', container.assays, 'receptor_composites', f'{ADC_TRANSFORM_DATA}/adc_tsv/{study}/')
 
 if __name__ == "__main__":
     receptor_integrate()
-#    convert()
