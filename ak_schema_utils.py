@@ -31,7 +31,9 @@ validator = Validator(
 
 # ADC study(cache) list
 from adc_study_list import read_list_from_file
-cache_list = read_list_from_file()
+
+adc_cache_list = read_list_from_file(cache_name='adc')
+vdjbase_cache_list = read_list_from_file(cache_name='vdjbase')
 
 # for access to linkml metadata for the AK schema
 ak_schema_view = SchemaView("ak-schema/project/linkml/ak_schema.yaml")
@@ -59,6 +61,14 @@ if not IEDB_IMPORT_DATA:
 IEDB_TRANSFORM_DATA = os.environ.get('IEDB_TRANSFORM_DATA')
 if not IEDB_TRANSFORM_DATA:
     print("IEDB_TRANSFORM_DATA is not defined.")
+
+VDJBASE_IMPORT_DATA = os.environ.get('VDJBASE_IMPORT_DATA')
+if not VDJBASE_IMPORT_DATA:
+    print("VDJBASE_IMPORT_DATA is not defined.")
+
+VDJBASE_TRANSFORM_DATA = os.environ.get('VDJBASE_TRANSFORM_DATA')
+if not VDJBASE_TRANSFORM_DATA:
+    print("VDJBASE_TRANSFORM_DATA is not defined.")
 
 
 # load germlines
@@ -886,9 +896,10 @@ def load_ak_container(container, path, load_type):
     load_akc_objects(container, 'input_output_map', InputOutputDataMap, path)
     load_akc_objects(container, 'conclusions', Conclusion, path)
 
-    if load_type == 'adc':
+    if load_type == 'adc' or load_type == 'vdjbase':
         load_akc_objects(container, 'assays', AIRRSequencingAssay, path)
         load_akc_objects(container, 'sequence_data', AIRRSequencingData, path)
+        
     else:
         load_akc_objects(container, 'assays', TCellReceptorEpitopeBindingAssay, path, True)
     print(f"Loaded AK data with {len(container['assays'])} assays")

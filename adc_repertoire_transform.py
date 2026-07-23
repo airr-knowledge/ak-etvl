@@ -5,7 +5,7 @@ import os
 from linkml_runtime.utils.schemaview import SchemaView
 from ak_schema import AIRRKnowledgeCommons
 from ak_schema_utils import (
-    cache_list,
+    adc_cache_list,
     write_jsonl,
     write_csv,
     write_all_relationships,
@@ -22,7 +22,7 @@ ak_schema_view = SchemaView("ak-schema/project/linkml/ak_schema.yaml")
 def repertoire_transform(cache_id):
     """Transform ADC repertoire metadata to AK objects."""
 
-    if cache_id not in cache_list:
+    if cache_id not in adc_cache_list:
         print(f"Given cache id: {cache_id} is not in the study list")
         sys.exit(1)
 
