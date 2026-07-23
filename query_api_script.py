@@ -2,6 +2,7 @@ import dataclasses
 import json
 import os
 import click
+import csv
 
 from linkml_runtime.utils.schemaview import SchemaView
 
@@ -10,6 +11,45 @@ from ak_schema_utils import *
 
 ak_schema_view = SchemaView("ak-schema/project/linkml/ak_schema.yaml")
 
+uberon = {}
+with open('ak-ontology/src/ontology/exports/UberAnatomy.csv', mode='r', newline='') as file:
+    reader = csv.DictReader(file)
+    for row in reader:
+        uberon[row['term_id']] = row['term_label']
+print(f"Loaded UBERON ontology")
+
+taxon = {}
+with open('ak-ontology/src/ontology/exports/TaxonomicSpecies.csv', mode='r', newline='') as file:
+    reader = csv.DictReader(file)
+    for row in reader:
+        taxon[row['term_id']] = row['term_label']
+print(f"Loaded NCBI TAXON ontology")
+with open('ak-ontology/src/ontology/exports/ONTIE_organisms.csv', mode='r', newline='') as file:
+    reader = csv.DictReader(file)
+    for row in reader:
+        taxon[row['term_id']] = row['term_label']
+print(f"Loaded ONTIE organisms ontology")
+
+pato = {}
+with open('ak-ontology/src/ontology/exports/PhenotypeAndTraits.csv', mode='r', newline='') as file:
+    reader = csv.DictReader(file)
+    for row in reader:
+        pato[row['term_id']] = row['term_label']
+print(f"Loaded PATO ontology")
+
+unit = {}
+with open('ak-ontology/src/ontology/exports/Units.csv', mode='r', newline='') as file:
+    reader = csv.DictReader(file)
+    for row in reader:
+        unit[row['term_id']] = row['term_label']
+print(f"Loaded UO ontology")
+
+obi = {}
+with open('ak-ontology/src/ontology/exports/BiomedicalInvestigations.csv', mode='r', newline='') as file:
+    reader = csv.DictReader(file)
+    for row in reader:
+        obi[row['term_id']] = row['term_label']
+print(f"Loaded OBI ontology")
 
 def create_object(output_path, path, load_type):
     """Construct query objects for AK API and save to JSONL."""
@@ -48,6 +88,25 @@ def create_object(output_path, path, load_type):
             del d['investigation']['simulations']
             del d['investigation']['conclusions']
             del d['specimen_processing']
+
+            # hack in ontology labels
+            if d['specimen']['tissue'] is not None:
+                if uberon.get(d['specimen']['tissue']):
+                    d['specimen']['tissue'] = { 'term_id': d['specimen']['tissue'], 'term_label': uberon[d['specimen']['tissue']] }
+                elif obi.get(d['specimen']['tissue']):
+                    d['specimen']['tissue'] = { 'term_id': d['specimen']['tissue'], 'term_label': obi[d['specimen']['tissue']] }
+                else:
+                    print(f"unhandled tissue: {d['specimen']['tissue']}")
+                    d['specimen']['tissue'] = { 'term_id': None, 'term_label': d['specimen']['tissue'] }
+            if d['participant']['species'] is not None:
+                d['participant']['species'] = { 'term_id': d['participant']['species'], 'term_label': taxon[d['participant']['species']] }
+            if d['participant']['sex'] is not None:
+                d['participant']['sex'] = { 'term_id': d['participant']['sex'], 'term_label': pato[d['participant']['sex']] }
+            if d['participant']['age_unit'] is not None:
+                d['participant']['age_unit'] = { 'term_id': d['participant']['age_unit'], 'term_label': unit[d['participant']['age_unit']] }
+            if d['investigation']['investigation_type'] is not None:
+                d['investigation']['investigation_type'] = { 'term_id': d['investigation']['investigation_type'], 'term_label': obi[d['investigation']['investigation_type']] }
+
             f.write(json.dumps(d) + "\n")
 
 
