@@ -316,7 +316,7 @@ def receptor_integrate(source, cache_id):
     for container_field in container_fields:
         container_slot = ak_schema_view.get_slot(container_field)
         tname = container_slot.range
-        if container_field in ['chains', 'ab_tcell_receptors', 'tcr_complexes', 'gd_tcell_receptors', 'bcell_receptors', 'antibody_complexes', 'receptor_composites']:
+        if container_field in ['alpha_chains', 'beta_chains', 'gamma_chains', 'delta_chains', 'heavy_chains', 'kappa_chains', 'lambda_chains', 'ab_tcell_receptors', 'tcr_complexes', 'gd_tcell_receptors', 'bcell_receptors', 'antibody_complexes', 'receptor_composites']:
             write_csv(container, container_field, f'{config.transform_dir}/{config.name}_tsv/{study}/{tname}.csv')
 
     # assay relationships

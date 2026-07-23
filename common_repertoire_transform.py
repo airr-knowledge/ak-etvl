@@ -74,7 +74,7 @@ def repertoire_transform(source, cache_id):
     container_fields = [x.name for x in dataclasses.fields(container)]
     # Write to JSONL and CSV
     for container_field in container_fields:
-        if container_field in ['chains', 'ab_tcell_receptors', 'tcr_complexes', 'gd_tcell_receptors', 'bcell_receptors']:
+        if container_field in ['alpha_chains', 'beta_chains', 'gamma_chains', 'delta_chains', 'heavy_chains', 'kappa_chains', 'lambda_chains', 'ab_tcell_receptors', 'tcr_complexes', 'gd_tcell_receptors', 'bcell_receptors', 'antibody_complexes', 'receptor_composites']:
             continue
         container_slot = ak_schema_view.get_slot(container_field)
         tname = container_slot.range
