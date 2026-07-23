@@ -83,6 +83,7 @@ help:
 	@echo "make list-extract       -- List all repository data extract files"
 	@echo "make list-transform     -- List all transform output files"
 	@echo "make list-load          -- List DB load files"
+	@echo "make list-vdjbase-cache -- List VDJbase study cache IDs"
 	@echo "make list-adc-cache     -- List ADC study cache IDs"
 	@echo "make ak-schema          -- Build and install ak-schema submodule"
 	@echo ""
@@ -208,8 +209,18 @@ ak-schema: check-docker
 ak_schema.py: check-docker ak-schema/project/linkml/ak_schema.yaml
 	gen-python ak-schema/project/linkml/ak_schema.yaml > $@
 
+list-vdjbase-cache:
+	@echo VDJBASE CACHE LIST --
+	@echo $(VDJBASE_CACHE_LIST)
+	@echo ""
+	@echo VDJBASE CACHE LOAD TARGETS --
+	@echo $(VDJBASE_LOAD_TARGETS)
+
 list-adc-cache:
+	@echo ADC CACHE LIST --
 	@echo $(ADC_CACHE_LIST)
+	@echo ""
+	@echo ADC CACHE LOAD TARGETS --
 	@echo $(ADC_LOAD_TARGETS)
 
 #
