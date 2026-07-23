@@ -4,10 +4,7 @@ import os
 from pathlib import Path
 import sys
 import airr
-import tarfile
-import shutil
 from collections import defaultdict
-from tqdm import tqdm
 
 VDJBASE_IMPORT_DATA = sys.argv[1]
 # ==================================================================================
@@ -142,6 +139,34 @@ print(f"\nTotal number of study with missing files: {len(studies_with_missing_fi
 print("Studies with Missing Files: ")
 for study_id in studies_with_missing_files:
     print(f"\t{study_id}")
+
+# ==================================================================================
+# Write remaining cache_ids to a text file
+# ==================================================================================
+
+output_file = "cache_lists/vdjbase_cache_list.txt"
+
+i = 0
+with open(output_file, "w") as f:
+    for cache_id in studies_with_files:
+        if cache_id in studies_with_missing_files:
+            print(f"Not adding {cache_id} because it has missign files.")
+            continue
+        f.write(f"{cache_id}\n")
+        i += 1
+
+print(f"Wrote {i} cache IDs to {output_file}")
+
+
+output_file = "cache_lists/vdjbase_cache_exclude.txt"
+
+i = 0
+with open(output_file, "w") as f:
+    for cache_id in studies_with_missing_files:
+        f.write(f"{cache_id}\n")
+        i += 1
+
+print(f"Wrote {i} cache IDs to {output_file}")
 
 
 # Total number of unique study in VDJBase: 75
