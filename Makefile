@@ -341,7 +341,7 @@ iedb-query:
 # ADC query object
 query-adc-%:
 	@echo "Generate ADC query objects for study cache $*"
-	python query_api_script.py query-adc --cache-id=$*
+	python query_api_script.py query adc --cache-id=$*
 
 query-adc: $(ADC_QUERY_TARGETS)
 	@echo ""
@@ -420,7 +420,7 @@ vdjbase-copy: check-docker
 # ADC query object
 query-vdjbase-%:
 	@echo "Generate VDJBASE query objects for study cache $*"
-	python query_api_script.py query-vdjbase --cache-id=$*
+	python query_api_script.py query vdjbase --cache-id=$*
 
 query-vdjbase: $(VDJBASE_QUERY_TARGETS)
 	@echo ""

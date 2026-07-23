@@ -115,21 +115,36 @@ def cli():
     """Query object generators."""
     pass
 
+# Set variables for ADC and VDJBASE
+CONFIGS = {
+    "adc": {
+        "transform_dir": ADC_TRANSFORM_DATA,
+        "subdir": "adc_jsonl",
+    },
+    "vdjbase": {
+        "transform_dir": VDJBASE_TRANSFORM_DATA,
+        "subdir": "vdjbase_jsonl",
+    },
+}
 
-@cli.command()
+# Query ADC/VDJBASE
+@cli.command(name="query")
+@click.argument("source", type=click.Choice(["adc", "vdjbase"]))
+@click.option("--cache-id", required=True)
+def query(source, cache_id):
+    config = CONFIGS[source]
+    
+    path = f"{config['transform_dir']}/{config['subdir']}/{cache_id}"
+    create_object(f"{path}/QueryAssay.jsonl", path, source)
+    print(f"Wrote query object data to {path}/QueryAssay.jsonl")
+
+
+# Query IEDB. No cache_id needed
+@cli.command(name="query-iedb")
 def query_iedb():
     path = f"{IEDB_TRANSFORM_DATA}/iedb_jsonl"
     create_object(f"{path}/QueryAssay.jsonl", path, "iedb")
     print(f"Wrote query object data to {path}/QueryAssay.jsonl")
-
-
-@cli.command()
-@click.option("--cache-id", required=True)
-def query_adc(cache_id):
-    path = f"{ADC_TRANSFORM_DATA}/adc_jsonl/{cache_id}"
-    create_object(f"{path}/QueryAssay.jsonl", path, "adc")
-    print(f"Wrote query object data to {path}/QueryAssay.jsonl")
-
 
 if __name__ == "__main__":
     cli()
