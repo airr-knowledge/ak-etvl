@@ -199,11 +199,17 @@ def infer_vdj_sequence(chain, annotations):
 
     if v_info is None:
         return
+    else:
+        chain.v_gene = getGene(v_info)
+        chain.v_subgroup = getSubgroup(v_info)
     if v_info['coding_sequence'] is None:
         print(f"germline allele description {v_info['label']} is missing coding_sequence.")
         return
     if j_info is None:
         return
+    else:
+        chain.j_gene = getGene(j_info)
+        chain.j_subgroup = getSubgroup(j_info)
     if j_info['coding_sequence'] is None:
         print(f"germline allele description {j_info['label']} is missing coding_sequence.")
         return
