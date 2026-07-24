@@ -993,7 +993,7 @@ def write_csv(container, container_field, outfile):
 # CSV relationships
 # we convert to lowercase because mixed case with SQL is a hassle
 def write_relationship_csv(class_name, class_obj, range_name, outpath, is_foreign=False):
-    outfile = f'{outpath}{class_name}_{range_name}.csv'
+    outfile = f'{outpath}/{class_name}_{range_name}.csv'
     print(f"Saving {class_name} - {range_name} relationship into CSV file: {outfile}")
     with open(outfile, 'w') as f:
         if is_foreign:

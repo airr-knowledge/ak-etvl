@@ -499,6 +499,17 @@ load-adc-data: $(ADC_LOAD_TARGETS)
 load-adc-query-data-%: outside-docker
 	@bash query_assay_load.sh adc/adc_jsonl/$*
 
+#Load VDJBASE data
+
+load-vdjbase-data-%: outside-docker
+	@bash common_load.sh vdjbase $*
+	@bash query_assay_load.sh vdjbase/vdjbase_jsonl/$*
+
+load-vdjbase-data: $(VDJBASE_LOAD_TARGETS)
+
+load-vdjbase-query-data-%: outside-docker
+	@bash query_assay_load.sh vdjbase/vdjbase_jsonl/$*
+
 load-clean: check-docker
 	rm -r $(AK_DATA_LOAD)
 
