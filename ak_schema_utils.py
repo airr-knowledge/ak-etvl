@@ -140,8 +140,12 @@ def seq_hash_id(species, sequence):
 def compute_chain_hashes(species, chain):
     if chain.infer_vdj_sequence is not None:
         chain.hash_infer_vdj_sequence = seq_hash_id(species, chain.infer_vdj_sequence)
+    else:
+        chain.hash_infer_vdj_sequence = akc_id()
     if chain.infer_vdj_sequence_aa is not None:
         chain.hash_infer_vdj_sequence_aa = seq_hash_id(species, chain.infer_vdj_sequence_aa)
+    else:
+        chain.hash_infer_vdj_sequence_aa = akc_id()
     return
 
 # receptor hash
@@ -632,22 +636,22 @@ def make_receptor(container, species, chains):
             receptor = AlphaBetaTCR(
                 receptor_hash(None, trb_chain),
                 species=species,
-                trb_chain=trb_chain.akc_id
+                trb_chain=trb_chain.hash_infer_vdj_sequence_aa
             )
             container.ab_tcell_receptors[receptor.akc_id] = receptor
         elif trb_chain is None:
             receptor = AlphaBetaTCR(
                 receptor_hash(tra_chain, None),
                 species=species,
-                tra_chain=tra_chain.akc_id
+                tra_chain=tra_chain.hash_infer_vdj_sequence_aa
             )
             container.ab_tcell_receptors[receptor.akc_id] = receptor
         else:
             receptor = AlphaBetaTCR(
                 receptor_hash(tra_chain, trb_chain),
                 species=species,
-                tra_chain=tra_chain.akc_id,
-                trb_chain=trb_chain.akc_id
+                tra_chain=tra_chain.hash_infer_vdj_sequence_aa,
+                trb_chain=trb_chain.hash_infer_vdj_sequence_aa
             )
             container.ab_tcell_receptors[receptor.akc_id] = receptor
     elif trg_chain or trd_chain:
@@ -655,22 +659,22 @@ def make_receptor(container, species, chains):
             receptor = GammaDeltaTCR(
                 receptor_hash(None, trd_chain),
                 species=species,
-                trd_chain=trd_chain.akc_id
+                trd_chain=trd_chain.hash_infer_vdj_sequence_aa
             )
             container.gd_tcell_receptors[receptor.akc_id] = receptor
         elif trd_chain is None:
             receptor = GammaDeltaTCR(
                 receptor_hash(trg_chain, None),
                 species=species,
-                trg_chain=trg_chain.akc_id
+                trg_chain=trg_chain.hash_infer_vdj_sequence_aa
             )
             container.gd_tcell_receptors[receptor.akc_id] = receptor
         else:
             receptor = GammaDeltaTCR(
                 receptor_hash(trg_chain, trd_chain),
                 species=species,
-                trg_chain=trg_chain.akc_id,
-                trd_chain=trd_chain.akc_id
+                trg_chain=trg_chain.hash_infer_vdj_sequence_aa,
+                trd_chain=trd_chain.hash_infer_vdj_sequence_aa
             )
             container.gd_tcell_receptors[receptor.akc_id] = receptor
 
@@ -682,14 +686,14 @@ def make_receptor(container, species, chains):
                 receptor = BCellReceptor(
                     receptor_hash(None, igl_chain),
                     species=species,
-                    igl_chain=igl_chain.akc_id
+                    igl_chain=igl_chain.hash_infer_vdj_sequence_aa
                 )
                 container.bcell_receptors[receptor.akc_id] = receptor
             else:
                 receptor = BCellReceptor(
                     receptor_hash(None, igk_chain),
                     species=species,
-                    igk_chain=igk_chain.akc_id
+                    igk_chain=igk_chain.hash_infer_vdj_sequence_aa
                 )
                 container.bcell_receptors[receptor.akc_id] = receptor
         else:
@@ -697,23 +701,23 @@ def make_receptor(container, species, chains):
                 receptor = BCellReceptor(
                     receptor_hash(igh_chain, igl_chain),
                     species=species,
-                    igh_chain=igh_chain.akc_id,
-                    igl_chain=igl_chain.akc_id
+                    igh_chain=igh_chain.hash_infer_vdj_sequence_aa,
+                    igl_chain=igl_chain.hash_infer_vdj_sequence_aa
                 )
                 container.bcell_receptors[receptor.akc_id] = receptor
             elif igk_chain is not None:
                 receptor = BCellReceptor(
                     receptor_hash(igh_chain, igk_chain),
                     species=species,
-                    igh_chain=igh_chain.akc_id,
-                    igk_chain=igk_chain.akc_id
+                    igh_chain=igh_chain.hash_infer_vdj_sequence_aa,
+                    igk_chain=igk_chain.hash_infer_vdj_sequence_aa
                 )
                 container.bcell_receptors[receptor.akc_id] = receptor
             else:
                 receptor = BCellReceptor(
                     receptor_hash(igh_chain, None),
                     species=species,
-                    igh_chain=igh_chain.akc_id
+                    igh_chain=igh_chain.hash_infer_vdj_sequence_aa
                 )
                 container.bcell_receptors[receptor.akc_id] = receptor
     else:
