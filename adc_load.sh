@@ -13,22 +13,13 @@ AIRRKB_IMPORT=${AIRRKB_LOAD}/adc/adc_tsv/${CACHE_ID}
 
 docker run -v ${AIRRKB_IMPORT}:/ak_data --network ak-db-network -it postgres:16 psql ${PG_AK_CONN} -c "DROP TABLE IF EXISTS tmp_table;"
 
-TABLE_NAMES=(Chain AlphaBetaTCR GammaDeltaTCR TCRpMHCComplex BCellReceptor Investigation StudyArm Participant Reference StudyEvent LifeEvent ImmuneExposure Specimen SequenceData Assay Investigation_assays AKDataSet Conclusion Investigation_participants Investigation_documents Investigation_conclusions Assay_tcr_complexes)
+TABLE_NAMES=(AlphaChain BetaChain AlphaBetaTCR GammaChain DeltaChain GammaDeltaTCR TCRpMHCComplex HeavyChain KappaChain LambdaChain BCellReceptor AntibodyAntigenComplex ReceptorComposite Investigation StudyArm Participant Reference StudyEvent LifeEvent ImmuneExposure Specimen SequenceData Assay Investigation_assays AKDataSet Conclusion Investigation_participants Investigation_documents Investigation_conclusions Assay_receptor_composites)
 count=0
 for tname in "${TABLE_NAMES[@]}"; do
     file=${tname}.csv
     path=${AIRRKB_IMPORT}/${file}
     echo $path
     headers=$(head -n 1 ${path})
-
-    if [[ $tname = "AlphaBetaTCR" ]]
-    then
-       tname=TCellReceptor
-    fi
-    if [[ $tname = "GammaDeltaTCR" ]]
-    then
-       tname=TCellReceptor
-    fi
 
     docker run -v ${AIRRKB_IMPORT}:/ak_data --network ak-db-network -it postgres:16 psql ${PG_AK_CONN} -c "CREATE TABLE tmp_table (LIKE "\"${tname}"\" INCLUDING DEFAULTS);"
     docker run -v ${AIRRKB_IMPORT}:/ak_data --network ak-db-network -it postgres:16 psql ${PG_AK_CONN} -c "\copy tmp_table (${headers}) from '/ak_data/${file}' DELIMITER ',' CSV HEADER;"
