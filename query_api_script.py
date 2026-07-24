@@ -69,6 +69,8 @@ def create_object(output_path, path, load_type):
 
             if investigation.inclusion_exclusion_criteria is not None:
                 investigation.inclusion_exclusion_criteria = investigation.inclusion_exclusion_criteria.replace('\n','')
+                investigation.inclusion_exclusion_criteria = investigation.inclusion_exclusion_criteria.replace('"','')
+                investigation.inclusion_exclusion_criteria = investigation.inclusion_exclusion_criteria.replace('\\','')
             if investigation.description is not None:
                 investigation.description = investigation.description.replace('\n','')
 
