@@ -37,6 +37,17 @@ export VDJBASE_IMPORT_DATA
 VDJBASE_TRANSFORM_DATA=$(AK_TRANSFORM_DATA)/vdjbase
 export VDJBASE_TRANSFORM_DATA
 
+
+#IRAD DATA
+
+IRAD_DATA=$(AK_DATA)/irad
+
+IRAD_IMPORT_DATA=$(AK_IMPORT_DATA)/irad
+export IRAD_IMPORT_DATA
+
+IRAD_TRANSFORM_DATA=$(AK_TRANSFORM_DATA)/irad
+export IRAD_TRANSFORM_DATA
+
 # transformed data ready for DB load
 # inside docker
 AK_DATA_LOAD=$(AK_DATA)/ak-data-load/$(POSTGRES_DB)
@@ -120,6 +131,7 @@ help:
 	@echo "make iedb-copy          -- Copy transformed IEDB data to DB load directory"
 	@echo ""
 	@echo "make irad-bcr           -- Transform IRAD BCRs"
+	@echo "make irad-transform                         -- Transform IRAD repertoires/genotypes for all studies"
 	@echo ""
 	@echo "make vdjbase-transform                      -- Transform VDJbase repertoires/genotypes for all studies"
 	@echo "make vdjbase-transform-repertoire           -- Transform VDJBASE repertoires for all studies"
@@ -237,6 +249,7 @@ extract-adc:
 
 extract-irad:
 	@echo "Not implemented."
+	python3 extract_irad.py $(IRAD_IMPORT_DATA)
 
 extract-vdjbase:
 	@echo "Downloading VDJbase data."

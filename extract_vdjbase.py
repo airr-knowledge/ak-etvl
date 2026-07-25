@@ -278,3 +278,5 @@ print(f"Wrote {i} cache IDs to {output_file}")
 # Skipping missing file: https://madc.vdjbase.org/airr/v1/rearrangement//C6_PRJEB28370_TRB (502 Server Error: Bad Gateway for url: https://madc.vdjbase.org/airr/v1/rearrangement/C6_PRJEB28370_TRB)
 # Skipping missing file: https://madc.vdjbase.org/airr/v1/rearrangement//AT2_PRJEB28370_TRB (502 Server Error: Bad Gateway for url: https://madc.vdjbase.org/airr/v1/rearrangement/AT2_PRJEB28370_TRB)
 # Skipping missing file: https://madc.vdjbase.org/airr/v1/rearrangement//AT3_PRJEB28370_TRB (502 Server Error: Bad Gateway for url: https://madc.vdjbase.org/airr/v1/rearrangement/AT3_PRJEB28370_TRB)
+
+# PRJNA747292
