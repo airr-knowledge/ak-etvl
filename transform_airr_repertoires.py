@@ -88,6 +88,8 @@ def transform_airr_repertoires(repertoire_filename, container):
                 investigation_type = 'OBI:0000066'
             elif study_type == 'NCIT:C93130': # animal
                 investigation_type = 'OBI:0003696'
+            elif study_type == 'NCIT:C48678':
+                investigation_type = 'OBI:0003696'
             else:
                 investigation_type = study_type
 
