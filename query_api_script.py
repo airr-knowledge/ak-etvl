@@ -61,9 +61,17 @@ def create_object(output_path, path, load_type):
     with open(output_path, "w") as f:
         for assay_id, assay in container["assays"].items():
 
+            experiment = QueryExperiment(akc_id=assay_id)
+
+            for field in dataclasses.fields(assay):
+                setattr(experiment, field.name, getattr(assay, field.name))
+
             specimen = container["specimens"][assay["specimen"]]
-            life_event = container["life_events"][specimen["life_event"]]
-            participant = container["participants"][life_event["participant"]]
+            specimen_collection = container["life_events"][specimen["life_event"]]
+            experiment.life_events[specimen_collection.akc_id] = specimen_collection
+            participant = container["participants"][specimen_collection["participant"]]
+            for life_event_id in participant.life_events:
+                experiment.life_events[life_event_id] = container["life_events"][life_event_id]
             study_arm = container["study_arms"][participant["study_arm"]]
             investigation = container["investigations"][study_arm["investigation"]]
 
@@ -73,11 +81,6 @@ def create_object(output_path, path, load_type):
                 investigation.inclusion_exclusion_criteria = investigation.inclusion_exclusion_criteria.replace('\\','')
             if investigation.description is not None:
                 investigation.description = investigation.description.replace('\n','')
-
-            experiment = QueryExperiment(akc_id=assay_id)
-
-            for field in dataclasses.fields(assay):
-                setattr(experiment, field.name, getattr(assay, field.name))
 
             experiment.specimen = specimen
             experiment.participant = participant

@@ -347,12 +347,12 @@ adc-copy: check-docker
 
 
 # IEDB query object
-iedb-query:
+iedb-query: ak_schema.py check-docker
 	@echo "Generate IEDB query objects"
 	python3 query_api_script.py query-iedb
 
 # ADC query object
-query-adc-%:
+query-adc-%: ak_schema.py check-docker
 	@echo "Generate ADC query objects for study cache $*"
 	python query_api_script.py query adc --cache-id=$*
 
