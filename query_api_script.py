@@ -151,5 +151,13 @@ def query_iedb():
     create_object(f"{path}/QueryAssay.jsonl", path, "iedb")
     print(f"Wrote query object data to {path}/QueryAssay.jsonl")
 
+# Query IRAD. No cache_id needed
+@cli.command(name="query-irad")
+def query_irad():
+    print("Implement data extraction first and then uncomment the code below.")
+    # path = f"{IRAD_TRANSFORM_DATA}/irad_jsonl"
+    # create_object(f"{path}/QueryAssay.jsonl", path, "irad")
+    # print(f"Wrote query object data to {path}/QueryAssay.jsonl")
+
 if __name__ == "__main__":
     cli()

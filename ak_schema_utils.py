@@ -70,6 +70,15 @@ VDJBASE_TRANSFORM_DATA = os.environ.get('VDJBASE_TRANSFORM_DATA')
 if not VDJBASE_TRANSFORM_DATA:
     print("VDJBASE_TRANSFORM_DATA is not defined.")
 
+# import IRAD directories
+IRAD_IMPORT_DATA = os.environ.get('IRAD_IMPORT_DATA')
+if not IRAD_IMPORT_DATA:
+    print("IRAD_IMPORT_DATA is not defined.")
+
+IRAD_TRANSFORM_DATA = os.environ.get('IRAD_TRANSFORM_DATA')
+if not IRAD_TRANSFORM_DATA:
+    print("IRAD_TRANSFORM_DATA is not defined.")
+
 
 # load germlines
 from gldb import *
