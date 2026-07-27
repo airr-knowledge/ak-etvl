@@ -130,8 +130,9 @@ help:
 	@echo "make iedb-query         -- Generate query objects for transformed IEDB data"
 	@echo "make iedb-copy          -- Copy transformed IEDB data to DB load directory"
 	@echo ""
-	@echo "make irad-bcr           -- Transform IRAD BCRs"
-	@echo "make irad-transform                         -- Transform IRAD repertoires/genotypes for all studies"
+	@echo "make irad-transform     -- Transform IRAD BCR export files"
+	@echo "make query-irad         -- Generate query objects for transformed IRAD data"
+	@echo "make irad-copy          -- Copy transformed IRAD data to DB load directory"
 	@echo ""
 	@echo "make vdjbase-transform                      -- Transform VDJbase repertoires/genotypes for all studies"
 	@echo "make vdjbase-transform-repertoire           -- Transform VDJBASE repertoires for all studies"
@@ -162,15 +163,17 @@ help:
 	@echo "make drop-sql-airrkb    -- Drop airrkb (version: $(POSTGRES_DB))"
 	@echo "make create-sql-airrkb  -- Create airrkb (version: $(POSTGRES_DB))"
 	@echo ""
-	@echo "make load-ontology      -- Load ontology data into airrkb"
+	@echo "make load-ontology      -- Load ontology data into airrkb (version: $(POSTGRES_DB))"
 	@echo ""
 	@echo "make load-iedb-data     -- Load IEDB data into airrkb (version: $(POSTGRES_DB))"
 	@echo ""
-	@echo "make load-vdjbase-data-CACHE_ID  -- Load ADC data into airrkb for study CACHE_ID"
-	@echo "make load-vdjbase-data           -- Load all ADC data into airrkb"
+	@echo "make load-irad-data     -- Load IRAD data into airrkb (version: $(POSTGRES_DB))"
 	@echo ""
-	@echo "make load-adc-data-CACHE_ID  -- Load ADC data into airrkb for study CACHE_ID"
-	@echo "make load-adc-data           -- Load all ADC data into airrkb"
+	@echo "make load-vdjbase-data-CACHE_ID  -- Load ADC data into airrkb for study CACHE_ID (version: $(POSTGRES_DB))"
+	@echo "make load-vdjbase-data           -- Load all ADC data into airrkb (version: $(POSTGRES_DB))"
+	@echo ""
+	@echo "make load-adc-data-CACHE_ID  -- Load ADC data into airrkb for study CACHE_ID (version: $(POSTGRES_DB))"
+	@echo "make load-adc-data           -- Load all ADC data into airrkb (version: $(POSTGRES_DB))"
 	@echo "------------------------------------------------------------"
 	@echo ""
 
@@ -248,7 +251,7 @@ extract-adc:
 	python extract_adc.py $(ADC_IMPORT_DATA)
 
 extract-irad:
-	@echo "Not implemented."
+	@echo "Need more data. Not fully implemented."
 	python3 extract_irad.py $(IRAD_IMPORT_DATA)
 
 extract-vdjbase:
@@ -285,6 +288,20 @@ iedb-copy: check-docker
 irad-bcr: check-docker
 	@echo "Not implemented."
 
+
+$(IRAD_TRANSFORM_DATA)/irad_tsv/: check-docker
+	mkdir -p $@
+	mkdir -p $(IRAD_TRANSFORM_DATA)/irad_jsonl/
+
+
+irad-transform: ak_schema.py | $(IRAD_TRANSFORM_DATA)/irad_tsv/
+	@echo ""
+	@echo "Not Implementd."
+	@echo ""
+
+irad-copy: check-docker
+	mkdir -p $(AK_DATA_LOAD)/irad
+	cp -rf $(IRAD_TRANSFORM_DATA)/* $(AK_DATA_LOAD)/irad
 
 
 # ADC repertoire transform
@@ -350,6 +367,11 @@ adc-copy: check-docker
 iedb-query: ak_schema.py check-docker
 	@echo "Generate IEDB query objects"
 	python3 query_api_script.py query-iedb
+
+## IRAD query object
+query-irad: ak_schema.py check-docker
+	@echo "Generate IRAD query objects"
+	python3 query_api_script.py query-irad
 
 # ADC query object
 query-adc-%: ak_schema.py check-docker
@@ -430,7 +452,7 @@ vdjbase-copy: check-docker
 	cp -rf $(VDJBASE_TRANSFORM_DATA)/* $(AK_DATA_LOAD)/vdjbase
 
 
-# ADC query object
+# VDJBASE query object
 query-vdjbase-%:
 	@echo "Generate VDJBASE query objects for study cache $*"
 	python query_api_script.py query vdjbase --cache-id=$*
@@ -499,12 +521,20 @@ load-ontology: outside-docker
 	@bash ontology_load.sh UberAnatomy
 	@bash ontology_load.sh Units
 
-load-iedb-data: outside-docker
-	@bash iedb_load.sh
-	@bash query_assay_load.sh iedb/iedb_jsonl
+# load-iedb-data: outside-docker
+# 	@bash iedb_load.sh
+# 	@bash query_assay_load.sh iedb/iedb_jsonl
+
+load-iedb-data:
+	@bash common_load.sh iedb/iedb_tsv
+
+load-irad-data: outside-docker
+	@echo "Not Impletement yet."
+# 	@bash common_load.sh irad/irad_tsv/$*
+# 	@bash query_assay_load.sh irad/irad_jsonl
 
 load-adc-data-%: outside-docker
-	@bash adc_load.sh $*
+	@bash common_load.sh adc/adc_tsv/$*
 	@bash query_assay_load.sh adc/adc_jsonl/$*
 
 load-adc-data: $(ADC_LOAD_TARGETS)
@@ -515,7 +545,7 @@ load-adc-query-data-%: outside-docker
 #Load VDJBASE data
 
 load-vdjbase-data-%: outside-docker
-	@bash common_load.sh vdjbase $*
+	@bash common_load.sh vdjbase/vdjbase_tsv/$*
 	@bash query_assay_load.sh vdjbase/vdjbase_jsonl/$*
 
 load-vdjbase-data: $(VDJBASE_LOAD_TARGETS)

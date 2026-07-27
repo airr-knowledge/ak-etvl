@@ -3,15 +3,14 @@
 # IMPORT_DATA
 # PG_AK_CONN
 
-DB_NAME=$1
-CACHE_ID=$2
+IMPORT_DIR=$1
 
-if [[ "x$CACHE_ID" == "x" ]] ; then
-    echo "Study cache ID must be provided."
+if [[ -z "$IMPORT_DIR" ]]; then
+    echo "Import directory must be provided."
     exit 1
 fi
 
-AIRRKB_IMPORT="${AIRRKB_LOAD}/${DB_NAME}/${DB_NAME}_tsv/${CACHE_ID}"
+AIRRKB_IMPORT="${AIRRKB_LOAD}/${IMPORT_DIR}"
 
 docker run -v ${AIRRKB_IMPORT}:/ak_data --network ak-db-network -it postgres:16 psql ${PG_AK_CONN} -c "DROP TABLE IF EXISTS tmp_table;"
 
