@@ -175,18 +175,23 @@ def receptor_hash(chain1, chain2):
             s2 = chain2.akc_id
     return 'AKC_RECEPTOR:' + akc_hash(s1 + s2)
 
-# if the same CURIEs are used then the hash should be equivalent
-def antigen_hash(species, molecule, epitope_id):
-    if epitope_id is not None:
-        return 'AKC_ANTIGEN:' + akc_hash(species + '|' + molecule + '|' + epitope_id)
-    else:
-        return 'AKC_ANTIGEN:' + akc_hash(species + '|' + molecule)
-
-def complex_hash(receptor, antigen, mhc):
+def complex_hash(receptor, antigen, epitope, mhc):
     # if it is just a receptor, use the same ID
-    if antigen is None and mhc is None:
+    if antigen is None and epitope is None and mhc is None:
         return receptor.akc_id
-
+    else:
+        s = receptor.akc_id
+        if antigen:
+            s = s + '|' + antigen.akc_id
+        else:
+            s = s + '|' + 'AKC:NULL'
+        if epitope:
+            s = s + '|' + epitope.akc_id
+        else:
+            s = s + '|' + 'AKC:NULL'
+        if mhc:
+            s = s + '|' + mhc.akc_id
+        return 'AKC_COMPLEX:' + akc_hash(s)
 
 # infer (if possible) the complete VDJ sequence from existing sequence and germline
 def infer_vdj_sequence(chain, annotations):
@@ -195,8 +200,8 @@ def infer_vdj_sequence(chain, annotations):
         return
     if (annotations['j_germline_end'] is None) or (annotations['j_sequence_end'] is None) or (annotations['v_germline_start'] is None) or (annotations['v_sequence_start'] is None):
         return
-    if annotations['rev_comp']:
-        print(f"sequence is reverse complement.")
+    # if annotations['rev_comp']:
+    #     print(f"sequence is reverse complement.")
         #debug_msg = True
         #sys.exit(1)
 
@@ -735,23 +740,29 @@ def make_receptor(container, species, chains):
     return receptor
 
 
-def make_complex(container, receptor, antigen, mhc, assay_ids):
+def make_complex(container, receptor, antigen, epitope, mhc, assay_ids):
     assert type(receptor) in (AlphaBetaTCR, GammaDeltaTCR, BCellReceptor), "Unknown receptor type, found: " + str(type(receptor))
 
     receptor_id = None
     if receptor:
         receptor_id = receptor.akc_id
     antigen_id = None
+    if antigen:
+        antigen_id = antigen.akc_id
+    epitope_id = None
+    if epitope:
+        epitope_id = epitope.akc_id
     mhc_id = None
     if mhc:
         mhc_id = mhc.akc_id
 
     complex = None
     if type(receptor) == AlphaBetaTCR:
-        complex = TCRpMHCComplex(complex_hash(receptor, antigen, mhc),
+        complex = TCRpMHCComplex(complex_hash(receptor, antigen, epitope, mhc),
                                  species=receptor.species,
                                  ab_tcr=receptor_id,
                                  antigen=antigen_id,
+                                 epitope=epitope_id,
                                  mhc=mhc_id)
         if complex:
             container.tcr_complexes[complex.akc_id] = complex
@@ -759,20 +770,22 @@ def make_complex(container, receptor, antigen, mhc, assay_ids):
             add_to_assays(container, assay_ids, complex, composite)
 
     elif type(receptor) == GammaDeltaTCR:
-        complex = TCRpMHCComplex(complex_hash(receptor, antigen, mhc),
+        complex = TCRpMHCComplex(complex_hash(receptor, antigen, epitope, mhc),
                                  species=receptor.species,
                                  gd_tcr=receptor_id,
                                  antigen=antigen_id,
+                                 epitope=epitope_id,
                                  mhc=mhc_id)
         if complex:
             container.tcr_complexes[complex.akc_id] = complex
             composite = make_receptor_composite(container, complex)
             add_to_assays(container, assay_ids, complex, composite)
     else:
-        complex = AntibodyAntigenComplex(complex_hash(receptor, antigen, mhc),
+        complex = AntibodyAntigenComplex(complex_hash(receptor, antigen, epitope, None),
                                          species=receptor.species,
                                          antibody=receptor_id,
-                                         antigen=antigen_id)
+                                         antigen=antigen_id,
+                                         epitope=epitope_id)
         if complex:
             container.antibody_complexes[complex.akc_id] = complex
             composite = make_receptor_composite(container, complex)
@@ -793,9 +806,7 @@ def make_receptor_composite(container, complex):
             composite.trg_chain = container.gd_tcell_receptors[complex.gd_tcr].trg_chain
             composite.trd_chain = container.gd_tcell_receptors[complex.gd_tcr].trd_chain
         composite.antigen = complex.antigen
-        if complex.antigen is not None:
-            if complex.antigen.epitope is not None:
-                composite.epitope = complex.antigen.epitope
+        composite.epitope = complex.epitope
         composite.mhc = complex.mhc
     else:
         composite = ReceptorComposite(complex.akc_id, species=complex.species, antibody_complex=complex.akc_id)
@@ -804,6 +815,7 @@ def make_receptor_composite(container, complex):
             composite.igk_chain = container.bcell_receptors[complex.antibody].igk_chain
             composite.igl_chain = container.bcell_receptors[complex.antibody].igl_chain
             composite.antigen = complex.antigen
+            composite.epitope = complex.epitope
 
     container.receptor_composites[composite.akc_id] = composite
     return composite

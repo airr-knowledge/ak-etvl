@@ -283,7 +283,7 @@ def receptor_integrate(source, cache_id):
                 else: # 2 chains, obvious case
                     dist[1] += 1
                     receptor = make_receptor(container, species, cell_id[c])
-                    make_complex(container, receptor, None, None, [ assay_akc_id ])
+                    make_complex(container, receptor, None, None, None, [ assay_akc_id ])
 
             print('cell_id distribution:', dist)
             print('TCR three chain distribution:', tcr_three)
