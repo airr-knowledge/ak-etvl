@@ -241,7 +241,7 @@ def make_epitope(container, assay_row):
 def make_antigen_epitope(container, assay_row):
     epitope = make_epitope(container, assay_row)
 
-    antigen = Antigen(akc_id(), # todo should akc_id be based on molecule IRI? -> group together same antigen?
+    antigen = Antigen(url_to_curie(assay_row[("Epitope", "Source Molecule IRI")]),
                       source_molecule = url_to_curie(assay_row[("Epitope", "Source Molecule IRI")]),
                       source_organism = url_to_curie(assay_row[("Epitope", "Source Organism IRI")]),
                       epitope = epitope.akc_id if epitope is not None else None)
