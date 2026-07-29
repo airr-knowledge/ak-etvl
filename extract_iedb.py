@@ -198,7 +198,7 @@ def remove_assays_without_receptors(cell_file_path, receptor_file_path):
 def download_and_extract_cells(cell_file_path, receptor_file_path, receptor_type):
     bt = receptor_type[0].lower()
 
-    print(f"Downloading {bt}-cell data...")
+    print(f"Downloading {bt}-cell assay data...")
 
     url = f"https://www.iedb.org/downloader.php?file_name=doc/{bt}cell_full_v3_tsv.zip"
 

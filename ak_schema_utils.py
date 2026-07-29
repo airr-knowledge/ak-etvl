@@ -176,22 +176,22 @@ def receptor_hash(chain1, chain2):
             s2 = chain2.akc_id
     return 'AKC_RECEPTOR:' + akc_hash(s1 + s2)
 
-def complex_hash(receptor, antigen, epitope, mhc):
+def complex_hash(receptor_id, antigen_id, epitope_id, mhc_id):
     # if it is just a receptor, use the same ID
-    if antigen is None and epitope is None and mhc is None:
-        return receptor.akc_id
+    if antigen_id is None and epitope_id is None and mhc_id is None:
+        return receptor_id
     else:
-        s = receptor.akc_id
-        if antigen:
-            s = s + '|' + antigen.akc_id
+        s = receptor_id
+        if antigen_id:
+            s = s + '|' + antigen_id
         else:
             s = s + '|' + 'AKC:NULL'
-        if epitope:
-            s = s + '|' + epitope.akc_id
+        if epitope_id:
+            s = s + '|' + epitope_id
         else:
             s = s + '|' + 'AKC:NULL'
-        if mhc:
-            s = s + '|' + mhc.akc_id
+        if mhc_id:
+            s = s + '|' + mhc_id
         return 'AKC_COMPLEX:' + akc_hash(s)
 
 # infer (if possible) the complete VDJ sequence from existing sequence and germline
@@ -287,7 +287,7 @@ def infer_vdj_sequence(chain, annotations):
         if len(chain.infer_vdj_sequence_aa) == 0:
             sys.exit(1)
 
-# obj: locus, sequence, sequence_aa, complete_vdj, junction_aa, v_call, j_call
+# obj: locus, sequence, sequence_aa, complete_vdj, junction_aa, cdr1_aa, cdr2_aa, v_call, j_call
 # annotations: v_germline_start, v_sequence_start, j_germline_end, j_sequence_end
 def make_chain(container, species, obj, annotations):
     if obj['locus'] not in [ 'TRB', 'TRA', 'TRD', 'TRG', 'IGH', 'IGK', 'IGL' ]:
@@ -309,6 +309,8 @@ def make_chain(container, species, obj, annotations):
             sequence_aa = obj['sequence_aa'],
             locus = LocusEnum(obj['locus']),
             junction_aa = obj['junction_aa'],
+            cdr1_aa = obj['cdr1_aa'],
+            cdr2_aa = obj['cdr2_aa'],
             v_call = obj['v_call'],
             j_call = obj['j_call'],
         )
@@ -322,6 +324,8 @@ def make_chain(container, species, obj, annotations):
             sequence_aa = obj['sequence_aa'],
             locus = LocusEnum(obj['locus']),
             junction_aa = obj['junction_aa'],
+            cdr1_aa=obj['cdr1_aa'],
+            cdr2_aa=obj['cdr2_aa'],
             v_call = obj['v_call'],
             j_call = obj['j_call'],
         )
@@ -335,6 +339,8 @@ def make_chain(container, species, obj, annotations):
             sequence_aa = obj['sequence_aa'],
             locus = LocusEnum(obj['locus']),
             junction_aa = obj['junction_aa'],
+            cdr1_aa=obj['cdr1_aa'],
+            cdr2_aa=obj['cdr2_aa'],
             v_call = obj['v_call'],
             j_call = obj['j_call'],
         )
@@ -348,6 +354,8 @@ def make_chain(container, species, obj, annotations):
             sequence_aa = obj['sequence_aa'],
             locus = LocusEnum(obj['locus']),
             junction_aa = obj['junction_aa'],
+            cdr1_aa=obj['cdr1_aa'],
+            cdr2_aa=obj['cdr2_aa'],
             v_call = obj['v_call'],
             j_call = obj['j_call'],
         )
@@ -361,6 +369,8 @@ def make_chain(container, species, obj, annotations):
             sequence_aa = obj['sequence_aa'],
             locus = LocusEnum(obj['locus']),
             junction_aa = obj['junction_aa'],
+            cdr1_aa=obj['cdr1_aa'],
+            cdr2_aa=obj['cdr2_aa'],
             v_call = obj['v_call'],
             j_call = obj['j_call'],
         )
@@ -374,6 +384,8 @@ def make_chain(container, species, obj, annotations):
             sequence_aa = obj['sequence_aa'],
             locus = LocusEnum(obj['locus']),
             junction_aa = obj['junction_aa'],
+            cdr1_aa = obj['cdr1_aa'],
+            cdr2_aa = obj['cdr2_aa'],
             v_call = obj['v_call'],
             j_call = obj['j_call'],
         )
@@ -387,6 +399,8 @@ def make_chain(container, species, obj, annotations):
             sequence_aa = obj['sequence_aa'],
             locus = LocusEnum(obj['locus']),
             junction_aa = obj['junction_aa'],
+            cdr1_aa = obj['cdr1_aa'],
+            cdr2_aa = obj['cdr2_aa'],
             v_call = obj['v_call'],
             j_call = obj['j_call'],
         )
@@ -398,16 +412,7 @@ def make_chain(container, species, obj, annotations):
 
     return chain
 
-iedb_chain_map = {
-    'alpha': 'TRA',
-    'beta': 'TRB',
-    'gamma': 'TRG',
-    'delta': 'TRD',
-    'heavy': 'IGH',
-    'kappa_light': 'IGK',
-    'lambda_light': 'IGL',
-    'light': 'IGL'
-}
+
 
 
 def safe_get_field(chain, fields, expected_type=str):
@@ -423,168 +428,6 @@ def safe_get_sequence(sequence, min_len):
     if type(sequence) is str:
         if len(sequence) >= min_len:
             return sequence
-
-
-def make_iedb_chain(container, iedb_chain, validate_data=True):
-    '''Given a row dictionary and a chain name ("Chain 1" or "Chain 2"), return a new Chain object.
-    Use Calculated columns only'''
-
-    # Todo:
-    # - Account for CDR3-only NT sequence: do we want to keep nt seq if it is only CDR3? need length restriction?
-    # - find a place to maintain the IEDB reference
-    # - discuss (VJ) hashes: cannot presume allele from VJ? do we need both V and J for hash?
-
-    if iedb_chain["Type"] not in iedb_chain_map:
-        if iedb_chain["Type"] is not None:
-            print(f"Unsupported chain: {iedb_chain['Type']}. This receptor will be omitted.")
-        return None
-
-    species = url_to_curie(iedb_chain['Organism IRI'])
-
-    nt_vdj_sequence = safe_get_sequence(iedb_chain['Nucleotide Sequence'], 150)
-    aa_vdj_sequence = safe_get_sequence(iedb_chain['V Domain Calculated'], 50)
-
-    # calculate exact match hashes
-    # exact nucleotide sequence match, most stringent
-    if type(nt_vdj_sequence) is str:
-        nt_hash_id = seq_hash_id(species, nt_vdj_sequence)
-    else:
-        nt_hash_id = akc_id()
-
-    c = None
-    locus = iedb_chain_map[iedb_chain['Type']]
-    if locus == 'TRA':
-        c = AlphaChain(
-            akc_id=f'{nt_hash_id}',
-            species=species,
-            # complete_vdj=None,
-            sequence=nt_vdj_sequence,
-            sequence_aa=aa_vdj_sequence,
-            locus=locus,
-            v_call=iedb_chain["Calculated V Gene"],
-            d_call=iedb_chain["Calculated D Gene"],
-            j_call=iedb_chain["Calculated J Gene"],
-            junction_aa=iedb_chain["Junction Calculated"],
-            cdr1_aa=iedb_chain["CDR1 Calculated"],
-            cdr2_aa=iedb_chain["CDR2 Calculated"],
-            cdr3_aa=iedb_chain["CDR3 Calculated"]
-        )
-        container.alpha_chains[c.akc_id] = c
-    elif locus == 'TRB':
-        c = BetaChain(
-            akc_id=f'{nt_hash_id}',
-            species=species,
-            # complete_vdj=None,
-            sequence=nt_vdj_sequence,
-            sequence_aa=aa_vdj_sequence,
-            locus=locus,
-            v_call=iedb_chain["Calculated V Gene"],
-            d_call=iedb_chain["Calculated D Gene"],
-            j_call=iedb_chain["Calculated J Gene"],
-            junction_aa=iedb_chain["Junction Calculated"],
-            cdr1_aa=iedb_chain["CDR1 Calculated"],
-            cdr2_aa=iedb_chain["CDR2 Calculated"],
-            cdr3_aa=iedb_chain["CDR3 Calculated"]
-        )
-        container.beta_chains[c.akc_id] = c
-    elif locus == 'TRG':
-        c = GammaChain(
-            akc_id=f'{nt_hash_id}',
-            species=species,
-            # complete_vdj=None,
-            sequence=nt_vdj_sequence,
-            sequence_aa=aa_vdj_sequence,
-            locus=locus,
-            v_call=iedb_chain["Calculated V Gene"],
-            d_call=iedb_chain["Calculated D Gene"],
-            j_call=iedb_chain["Calculated J Gene"],
-            junction_aa=iedb_chain["Junction Calculated"],
-            cdr1_aa=iedb_chain["CDR1 Calculated"],
-            cdr2_aa=iedb_chain["CDR2 Calculated"],
-            cdr3_aa=iedb_chain["CDR3 Calculated"]
-        )
-        container.gamma_chains[c.akc_id] = c
-    elif locus == 'TRD':
-        c = DeltaChain(
-            akc_id=f'{nt_hash_id}',
-            species=species,
-            # complete_vdj=None,
-            sequence=nt_vdj_sequence,
-            sequence_aa=aa_vdj_sequence,
-            locus=locus,
-            v_call=iedb_chain["Calculated V Gene"],
-            d_call=iedb_chain["Calculated D Gene"],
-            j_call=iedb_chain["Calculated J Gene"],
-            junction_aa=iedb_chain["Junction Calculated"],
-            cdr1_aa=iedb_chain["CDR1 Calculated"],
-            cdr2_aa=iedb_chain["CDR2 Calculated"],
-            cdr3_aa=iedb_chain["CDR3 Calculated"]
-        )
-        container.delta_chains[c.akc_id] = c
-    elif locus == 'IGH':
-        c = HeavyChain(
-            akc_id=f'{nt_hash_id}',
-            species=species,
-            # complete_vdj=None,
-            sequence=nt_vdj_sequence,
-            sequence_aa=aa_vdj_sequence,
-            locus=locus,
-            v_call=iedb_chain["Calculated V Gene"],
-            d_call=iedb_chain["Calculated D Gene"],
-            j_call=iedb_chain["Calculated J Gene"],
-            junction_aa=iedb_chain["Junction Calculated"],
-            cdr1_aa=iedb_chain["CDR1 Calculated"],
-            cdr2_aa=iedb_chain["CDR2 Calculated"],
-            cdr3_aa=iedb_chain["CDR3 Calculated"]
-        )
-        container.heavy_chains[c.akc_id] = c
-    elif locus == 'IGK':
-        c = KappaChain(
-            akc_id=f'{nt_hash_id}',
-            species=species,
-            # complete_vdj=None,
-            sequence=nt_vdj_sequence,
-            sequence_aa=aa_vdj_sequence,
-            locus=locus,
-            v_call=iedb_chain["Calculated V Gene"],
-            d_call=iedb_chain["Calculated D Gene"],
-            j_call=iedb_chain["Calculated J Gene"],
-            junction_aa=iedb_chain["Junction Calculated"],
-            cdr1_aa=iedb_chain["CDR1 Calculated"],
-            cdr2_aa=iedb_chain["CDR2 Calculated"],
-            cdr3_aa=iedb_chain["CDR3 Calculated"]
-        )
-        container.kappa_chains[c.akc_id] = c
-    elif locus == 'IGL':
-        c = LambdaChain(
-            akc_id=f'{nt_hash_id}',
-            species=species,
-            # complete_vdj=None,
-            sequence=nt_vdj_sequence,
-            sequence_aa=aa_vdj_sequence,
-            locus=locus,
-            v_call=iedb_chain["Calculated V Gene"],
-            d_call=iedb_chain["Calculated D Gene"],
-            j_call=iedb_chain["Calculated J Gene"],
-            junction_aa=iedb_chain["Junction Calculated"],
-            cdr1_aa=iedb_chain["CDR1 Calculated"],
-            cdr2_aa=iedb_chain["CDR2 Calculated"],
-            cdr3_aa=iedb_chain["CDR3 Calculated"]
-        )
-        container.lambda_chains[c.akc_id] = c
-
-    compute_chain_hashes(c)
-    #validate_chain(c)
-
-    # if validate_data:
-    #     s = json.loads(json_dumper.dumps(c))
-    #     del s['@type']
-    #     report = validator.validate(s, "Chain")
-
-    #     for result in report.results:
-    #         print(result.message)
-
-    return c
 
 
 def make_receptor(container, species, chains):
@@ -741,25 +584,16 @@ def make_receptor(container, species, chains):
     return receptor
 
 
-def make_complex(container, receptor, antigen, epitope, mhc, assay_ids):
+def make_complex(container, receptor, antigen_id, epitope_id, mhc_id, assay_ids):
     assert type(receptor) in (AlphaBetaTCR, GammaDeltaTCR, BCellReceptor), "Unknown receptor type, found: " + str(type(receptor))
 
     receptor_id = None
     if receptor:
         receptor_id = receptor.akc_id
-    antigen_id = None
-    if antigen:
-        antigen_id = antigen.akc_id
-    epitope_id = None
-    if epitope:
-        epitope_id = epitope.akc_id
-    mhc_id = None
-    if mhc:
-        mhc_id = mhc.akc_id
 
     complex = None
     if type(receptor) == AlphaBetaTCR:
-        complex = TCRpMHCComplex(complex_hash(receptor, antigen, epitope, mhc),
+        complex = TCRpMHCComplex(complex_hash(receptor_id, antigen_id, epitope_id, mhc_id),
                                  species=receptor.species,
                                  ab_tcr=receptor_id,
                                  antigen=antigen_id,
@@ -771,7 +605,7 @@ def make_complex(container, receptor, antigen, epitope, mhc, assay_ids):
             add_to_assays(container, assay_ids, complex, composite)
 
     elif type(receptor) == GammaDeltaTCR:
-        complex = TCRpMHCComplex(complex_hash(receptor, antigen, epitope, mhc),
+        complex = TCRpMHCComplex(complex_hash(receptor_id, antigen_id, epitope_id, mhc_id),
                                  species=receptor.species,
                                  gd_tcr=receptor_id,
                                  antigen=antigen_id,
@@ -782,7 +616,10 @@ def make_complex(container, receptor, antigen, epitope, mhc, assay_ids):
             composite = make_receptor_composite(container, complex)
             add_to_assays(container, assay_ids, complex, composite)
     else:
-        complex = AntibodyAntigenComplex(complex_hash(receptor, antigen, epitope, None),
+        if mhc_id is not None:
+            print(f'ERROR: MHC ID was given for an antibody complex (receptor_id = {receptor_id}), this is not expected')
+
+        complex = AntibodyAntigenComplex(complex_hash(receptor_id, antigen_id, epitope_id, None),
                                          species=receptor.species,
                                          antibody=receptor_id,
                                          antigen=antigen_id,
