@@ -130,18 +130,19 @@ def akc_hash(s):
 # AKC_HASH prefix implies the species/sequence was hashed
 # AKC prefix implies no sequence available
 def seq_hash_id(species, sequence):
+    if sequence is None:
+        return akc_id()
+
     # canonicalize it, uppercase
     seq = sequence.upper()
     # TODO: check alphabet?
     # hash implies exact sequence match, most stringent
 
-    if sequence is None:
-        return akc_id()
+    if species is None:
+        h = akc_hash(sequence)
     else:
-        if species is None:
-            h = akc_hash(sequence)
-        else:
-            h = akc_hash(species + '|' + sequence)
+        h = akc_hash(species + '|' + sequence)
+
     hs = "AKC_HASH:" + h
     return hs
 
