@@ -70,19 +70,8 @@ def repertoire_transform(source, cache_id):
     os.makedirs(json_dir, exist_ok=True)
     os.makedirs(tsv_dir, exist_ok=True)
 
-    # Write outputs
-    container_fields = [x.name for x in dataclasses.fields(container)]
-    # Write to JSONL and CSV
-    for container_field in container_fields:
-        if container_field in ['alpha_chains', 'beta_chains', 'gamma_chains', 'delta_chains', 'heavy_chains', 'kappa_chains', 'lambda_chains', 'ab_tcell_receptors', 'tcr_complexes', 'gd_tcell_receptors', 'bcell_receptors', 'antibody_complexes', 'receptor_composites']:
-            continue
-        container_slot = ak_schema_view.get_slot(container_field)
-        tname = container_slot.range
-        write_jsonl(container, container_field, f"{json_dir}/{tname}.jsonl",)
-
-        write_csv(container, container_field, f"{tsv_dir}/{tname}.csv",)
-
-    write_all_relationships(container, tsv_dir)
+    write_all_metadata(container, json_dir, tsv_dir)
+    write_all_metadata_relationships(container, tsv_dir)
 
 
 if __name__ == "__main__":

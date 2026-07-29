@@ -871,20 +871,74 @@ def write_relationship_csv(class_name, class_obj, range_name, outpath, is_foreig
                 for p in i[range_name]:
                     f.write(i.akc_id + ',' + p + '\n')
 
-def write_all_relationships(container, outpath):
+
+chain_container_fields = [
+    'alpha_chains',
+    'beta_chains',
+    'gamma_chains',
+    'delta_chains',
+    'heavy_chains',
+    'kappa_chains',
+    'lambda_chains',
+    'ab_tcell_receptors',
+    'tcr_complexes',
+    'gd_tcell_receptors',
+    'bcell_receptors',
+    'antibody_complexes',
+    'receptor_composites'
+]
+
+def write_all_metadata_jsonl(container, json_dir):
+    container_fields = [x.name for x in dataclasses.fields(container)]
+    for container_field in container_fields:
+        if container_field in chain_container_fields:
+            continue
+        container_slot = ak_schema_view.get_slot(container_field)
+        tname = container_slot.range
+        write_jsonl(container, container_field, f"{json_dir}/{tname}.jsonl",)
+
+def write_all_metadata_csv(container, csv_dir):
+    container_fields = [x.name for x in dataclasses.fields(container)]
+    for container_field in container_fields:
+        if container_field in chain_container_fields:
+            continue
+        container_slot = ak_schema_view.get_slot(container_field)
+        tname = container_slot.range
+        write_csv(container, container_field, f"{csv_dir}/{tname}.csv",)
+
+def write_all_metadata(container, json_dir, csv_dir):
+    write_all_metadata_jsonl(container, json_dir)
+    write_all_metadata_csv(container, csv_dir)
+
+def write_all_chains_csv(container, csv_dir):
+    container_fields = [x.name for x in dataclasses.fields(container)]
+    for container_field in container_fields:
+        if container_field in chain_container_fields:
+            container_slot = ak_schema_view.get_slot(container_field)
+            tname = container_slot.range
+            write_csv(container, container_field, f"{csv_dir}/{tname}.csv",)
+
+def write_all_chains(container, json_dir, csv_dir):
+    # no jsonl for chain data right now, very large, slow and currently not used
+    #write_all_chains_jsonl(container, json_dir)
+    write_all_chains_csv(container, csv_dir)
+
+def write_all_metadata_relationships(container, csv_dir):
     # TODO: would be better to iterate over linkml metadata, to handle all
     # instead we hard-code in a simple way
 
     # investigation relationships
-    write_relationship_csv('Investigation', container.investigations, 'participants', outpath)
-    write_relationship_csv('Investigation', container.investigations, 'assays', outpath)
-    write_relationship_csv('Investigation', container.investigations, 'conclusions', outpath)
-    write_relationship_csv('Investigation', container.investigations, 'documents', outpath, True)
+    write_relationship_csv('Investigation', container.investigations, 'participants', csv_dir)
+    write_relationship_csv('Investigation', container.investigations, 'assays', csv_dir)
+    write_relationship_csv('Investigation', container.investigations, 'conclusions', csv_dir)
+    write_relationship_csv('Investigation', container.investigations, 'documents', csv_dir, True)
+
+def write_all_chain_relationships(container, csv_dir):
+    # TODO: would be better to iterate over linkml metadata, to handle all
+    # instead we hard-code in a simple way
 
     # assay relationships
-    #write_relationship_csv('Assay', container.assays, 'tcell_receptors', outpath)
-    #write_relationship_csv('Assay', container.assays, 'tcell_chains', outpath)
-
+    write_relationship_csv('Assay', container.assays, 'receptor_composites', csv_dir)
 
 def load_chains(filename):
     return None

@@ -230,7 +230,7 @@ def make_epitope(container, epitope_row):
     elif epitope_row["Object Type"] == 'Non-peptidic':
         epitope = make_non_peptidic_epitope(epitope_row)
     else:
-        print(f"Epitope type not yet supported: {epitope_row["Object Type"]}")
+        print(f"Epitope type not yet supported: {epitope_row['Object Type']}")
         return None
 
     container.epitopes[epitope.akc_id] = epitope
@@ -269,7 +269,7 @@ def make_reference_obj(ref_assay_df, investigation_akc_id):
     assert len(reference_df) == 1, f"ERROR: Expected same iedb reference_iri to always have the same reference info, found:\n {reference_df}"
     reference_row = reference_df.iloc[0]
 
-    pmid_iri = f"PMID:{int(float(reference_row["PMID"]))}" if pd.notna(reference_row['PMID']) else None
+    pmid_iri = f"PMID:{int(float(reference_row['PMID']))}" if pd.notna(reference_row['PMID']) else None
     iedb_iri = url_to_curie(reference_row["IEDB IRI"]) # todo add IEDB_REFERENCE prefix
 
     reference = Reference(
@@ -564,19 +564,10 @@ def write_output(container, output_dir):
     os.makedirs(jsonl_folder, exist_ok=True)
     os.makedirs(tsv_folder, exist_ok=True)
 
-    container_fields = [x.name for x in dataclasses.fields(container)]
-
-    # Write to JSONL and CSV
-    for container_field in container_fields:
-        container_slot = ak_schema_view.get_slot(container_field)
-        tname = container_slot.range
-        write_jsonl(container, container_field, f'{jsonl_folder}/{tname}.jsonl')
-        write_csv(container, container_field, f'{tsv_folder}/{tname}.csv')
-
-    # CSV relationships
-    write_all_relationships(container, tsv_folder)
-    # assay relationships
-    write_relationship_csv('Assay', container.assays, 'tcr_complexes', tsv_folder)
+    write_all_metadata(container, jsonl_folder, tsv_folder)
+    write_all_chains(container, jsonl_folder, tsv_folder)
+    write_all_metadata_relationships(container, tsv_folder)
+    write_all_chain_relationships(container, tsv_folder)
 
 
 
@@ -607,6 +598,7 @@ def convert(tcell_path, tcr_path, bcell_path, bcr_path):
     process_assay(container, tcr_assay_df, assay_to_tcr, assay_to_tcr_chain, "TCR")
     process_assay(container, bcr_assay_df, assay_to_bcr, assay_to_bcr_chain, "BCR")
 
+    ak_container_summary(container)
     write_output(container, IEDB_TRANSFORM_DATA)
 
 

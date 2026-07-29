@@ -293,14 +293,14 @@ def receptor_integrate(source, cache_id):
         total_rep_cnt += 1
 
     # output data for just this study
-    directory_name = f"{config.transform_dir}/{config.name}_jsonl/{study}"
+    jsonl_folder = f"{config.transform_dir}/{config.name}_jsonl/{study}"
     try:
-        os.mkdir(directory_name)
+        os.mkdir(jsonl_folder)
     except FileExistsError:
         pass
-    directory_name = f"{config.transform_dir}/{config.name}_tsv/{study}"
+    csv_folder = f"{config.transform_dir}/{config.name}_tsv/{study}"
     try:
-        os.mkdir(directory_name)
+        os.mkdir(csv_folder)
     except FileExistsError:
         pass
 
@@ -310,17 +310,8 @@ def receptor_integrate(source, cache_id):
     print()
     ak_container_summary(container)
 
-    container_fields = [x.name for x in dataclasses.fields(container)]
-
-    # Write receptor data to CSV
-    for container_field in container_fields:
-        container_slot = ak_schema_view.get_slot(container_field)
-        tname = container_slot.range
-        if container_field in ['alpha_chains', 'beta_chains', 'gamma_chains', 'delta_chains', 'heavy_chains', 'kappa_chains', 'lambda_chains', 'ab_tcell_receptors', 'tcr_complexes', 'gd_tcell_receptors', 'bcell_receptors', 'antibody_complexes', 'receptor_composites']:
-            write_csv(container, container_field, f'{config.transform_dir}/{config.name}_tsv/{study}/{tname}.csv')
-
-    # assay relationships
-    write_relationship_csv('Assay', container.assays, 'receptor_composites', f'{config.transform_dir}/{config.name}_tsv/{study}/')
+    write_all_chains(container, jsonl_folder, csv_folder)
+    write_all_chain_relationships(container, csv_folder)
 
 if __name__ == "__main__":
     receptor_integrate()
