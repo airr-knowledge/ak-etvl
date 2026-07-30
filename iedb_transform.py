@@ -406,7 +406,7 @@ def make_iedb_receptor_antigen_assay(container, assay_row, assay_to_receptor, sp
         assay = make_bcr_assay(assay_row,  specimen.akc_id)
 
     specimen.life_event = specimen_collection_event.akc_id
-    specimen_collection_event.specimen_akc_id = specimen.akc_id
+    specimen_collection_event.specimen = specimen.akc_id
     container.specimens[specimen.akc_id] = specimen
     container.assays[assay.akc_id] = assay
 
