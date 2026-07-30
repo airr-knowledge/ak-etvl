@@ -127,7 +127,7 @@ help:
 	@echo "make ogrdb-transform    -- Transform OGRDB germlines"
 	@echo ""
 	@echo "make iedb-transform     -- Transform IEDB TCR and BCR export files"
-	@echo "make iedb-query         -- Generate query objects for transformed IEDB data"
+	@echo "make query-iedb         -- Generate query objects for transformed IEDB data"
 	@echo "make iedb-copy          -- Copy transformed IEDB data to DB load directory"
 	@echo ""
 	@echo "make irad-transform     -- Transform IRAD BCR export files"
@@ -364,7 +364,7 @@ adc-copy: check-docker
 
 
 # IEDB query object
-iedb-query: ak_schema.py check-docker
+query-iedb: ak_schema.py check-docker
 	@echo "Generate IEDB query objects"
 	python3 query_api_script.py query-iedb
 
