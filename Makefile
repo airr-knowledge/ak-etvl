@@ -524,12 +524,9 @@ load-ontology: outside-docker
 	@bash ontology_load.sh UberAnatomy
 	@bash ontology_load.sh Units
 
-# load-iedb-data: outside-docker
-# 	@bash iedb_load.sh
-# 	@bash query_assay_load.sh iedb/iedb_jsonl
-
-load-iedb-data:
+load-iedb-data: outside-docker
 	@bash common_load.sh iedb/iedb_tsv
+	@bash query_assay_load.sh iedb/iedb_jsonl
 
 load-irad-data: outside-docker
 	@echo "Not Impletement yet."
