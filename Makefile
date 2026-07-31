@@ -216,13 +216,16 @@ show-paths:
 	@echo "------------------------------------------------------------"
 
 
-.PHONY: ak-schema
-ak-schema: check-docker
+.PHONY: ak-schema-dir
+ak-schema-dir: check-docker
 	cd ak-schema; make all; make install; make sqlddl
 
 # generate python dataclasses from schema
 ak_schema.py: check-docker ak-schema/project/linkml/ak_schema.yaml
 	gen-python ak-schema/project/linkml/ak_schema.yaml > $@
+
+.PHONY: ak-schema
+ak-schema: ak-schema-dir ak_schema.py
 
 list-vdjbase-cache:
 	@echo VDJBASE CACHE LIST --
