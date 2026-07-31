@@ -527,6 +527,7 @@ load-ontology: outside-docker
 
 load-iedb-data:
 	@bash common_load.sh iedb/iedb_tsv
+	@bash query_assay_load.sh iedb/iedb_jsonl
 
 load-irad-data: outside-docker
 	@echo "Not Impletement yet."

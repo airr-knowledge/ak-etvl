@@ -305,6 +305,7 @@ def transform_airr_repertoires(repertoire_filename, container):
             container.specimen_processings[lib_proc.akc_id] = lib_proc
 
             f = s['sequencing_files']
+            print(f"Data: \n{f}")
             seq_files = AIRRSequencingData(
                 akc_id(),
                 sequencing_data_id=f.get('sequencing_data_id'),
@@ -316,12 +317,13 @@ def transform_airr_repertoires(repertoire_filename, container):
                 paired_read_direction=f.get('paired_read_direction'),
                 paired_read_length=f.get('paired_read_length')
             )
+            
             container.sequence_data[seq_files.akc_id] = seq_files
 
             sequencing_run_date = None
             if s.get('sequencing_run_date') is not None:
                 sequencing_run_date = parse(s.get('sequencing_run_date'))
-
+            
             assay = AIRRSequencingAssay(
                 akc_id(),
                 repertoire_id=rep['repertoire_id'],
@@ -333,8 +335,9 @@ def transform_airr_repertoires(repertoire_filename, container):
                 sequencing_kit=s.get('sequencing_kit'),
                 sequencing_facility=s.get('sequencing_facility'),
                 total_reads_passing_qc_filter=s.get('total_reads_passing_qc_filter'),
-                sequencing_files=seq_files.akc_id
+                sequence_files=seq_files.akc_id
             )
+            print(f'seq_files: {seq_files}')
             container.assays[assay.akc_id] = assay
 
             # data processing, not implemented
