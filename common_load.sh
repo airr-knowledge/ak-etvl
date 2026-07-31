@@ -14,7 +14,12 @@ AIRRKB_IMPORT="${AIRRKB_LOAD}/${IMPORT_DIR}"
 
 docker run -v ${AIRRKB_IMPORT}:/ak_data --network ak-db-network -it postgres:16 psql ${PG_AK_CONN} -c "DROP TABLE IF EXISTS tmp_table;"
 
-TABLE_NAMES=(AlphaChain BetaChain AlphaBetaTCR GammaChain DeltaChain GammaDeltaTCR TCRpMHCComplex HeavyChain KappaChain LambdaChain BCellReceptor AntibodyAntigenComplex ReceptorComposite Investigation StudyArm Participant Reference StudyEvent LifeEvent ImmuneExposure Specimen SequenceData Assay Investigation_assays AKDataSet Conclusion Investigation_participants Investigation_documents Investigation_conclusions Assay_receptor_composites)
+TABLE_NAMES=(AlphaChain BetaChain AlphaBetaTCR GammaChain DeltaChain GammaDeltaTCR Antigen Epitope MajorHistocompatibilityComplex TCRpMHCComplex Antigen_epitopes \
+    HeavyChain KappaChain LambdaChain BCellReceptor AntibodyAntigenComplex \
+    Investigation StudyArm Participant Reference StudyEvent LifeEvent ImmuneExposure SpecimenCollection Specimen SequenceData Assay AKDataSet Conclusion \
+    Investigation_assays Investigation_participants Investigation_documents Investigation_conclusions \
+    ReceptorComposite PairedReceptorComposite AlphaBetaReceptorComposite PairedAlphaBetaReceptorComposite GammaDeltaReceptorComposite PairedGammaDeltaReceptorComposite BCellReceptorComposite PairedBCellReceptorComposite \
+    Assay_receptor_composites)
 count=0
 for tname in "${TABLE_NAMES[@]}"; do
     file="${tname}.csv"
