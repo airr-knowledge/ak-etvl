@@ -644,15 +644,18 @@ def make_receptor_composite(container, complex):
     composite = None
     if type(complex) == TCRpMHCComplex:
         composite = ReceptorComposite(complex.akc_id, species=complex.species, tcr_complex=complex.akc_id)
-        if complex.ab_tcr is not None:
-            composite.tra_chain = container.ab_tcell_receptors[complex.ab_tcr].tra_chain
-            composite.trb_chain = container.ab_tcell_receptors[complex.ab_tcr].trb_chain
-        elif complex.gd_tcr is not None:
-            composite.trg_chain = container.gd_tcell_receptors[complex.gd_tcr].trg_chain
-            composite.trd_chain = container.gd_tcell_receptors[complex.gd_tcr].trd_chain
         composite.antigen = complex.antigen
         composite.epitope = complex.epitope
         composite.mhc = complex.mhc
+
+        if complex.ab_tcr is not None:
+            composite.tra_chain = container.ab_tcell_receptors[complex.ab_tcr].tra_chain
+            composite.trb_chain = container.ab_tcell_receptors[complex.ab_tcr].trb_chain
+            container.ab_receptor_composites[composite.akc_id] = composite
+        elif complex.gd_tcr is not None:
+            composite.trg_chain = container.gd_tcell_receptors[complex.gd_tcr].trg_chain
+            composite.trd_chain = container.gd_tcell_receptors[complex.gd_tcr].trd_chain
+            container.gd_receptor_composites[composite.akc_id] = composite
     else:
         composite = ReceptorComposite(complex.akc_id, species=complex.species, antibody_complex=complex.akc_id)
         if complex.antibody is not None:
@@ -661,15 +664,9 @@ def make_receptor_composite(container, complex):
             composite.igl_chain = container.bcell_receptors[complex.antibody].igl_chain
             composite.antigen = complex.antigen
             composite.epitope = complex.epitope
+            container.bcell_receptor_composites[composite.akc_id] = composite
 
     container.receptor_composites[composite.akc_id] = composite
-
-    if complex.ab_tcr is not None:
-        container.ab_receptor_composites[composite.akc_id] = composite
-    elif complex.gd_tcr is not None:
-        container.gd_receptor_composites[composite.akc_id] = composite
-    elif complex.antibody is not None:
-        container.bcell_receptor_composites[composite.akc_id] = composite
 
     return composite
 
