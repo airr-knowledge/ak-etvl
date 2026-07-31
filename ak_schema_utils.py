@@ -311,6 +311,7 @@ def make_chain(container, species, obj, annotations):
             junction_aa = obj['junction_aa'],
             cdr1_aa = obj['cdr1_aa'],
             cdr2_aa = obj['cdr2_aa'],
+            cdr3_aa = obj['cdr3_aa'],
             v_call = obj['v_call'],
             j_call = obj['j_call'],
         )
@@ -326,6 +327,7 @@ def make_chain(container, species, obj, annotations):
             junction_aa = obj['junction_aa'],
             cdr1_aa=obj['cdr1_aa'],
             cdr2_aa=obj['cdr2_aa'],
+            cdr3_aa=obj['cdr3_aa'],
             v_call = obj['v_call'],
             j_call = obj['j_call'],
         )
@@ -341,6 +343,7 @@ def make_chain(container, species, obj, annotations):
             junction_aa = obj['junction_aa'],
             cdr1_aa=obj['cdr1_aa'],
             cdr2_aa=obj['cdr2_aa'],
+            cdr3_aa=obj['cdr3_aa'],
             v_call = obj['v_call'],
             j_call = obj['j_call'],
         )
@@ -356,6 +359,7 @@ def make_chain(container, species, obj, annotations):
             junction_aa = obj['junction_aa'],
             cdr1_aa=obj['cdr1_aa'],
             cdr2_aa=obj['cdr2_aa'],
+            cdr3_aa=obj['cdr3_aa'],
             v_call = obj['v_call'],
             j_call = obj['j_call'],
         )
@@ -371,6 +375,7 @@ def make_chain(container, species, obj, annotations):
             junction_aa = obj['junction_aa'],
             cdr1_aa=obj['cdr1_aa'],
             cdr2_aa=obj['cdr2_aa'],
+            cdr3_aa=obj['cdr3_aa'],
             v_call = obj['v_call'],
             j_call = obj['j_call'],
         )
@@ -386,6 +391,7 @@ def make_chain(container, species, obj, annotations):
             junction_aa = obj['junction_aa'],
             cdr1_aa = obj['cdr1_aa'],
             cdr2_aa = obj['cdr2_aa'],
+            cdr3_aa=obj['cdr3_aa'],
             v_call = obj['v_call'],
             j_call = obj['j_call'],
         )
@@ -401,6 +407,7 @@ def make_chain(container, species, obj, annotations):
             junction_aa = obj['junction_aa'],
             cdr1_aa = obj['cdr1_aa'],
             cdr2_aa = obj['cdr2_aa'],
+            cdr3_aa=obj['cdr3_aa'],
             v_call = obj['v_call'],
             j_call = obj['j_call'],
         )
