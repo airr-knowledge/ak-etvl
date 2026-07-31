@@ -55,8 +55,8 @@ def receptor_integrate(source, cache_id):
     config = ADC if source == "adc" else VDJBASE
     """Convert ADC rearrangements to AK chains and receptors."""
 
-    fields = [ 'productive', 'junction', 'junction_aa', 'complete_vdj', 'sequence', 'sequence_aa', 'locus', 'v_call', 'j_call', 'duplicate_count', 'cell_id' ]
-    field_types = [ 'bool', 'str', 'str', 'bool', 'str', 'str', 'str', 'str', 'str', 'int', 'str' ]
+    fields = [ 'productive', 'junction', 'junction_aa', 'cdr1_aa', 'cdr2_aa', 'complete_vdj', 'sequence', 'sequence_aa', 'locus', 'v_call', 'j_call', 'duplicate_count', 'cell_id' ]
+    field_types = [ 'bool', 'str', 'str', 'str', 'str', 'bool', 'str', 'str', 'str', 'str', 'str', 'int', 'str' ]
 
     annotation_fields = ['v_sequence_start', 'v_germline_start', 'j_sequence_end', 'j_germline_end', 'rev_comp']
     annotation_types = ['int', 'int', 'int', 'int', 'bool']
@@ -261,23 +261,19 @@ def receptor_integrate(source, cache_id):
                         print('Processed', prod_cnt, 'productive rearrangements.')
 
         # generate receptors for pairs
-        # we create the receptors for single chains in the outer loop
+        # we create the receptors for single chains in the inner loop
         if cell_within_repertoire:
             print(f"cell_within_repertoire is {cell_within_repertoire}")
             print(len(cell_id), 'unique cell ids')
             dist = [ 0, 0, 0, 0 ]
-            tcr_three = [ 0, 0, 0, 0 ]
             for c in cell_id:
                 lenc = len(cell_id[c])
-                if lenc < 2: # validation error?
+                if lenc == 0: # should not be possible
+                    continue
+                if lenc == 1:
                     dist[0] += 1
                 elif lenc == 3:
                     dist[2] += 1
-                    #t = check_three(cell_id[c])
-                    #tcr_three[0] += t[0]
-                    #tcr_three[1] += t[1]
-                    #tcr_three[2] += t[2]
-                    #tcr_three[3] += t[3]
                 elif lenc > 3:
                     dist[3] += 1
                 else: # 2 chains, obvious case
@@ -286,7 +282,6 @@ def receptor_integrate(source, cache_id):
                     make_complex(container, receptor, None, None, None, [ assay_akc_id ])
 
             print('cell_id distribution:', dist)
-            print('TCR three chain distribution:', tcr_three)
 
         print(prod_cnt, 'productive rearrangements for repertoire:', rep['repertoire_id'])
         print(row_cnt, 'records for study cache:', study)

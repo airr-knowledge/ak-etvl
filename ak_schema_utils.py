@@ -311,7 +311,6 @@ def make_chain(container, species, obj, annotations):
             junction_aa = obj['junction_aa'],
             cdr1_aa = obj['cdr1_aa'],
             cdr2_aa = obj['cdr2_aa'],
-            cdr3_aa = obj['cdr3_aa'],
             v_call = obj['v_call'],
             j_call = obj['j_call'],
         )
@@ -327,7 +326,6 @@ def make_chain(container, species, obj, annotations):
             junction_aa = obj['junction_aa'],
             cdr1_aa=obj['cdr1_aa'],
             cdr2_aa=obj['cdr2_aa'],
-            cdr3_aa=obj['cdr3_aa'],
             v_call = obj['v_call'],
             j_call = obj['j_call'],
         )
@@ -343,7 +341,6 @@ def make_chain(container, species, obj, annotations):
             junction_aa = obj['junction_aa'],
             cdr1_aa=obj['cdr1_aa'],
             cdr2_aa=obj['cdr2_aa'],
-            cdr3_aa=obj['cdr3_aa'],
             v_call = obj['v_call'],
             j_call = obj['j_call'],
         )
@@ -359,7 +356,6 @@ def make_chain(container, species, obj, annotations):
             junction_aa = obj['junction_aa'],
             cdr1_aa=obj['cdr1_aa'],
             cdr2_aa=obj['cdr2_aa'],
-            cdr3_aa=obj['cdr3_aa'],
             v_call = obj['v_call'],
             j_call = obj['j_call'],
         )
@@ -375,7 +371,6 @@ def make_chain(container, species, obj, annotations):
             junction_aa = obj['junction_aa'],
             cdr1_aa=obj['cdr1_aa'],
             cdr2_aa=obj['cdr2_aa'],
-            cdr3_aa=obj['cdr3_aa'],
             v_call = obj['v_call'],
             j_call = obj['j_call'],
         )
@@ -391,7 +386,6 @@ def make_chain(container, species, obj, annotations):
             junction_aa = obj['junction_aa'],
             cdr1_aa = obj['cdr1_aa'],
             cdr2_aa = obj['cdr2_aa'],
-            cdr3_aa=obj['cdr3_aa'],
             v_call = obj['v_call'],
             j_call = obj['j_call'],
         )
@@ -407,7 +401,6 @@ def make_chain(container, species, obj, annotations):
             junction_aa = obj['junction_aa'],
             cdr1_aa = obj['cdr1_aa'],
             cdr2_aa = obj['cdr2_aa'],
-            cdr3_aa=obj['cdr3_aa'],
             v_call = obj['v_call'],
             j_call = obj['j_call'],
         )
@@ -613,7 +606,6 @@ def make_complex(container, receptor, antigen_id, epitope_id, mhc_id, assay_ids)
     if type(receptor) == AlphaBetaTCR:
         complex = TCRpMHCComplex(complex_hash(receptor_id, antigen_id, epitope_id, mhc_id),
                                  species=receptor.species,
-                                 paired_chain=receptor.paired_chain,
                                  ab_tcr=receptor_id,
                                  antigen=antigen_id,
                                  epitope=epitope_id,
@@ -626,7 +618,6 @@ def make_complex(container, receptor, antigen_id, epitope_id, mhc_id, assay_ids)
     elif type(receptor) == GammaDeltaTCR:
         complex = TCRpMHCComplex(complex_hash(receptor_id, antigen_id, epitope_id, mhc_id),
                                  species=receptor.species,
-                                 paired_chain=receptor.paired_chain,
                                  gd_tcr=receptor_id,
                                  antigen=antigen_id,
                                  epitope=epitope_id,
@@ -641,7 +632,6 @@ def make_complex(container, receptor, antigen_id, epitope_id, mhc_id, assay_ids)
 
         complex = AntibodyAntigenComplex(complex_hash(receptor_id, antigen_id, epitope_id, None),
                                          species=receptor.species,
-                                         paired_chain=receptor.paired_chain,
                                          antibody=receptor_id,
                                          antigen=antigen_id,
                                          epitope=epitope_id)
@@ -653,17 +643,21 @@ def make_complex(container, receptor, antigen_id, epitope_id, mhc_id, assay_ids)
     return complex, composite
 
 # these composite classes are for query optimization in the database
+# composite subclasses must retain the same AKC_ID to keep linkage with main data model
 def make_receptor_composite(container, complex):
     assert type(complex) in (TCRpMHCComplex, AntibodyAntigenComplex), "Unknown complex type, found: " + str(type(complex))
 
     composite = None
+    paired_composite = None
     ab_composite = None
+    paired_ab_composite = None
     gd_composite = None
+    paired_gd_composite = None
     ig_composite = None
+    paired_ig_composite = None
     if type(complex) == TCRpMHCComplex:
         composite = ReceptorComposite(complex.akc_id,
                                       species=complex.species,
-                                      paired_chain=complex.paired_chain,
                                       tcr_complex=complex.akc_id,
                                       antigen=complex.antigen,
                                       epitope=complex.epitope,
@@ -671,31 +665,36 @@ def make_receptor_composite(container, complex):
         if complex.ab_tcr is not None:
             composite.tra_chain = container.ab_tcell_receptors[complex.ab_tcr].tra_chain
             composite.trb_chain = container.ab_tcell_receptors[complex.ab_tcr].trb_chain
+            composite.paired_chain = container.ab_tcell_receptors[complex.ab_tcr].paired_chain
             ab_composite = AlphaBetaReceptorComposite(complex.akc_id,
                                         species=complex.species,
-                                        paired_chain=complex.paired_chain,
+                                        paired_chain=composite.paired_chain,
+                                        tra_chain=composite.tra_chain,
+                                        trb_chain=composite.trb_chain,
                                         tcr_complex=complex.akc_id,
                                         antigen=complex.antigen,
                                         epitope=complex.epitope,
                                         mhc=complex.mhc)
-            ab_composite.tra_chain = composite.tra_chain
-            ab_composite.trb_chain = composite.trb_chain
+            if composite.paired_chain:
+                paired_ab_composite = PairedAlphaBetaReceptorComposite(**dataclasses.asdict(ab_composite))
         elif complex.gd_tcr is not None:
             composite.trg_chain = container.gd_tcell_receptors[complex.gd_tcr].trg_chain
             composite.trd_chain = container.gd_tcell_receptors[complex.gd_tcr].trd_chain
+            composite.paired_chain = container.gd_tcell_receptors[complex.gd_tcr].paired_chain
             gd_composite = GammaDeltaReceptorComposite(complex.akc_id,
                                         species=complex.species,
-                                        paired_chain=complex.paired_chain,
+                                        paired_chain=composite.paired_chain,
+                                        trg_chain=composite.trg_chain,
+                                        trd_chain=composite.trd_chain,
                                         tcr_complex=complex.akc_id,
                                         antigen=complex.antigen,
                                         epitope=complex.epitope,
                                         mhc=complex.mhc)
-            gd_composite.trg_chain = composite.trg_chain
-            gd_composite.trd_chain = composite.trd_chain
+            if composite.paired_chain:
+                paired_gd_composite = PairedGammaDeltaReceptorComposite(**dataclasses.asdict(gd_composite))
     else:
         composite = ReceptorComposite(complex.akc_id,
                                       species=complex.species,
-                                      paired_chain=complex.paired_chain,
                                       antibody_complex=complex.akc_id,
                                       antigen=complex.antigen,
                                       epitope=complex.epitope)
@@ -703,23 +702,36 @@ def make_receptor_composite(container, complex):
             composite.igh_chain = container.bcell_receptors[complex.antibody].igh_chain
             composite.igk_chain = container.bcell_receptors[complex.antibody].igk_chain
             composite.igl_chain = container.bcell_receptors[complex.antibody].igl_chain
+            composite.paired_chain = container.bcell_receptors[complex.antibody].paired_chain
             ig_composite = BCellReceptorComposite(complex.akc_id,
                                         species=complex.species,
-                                        paired_chain=complex.paired_chain,
+                                        paired_chain=composite.paired_chain,
+                                        igh_chain=composite.igh_chain,
+                                        igk_chain=composite.igk_chain,
+                                        igl_chain=composite.igl_chain,
                                         antibody_complex=complex.akc_id,
                                         antigen=complex.antigen,
                                         epitope=complex.epitope)
-            ig_composite.igh_chain = composite.igh_chain
-            ig_composite.igk_chain = composite.igk_chain
-            ig_composite.igl_chain = composite.igl_chain
+            if composite.paired_chain:
+                paired_ig_composite = PairedBCellReceptorComposite(**dataclasses.asdict(ig_composite))
+    if composite.paired_chain:
+        paired_composite = PairedReceptorComposite(**dataclasses.asdict(composite))
 
     container.receptor_composites[composite.akc_id] = composite
+    if paired_composite:
+        container.paired_receptor_composites[paired_composite.akc_id] = paired_composite
     if ab_composite:
         container.ab_receptor_composites[ab_composite.akc_id] = ab_composite
+    if paired_ab_composite:
+        container.paired_ab_receptor_composites[paired_ab_composite.akc_id] = paired_ab_composite
     if gd_composite:
         container.gd_receptor_composites[gd_composite.akc_id] = gd_composite
+    if paired_gd_composite:
+        container.paired_gd_receptor_composites[paired_gd_composite.akc_id] = paired_gd_composite
     if ig_composite:
         container.bcell_receptor_composites[ig_composite.akc_id] = ig_composite
+    if paired_ig_composite:
+        container.paired_bcell_receptor_composites[paired_ig_composite.akc_id] = paired_ig_composite
     return composite
 
 def add_to_assays(container, assay_ids, complex, composite):
@@ -952,7 +964,11 @@ chain_container_fields = [
     'receptor_composites',
     'ab_receptor_composites',
     'gd_receptor_composites',
-    'bcell_receptor_composites'
+    'bcell_receptor_composites',
+    'paired_receptor_composites',
+    'paired_ab_receptor_composites',
+    'paired_gd_receptor_composites',
+    'paired_bcell_receptor_composites'
 ]
 
 def write_all_metadata_jsonl(container, json_dir):
