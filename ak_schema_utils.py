@@ -311,6 +311,7 @@ def make_chain(container, species, obj, annotations):
             junction_aa = obj['junction_aa'],
             cdr1_aa = obj['cdr1_aa'],
             cdr2_aa = obj['cdr2_aa'],
+            cdr3_aa = obj['cdr3_aa'],
             v_call = obj['v_call'],
             j_call = obj['j_call'],
         )
@@ -326,6 +327,7 @@ def make_chain(container, species, obj, annotations):
             junction_aa = obj['junction_aa'],
             cdr1_aa=obj['cdr1_aa'],
             cdr2_aa=obj['cdr2_aa'],
+            cdr3_aa=obj['cdr3_aa'],
             v_call = obj['v_call'],
             j_call = obj['j_call'],
         )
@@ -341,6 +343,7 @@ def make_chain(container, species, obj, annotations):
             junction_aa = obj['junction_aa'],
             cdr1_aa=obj['cdr1_aa'],
             cdr2_aa=obj['cdr2_aa'],
+            cdr3_aa=obj['cdr3_aa'],
             v_call = obj['v_call'],
             j_call = obj['j_call'],
         )
@@ -356,6 +359,7 @@ def make_chain(container, species, obj, annotations):
             junction_aa = obj['junction_aa'],
             cdr1_aa=obj['cdr1_aa'],
             cdr2_aa=obj['cdr2_aa'],
+            cdr3_aa=obj['cdr3_aa'],
             v_call = obj['v_call'],
             j_call = obj['j_call'],
         )
@@ -371,6 +375,7 @@ def make_chain(container, species, obj, annotations):
             junction_aa = obj['junction_aa'],
             cdr1_aa=obj['cdr1_aa'],
             cdr2_aa=obj['cdr2_aa'],
+            cdr3_aa=obj['cdr3_aa'],
             v_call = obj['v_call'],
             j_call = obj['j_call'],
         )
@@ -386,6 +391,7 @@ def make_chain(container, species, obj, annotations):
             junction_aa = obj['junction_aa'],
             cdr1_aa = obj['cdr1_aa'],
             cdr2_aa = obj['cdr2_aa'],
+            cdr3_aa=obj['cdr3_aa'],
             v_call = obj['v_call'],
             j_call = obj['j_call'],
         )
@@ -401,6 +407,7 @@ def make_chain(container, species, obj, annotations):
             junction_aa = obj['junction_aa'],
             cdr1_aa = obj['cdr1_aa'],
             cdr2_aa = obj['cdr2_aa'],
+            cdr3_aa=obj['cdr3_aa'],
             v_call = obj['v_call'],
             j_call = obj['j_call'],
         )
@@ -656,6 +663,14 @@ def make_receptor_composite(container, complex):
             composite.epitope = complex.epitope
 
     container.receptor_composites[composite.akc_id] = composite
+
+    if complex.ab_tcr is not None:
+        container.ab_receptor_composites[composite.akc_id] = composite
+    elif complex.gd_tcr is not None:
+        container.gd_receptor_composites[composite.akc_id] = composite
+    elif complex.antibody is not None:
+        container.bcell_receptor_composites[composite.akc_id] = composite
+
     return composite
 
 def add_to_assays(container, assay_ids, complex, composite):

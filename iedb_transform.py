@@ -134,6 +134,7 @@ def make_iedb_chain(container, iedb_chain):
                 'junction_aa': iedb_chain["Junction Calculated"],
                 'cdr1_aa': iedb_chain["CDR1 Calculated"],
                 'cdr2_aa': iedb_chain["CDR2 Calculated"],
+                'cdr3_aa': iedb_chain["CDR3 Calculated"], # todo do we want to keep cdr3 and junction in akc?
                 'v_call': iedb_chain["Calculated V Gene"],
                 'j_call': iedb_chain["Calculated J Gene"]
                 }
@@ -262,6 +263,17 @@ def process_epitope_antigens(container, tcr_assay_df, bcr_assay_df):
                               epitopes=epitope_ids)
             container.antigens[antigen.akc_id] = antigen
 
+def process_mhc(container, tcr_assay_df):
+    mhc_df = tcr_assay_df["MHC Restriction"].drop_duplicates()
+    mhc_df = mhc_df[mhc_df["IRI"].notna()]
+
+    for mhc_idx, mhc_row in mhc_df.iterrows():
+        mhc = MajorHistocompatibilityComplex(akc_id=url_to_curie(mhc_row["IRI"]),
+                                                 mhc_class=mhc_iedb_to_akc(mhc_row["Class"]),
+                                                 mhc_label=mhc_row["Name"],
+                                                 mhc_ref=url_to_curie(mhc_row["IRI"]))
+
+        container.mhcs[mhc_idx] = mhc
 
 def make_reference_obj(ref_assay_df, investigation_akc_id):
     reference_df = ref_assay_df["Reference"].drop_duplicates()
@@ -338,25 +350,20 @@ def mhc_iedb_to_akc(mhc):
         print(f"ERROR: unknown MHC type: {mhc}")
 
 
-def safe_make_mhc(assay_row):
+def make_iedb_complexes(container, assay_row, assay_id, receptors):
+    antigen_id = url_to_curie(assay_row["Epitope"]["Source Molecule IRI"])
+    epitope_id = url_to_curie(assay_row["Epitope"]["IEDB IRI"])
+
     if ("MHC Restriction", "IRI") in assay_row and assay_row[("MHC Restriction", "IRI")] is not None:
-        mhc = MajorHistocompatibilityComplex(akc_id=url_to_curie(assay_row[("MHC Restriction", "IRI")]),
-                                             mhc_class=mhc_iedb_to_akc(assay_row[('MHC Restriction', 'Class')]),
-                                             mhc_label=assay_row[("MHC Restriction", "Name")],
-                                             mhc_ref=url_to_curie(assay_row[("MHC Restriction", "IRI")]))
+        mhc_id = url_to_curie(assay_row[("MHC Restriction", "IRI")])
+    else:
+        mhc_id = None
 
-        return mhc
-
-def make_iedb_complexes(container, assay_row, assay_id, tcell_receptors):
-    # todo MHC is now made but not stored in container
-
-    mhc = safe_make_mhc(assay_row)
-
-    for tcell_receptor in tcell_receptors:
-        make_complex(container, tcell_receptor,
-                     antigen_id=url_to_curie(assay_row["Epitope"]["Source Molecule IRI"]),
-                     epitope_id=url_to_curie(assay_row["Epitope"]["IEDB IRI"]),
-                     mhc_id=mhc.akc_id if mhc is not None else None,
+    for receptor in receptors:
+        make_complex(container, receptor,
+                     antigen_id=antigen_id,
+                     epitope_id=epitope_id,
+                     mhc_id=mhc_id,
                      assay_ids=[ assay_id ])
 
 
@@ -594,6 +601,7 @@ def convert(tcell_path, tcr_path, bcell_path, bcr_path):
     assay_to_bcr, assay_to_bcr_chain = get_receptor_objects(container, bcr_df, "BCR")
 
     process_epitope_antigens(container, tcr_assay_df, bcr_assay_df)
+    process_mhc(container, tcr_assay_df)
 
     process_assay(container, tcr_assay_df, assay_to_tcr, assay_to_tcr_chain, "TCR")
     process_assay(container, bcr_assay_df, assay_to_bcr, assay_to_bcr_chain, "BCR")
