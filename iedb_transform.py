@@ -475,7 +475,9 @@ def get_participant(assay_row, arm_akc_id):
         akc_id(),
         species=url_to_curie(assay_row[("Host", "IRI")]), # todo for mouse: could be species or strain
         sex=sex_to_curie(assay_row[("Host", "Sex")]),
-        age=age,
+        # todo: comment out for now until can standardize
+        # age_min=age_min,
+        # age_max=age_max,
         age_unit=age_unit,
         # todo geolocation ontology incomplete? cannot add  GAZ:00002845
         # geolocation=url_to_curie(assay_row[("Host", "Geolocation IRI")]),
@@ -494,7 +496,6 @@ def get_immune_exposure(assay_row, participant_akc_id):
 def get_specimen_collection_life_event(participant_akc_id, study_event_akc_id):
     return SpecimenCollection(
                 akc_id(),
-                specimen=None,
                 participant=participant_akc_id,
                 study_event=study_event_akc_id,
                 life_event_type='OBI:0000659',  # = specimen collection process

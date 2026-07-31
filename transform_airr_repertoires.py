@@ -107,17 +107,9 @@ def transform_airr_repertoires(repertoire_filename, container):
 
             # documents
             if rep['study'].get('pub_ids') is not None:
-                if isinstance(rep['study']['pub_ids'], list):
-                    for r in rep['study']['pub_ids']:
-                        ref_id = r.replace(' ', '')
-                        if len(ref_id) > 0:
-                            reference = Reference(
-                                ref_id,
-                                investigations=[investigation.akc_id])
-                            container.references[reference.source_uri] = reference
-                            investigation.documents.append(reference.source_uri)
-                else:
-                    ref_id = rep['study']['pub_ids'].replace(' ', '')
+                pub_list = rep['study']['pub_ids'].split(',')
+                for r in pub_list:
+                    ref_id = r.replace(' ', '')
                     if len(ref_id) > 0:
                         reference = Reference(
                             ref_id,
@@ -176,8 +168,8 @@ def transform_airr_repertoires(repertoire_filename, container):
                 name=sub['subject_id'],
                 species=adc_ontology(sub.get('species')),
                 sex=sex,
-                age=sub.get('age_min'),
-                # age_max=sub['age_max'],
+                age_min=sub.get('age_min'),
+                age_max=sub.get('age_max'),
                 age_event=sub.get('age_event'),
                 age_unit=adc_ontology(sub.get('age_unit')),
                 race=sub.get('race'),
@@ -266,7 +258,6 @@ def transform_airr_repertoires(repertoire_filename, container):
                     life_event=specimen_collection.akc_id,
                     tissue=adc_ontology(s.get('tissue'))
                 )
-                specimen_collection.specimen = specimen.akc_id
                 sample_ids[sample_id] = specimen.akc_id
                 container.specimens[specimen.akc_id] = specimen
 

@@ -1023,6 +1023,9 @@ def write_all_chain_relationships(container, csv_dir):
     # assay relationships
     write_relationship_csv('Assay', container.assays, 'receptor_composites', csv_dir)
 
+    # Antigen/Epitope relationships
+    write_relationship_csv('Antigen', container.antigens, 'epitopes', csv_dir)
+
 def load_chains(filename):
     return None
 
