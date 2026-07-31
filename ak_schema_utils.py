@@ -494,14 +494,16 @@ def make_receptor(container, species, chains):
             receptor = AlphaBetaTCR(
                 receptor_hash(None, trb_chain),
                 species=species,
-                trb_chain=trb_chain.hash_infer_vdj_sequence_aa
+                trb_chain=trb_chain.hash_infer_vdj_sequence_aa,
+                paired_chain=False
             )
             container.ab_tcell_receptors[receptor.akc_id] = receptor
         elif trb_chain is None:
             receptor = AlphaBetaTCR(
                 receptor_hash(tra_chain, None),
                 species=species,
-                tra_chain=tra_chain.hash_infer_vdj_sequence_aa
+                tra_chain=tra_chain.hash_infer_vdj_sequence_aa,
+                paired_chain=False
             )
             container.ab_tcell_receptors[receptor.akc_id] = receptor
         else:
@@ -509,7 +511,8 @@ def make_receptor(container, species, chains):
                 receptor_hash(tra_chain, trb_chain),
                 species=species,
                 tra_chain=tra_chain.hash_infer_vdj_sequence_aa,
-                trb_chain=trb_chain.hash_infer_vdj_sequence_aa
+                trb_chain=trb_chain.hash_infer_vdj_sequence_aa,
+                paired_chain=True
             )
             container.ab_tcell_receptors[receptor.akc_id] = receptor
     elif trg_chain or trd_chain:
@@ -517,14 +520,16 @@ def make_receptor(container, species, chains):
             receptor = GammaDeltaTCR(
                 receptor_hash(None, trd_chain),
                 species=species,
-                trd_chain=trd_chain.hash_infer_vdj_sequence_aa
+                trd_chain=trd_chain.hash_infer_vdj_sequence_aa,
+                paired_chain=False
             )
             container.gd_tcell_receptors[receptor.akc_id] = receptor
         elif trd_chain is None:
             receptor = GammaDeltaTCR(
                 receptor_hash(trg_chain, None),
                 species=species,
-                trg_chain=trg_chain.hash_infer_vdj_sequence_aa
+                trg_chain=trg_chain.hash_infer_vdj_sequence_aa,
+                paired_chain=False
             )
             container.gd_tcell_receptors[receptor.akc_id] = receptor
         else:
@@ -532,7 +537,8 @@ def make_receptor(container, species, chains):
                 receptor_hash(trg_chain, trd_chain),
                 species=species,
                 trg_chain=trg_chain.hash_infer_vdj_sequence_aa,
-                trd_chain=trd_chain.hash_infer_vdj_sequence_aa
+                trd_chain=trd_chain.hash_infer_vdj_sequence_aa,
+                paired_chain=True
             )
             container.gd_tcell_receptors[receptor.akc_id] = receptor
 
@@ -544,14 +550,16 @@ def make_receptor(container, species, chains):
                 receptor = BCellReceptor(
                     receptor_hash(None, igl_chain),
                     species=species,
-                    igl_chain=igl_chain.hash_infer_vdj_sequence_aa
+                    igl_chain=igl_chain.hash_infer_vdj_sequence_aa,
+                    paired_chain=False
                 )
                 container.bcell_receptors[receptor.akc_id] = receptor
             else:
                 receptor = BCellReceptor(
                     receptor_hash(None, igk_chain),
                     species=species,
-                    igk_chain=igk_chain.hash_infer_vdj_sequence_aa
+                    igk_chain=igk_chain.hash_infer_vdj_sequence_aa,
+                    paired_chain=False
                 )
                 container.bcell_receptors[receptor.akc_id] = receptor
         else:
@@ -560,7 +568,8 @@ def make_receptor(container, species, chains):
                     receptor_hash(igh_chain, igl_chain),
                     species=species,
                     igh_chain=igh_chain.hash_infer_vdj_sequence_aa,
-                    igl_chain=igl_chain.hash_infer_vdj_sequence_aa
+                    igl_chain=igl_chain.hash_infer_vdj_sequence_aa,
+                    paired_chain=True
                 )
                 container.bcell_receptors[receptor.akc_id] = receptor
             elif igk_chain is not None:
@@ -568,14 +577,16 @@ def make_receptor(container, species, chains):
                     receptor_hash(igh_chain, igk_chain),
                     species=species,
                     igh_chain=igh_chain.hash_infer_vdj_sequence_aa,
-                    igk_chain=igk_chain.hash_infer_vdj_sequence_aa
+                    igk_chain=igk_chain.hash_infer_vdj_sequence_aa,
+                    paired_chain=True
                 )
                 container.bcell_receptors[receptor.akc_id] = receptor
             else:
                 receptor = BCellReceptor(
                     receptor_hash(igh_chain, None),
                     species=species,
-                    igh_chain=igh_chain.hash_infer_vdj_sequence_aa
+                    igh_chain=igh_chain.hash_infer_vdj_sequence_aa,
+                    paired_chain=False
                 )
                 container.bcell_receptors[receptor.akc_id] = receptor
     else:
@@ -595,6 +606,7 @@ def make_complex(container, receptor, antigen_id, epitope_id, mhc_id, assay_ids)
     if type(receptor) == AlphaBetaTCR:
         complex = TCRpMHCComplex(complex_hash(receptor_id, antigen_id, epitope_id, mhc_id),
                                  species=receptor.species,
+                                 paired_chain=receptor.paired_chain,
                                  ab_tcr=receptor_id,
                                  antigen=antigen_id,
                                  epitope=epitope_id,
@@ -607,6 +619,7 @@ def make_complex(container, receptor, antigen_id, epitope_id, mhc_id, assay_ids)
     elif type(receptor) == GammaDeltaTCR:
         complex = TCRpMHCComplex(complex_hash(receptor_id, antigen_id, epitope_id, mhc_id),
                                  species=receptor.species,
+                                 paired_chain=receptor.paired_chain,
                                  gd_tcr=receptor_id,
                                  antigen=antigen_id,
                                  epitope=epitope_id,
@@ -621,6 +634,7 @@ def make_complex(container, receptor, antigen_id, epitope_id, mhc_id, assay_ids)
 
         complex = AntibodyAntigenComplex(complex_hash(receptor_id, antigen_id, epitope_id, None),
                                          species=receptor.species,
+                                         paired_chain=receptor.paired_chain,
                                          antibody=receptor_id,
                                          antigen=antigen_id,
                                          epitope=epitope_id)
@@ -631,31 +645,74 @@ def make_complex(container, receptor, antigen_id, epitope_id, mhc_id, assay_ids)
 
     return complex, composite
 
+# these composite classes are for query optimization in the database
 def make_receptor_composite(container, complex):
     assert type(complex) in (TCRpMHCComplex, AntibodyAntigenComplex), "Unknown complex type, found: " + str(type(complex))
 
     composite = None
+    ab_composite = None
+    gd_composite = None
+    ig_composite = None
     if type(complex) == TCRpMHCComplex:
-        composite = ReceptorComposite(complex.akc_id, species=complex.species, tcr_complex=complex.akc_id)
+        composite = ReceptorComposite(complex.akc_id,
+                                      species=complex.species,
+                                      paired_chain=complex.paired_chain,
+                                      tcr_complex=complex.akc_id,
+                                      antigen=complex.antigen,
+                                      epitope=complex.epitope,
+                                      mhc=complex.mhc)
         if complex.ab_tcr is not None:
             composite.tra_chain = container.ab_tcell_receptors[complex.ab_tcr].tra_chain
             composite.trb_chain = container.ab_tcell_receptors[complex.ab_tcr].trb_chain
+            ab_composite = AlphaBetaReceptorComposite(complex.akc_id,
+                                        species=complex.species,
+                                        paired_chain=complex.paired_chain,
+                                        tcr_complex=complex.akc_id,
+                                        antigen=complex.antigen,
+                                        epitope=complex.epitope,
+                                        mhc=complex.mhc)
+            ab_composite.tra_chain = composite.tra_chain
+            ab_composite.trb_chain = composite.trb_chain
         elif complex.gd_tcr is not None:
             composite.trg_chain = container.gd_tcell_receptors[complex.gd_tcr].trg_chain
             composite.trd_chain = container.gd_tcell_receptors[complex.gd_tcr].trd_chain
-        composite.antigen = complex.antigen
-        composite.epitope = complex.epitope
-        composite.mhc = complex.mhc
+            gd_composite = GammaDeltaReceptorComposite(complex.akc_id,
+                                        species=complex.species,
+                                        paired_chain=complex.paired_chain,
+                                        tcr_complex=complex.akc_id,
+                                        antigen=complex.antigen,
+                                        epitope=complex.epitope,
+                                        mhc=complex.mhc)
+            gd_composite.trg_chain = composite.trg_chain
+            gd_composite.trd_chain = composite.trd_chain
     else:
-        composite = ReceptorComposite(complex.akc_id, species=complex.species, antibody_complex=complex.akc_id)
+        composite = ReceptorComposite(complex.akc_id,
+                                      species=complex.species,
+                                      paired_chain=complex.paired_chain,
+                                      antibody_complex=complex.akc_id,
+                                      antigen=complex.antigen,
+                                      epitope=complex.epitope)
         if complex.antibody is not None:
             composite.igh_chain = container.bcell_receptors[complex.antibody].igh_chain
             composite.igk_chain = container.bcell_receptors[complex.antibody].igk_chain
             composite.igl_chain = container.bcell_receptors[complex.antibody].igl_chain
-            composite.antigen = complex.antigen
-            composite.epitope = complex.epitope
+            ig_composite = BCellReceptorComposite(complex.akc_id,
+                                        species=complex.species,
+                                        paired_chain=complex.paired_chain,
+                                        antibody_complex=complex.akc_id,
+                                        antigen=complex.antigen,
+                                        epitope=complex.epitope)
+            ig_composite.igh_chain = composite.igh_chain
+            ig_composite.igk_chain = composite.igk_chain
+            ig_composite.igl_chain = composite.igl_chain
 
     container.receptor_composites[composite.akc_id] = composite
+    if ab_composite:
+        container.ab_receptor_composites[ab_composite.akc_id] = ab_composite
+    if gd_composite:
+        container.gd_receptor_composites[gd_composite.akc_id] = gd_composite
+    if ig_composite:
+        container.bcell_receptor_composites[ig_composite.akc_id] = ig_composite
     return composite
 
 def add_to_assays(container, assay_ids, complex, composite):
@@ -885,7 +942,10 @@ chain_container_fields = [
     'gd_tcell_receptors',
     'bcell_receptors',
     'antibody_complexes',
-    'receptor_composites'
+    'receptor_composites',
+    'ab_receptor_composites',
+    'gd_receptor_composites',
+    'bcell_receptor_composites'
 ]
 
 def write_all_metadata_jsonl(container, json_dir):
