@@ -247,7 +247,7 @@ def receptor_integrate(source, cache_id):
 
                     if not paired_chain:
                         receptor = make_receptor(container, species, [chain, None])
-                        make_complex(container, receptor, None, None, [ assay_akc_id ])
+                        make_complex(container, receptor, None, None, None, [ assay_akc_id ])
 
                     # gather chains by cell_id
                     if row.get('cell_id') is not None and len(row['cell_id']) != 0:
