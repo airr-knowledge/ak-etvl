@@ -231,34 +231,41 @@ def receptor_integrate(source, cache_id):
             species = None
             if rep.get('subject') and rep['subject'].get('species') and rep['subject']['species'].get('id'):
                 species = rep['subject']['species']['id']
+
             # multiple V/J calls?
-            v_calls = [item.strip() for item in row['v_call'].split(",")]
-            j_calls = [item.strip() for item in row['j_call'].split(",")]
+            # my thought was to enumerate the possibilities, but with poorly
+            # annotated data, this is causing a data explosion, because the
+            # collapsing is not working as expected.
+            # disable for now
+#            v_calls = [item.strip() for item in row['v_call'].split(",")]
+#            j_calls = [item.strip() for item in row['j_call'].split(",")]
 
-            for v_name in v_calls:
-                row['v_call'] = v_name
-                for j_name in j_calls:
-                    row['j_call'] = j_name
-                    chain = make_chain(container, species, row, annotation_row)
-                    if not chain:
-                        print("Could not make chain, skipping.")
-                        print(row)
-                        continue
+#            for v_name in v_calls:
+#                v_name = v_name.replace('or ','')
+#                row['v_call'] = v_name
+#                for j_name in j_calls:
+#                    j_name = j_name.replace('or ','')
+#                    row['j_call'] = j_name
+            chain = make_chain(container, species, row, annotation_row)
+            if not chain:
+                print("Could not make chain, skipping.")
+                print(row)
+                continue
 
-                    if not paired_chain:
-                        receptor = make_receptor(container, species, [chain, None])
-                        make_complex(container, receptor, None, None, None, [ assay_akc_id ])
+            if not paired_chain:
+                receptor = make_receptor(container, species, [chain, None])
+                make_complex(container, receptor, None, None, None, [ assay_akc_id ])
 
-                    # gather chains by cell_id
-                    if row.get('cell_id') is not None and len(row['cell_id']) != 0:
-                        if cell_id.get(row['cell_id']) is None:
-                            cell_id[row['cell_id']] = [ chain ]
-                        else:
-                            cell_id[row['cell_id']].append(chain)
+            # gather chains by cell_id
+            if row.get('cell_id') is not None and len(row['cell_id']) != 0:
+                if cell_id.get(row['cell_id']) is None:
+                    cell_id[row['cell_id']] = [ chain ]
+                else:
+                    cell_id[row['cell_id']].append(chain)
 
-                    prod_cnt = prod_cnt + 1
-                    if prod_cnt % 10000 == 0:
-                        print('Processed', prod_cnt, 'productive rearrangements.')
+            prod_cnt = prod_cnt + 1
+            if prod_cnt % 10000 == 0:
+                print('Processed', prod_cnt, 'productive rearrangements.')
 
         # generate receptors for pairs
         # we create the receptors for single chains in the inner loop

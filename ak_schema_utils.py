@@ -164,14 +164,14 @@ def compute_chain_hashes(species, chain):
 def receptor_hash(chain1, chain2):
     s1 = ''
     if chain1:
-        if chain1.hash_infer_vdj_sequence:
-            s1 = chain1.hash_infer_vdj_sequence
+        if chain1.hash_infer_vdj_sequence_aa:
+            s1 = chain1.hash_infer_vdj_sequence_aa
         else:
             s1 = chain1.akc_id
     s2 = ''
     if chain2:
-        if chain2.hash_infer_vdj_sequence:
-            s2 = chain2.hash_infer_vdj_sequence
+        if chain2.hash_infer_vdj_sequence_aa:
+            s2 = chain2.hash_infer_vdj_sequence_aa
         else:
             s2 = chain2.akc_id
     return 'AKC_RECEPTOR:' + akc_hash(s1 + s2)
@@ -217,14 +217,27 @@ def infer_vdj_sequence(chain, annotations):
     else:
         return
 
+    # multiple V/J calls?
+    # take first one, which should match to given IgBlast annotation
+    v_calls = [item.strip() for item in chain.v_call.split(",")]
+    j_calls = [item.strip() for item in chain.j_call.split(",")]
+    if len(v_calls) > 1:
+        v_call = v_calls[0]
+    else:
+        v_call = chain.v_call
+    if len(j_calls) > 1:
+        j_call = j_calls[0]
+    else:
+        j_call = chain.j_call
+
     v_info = None
     j_info = None
     if type(chain) in [ BetaChain, AlphaChain, GammaChain, DeltaChain ]:
-        v_info = lookupAllele(TCR_germline, chain.v_call)
-        j_info = lookupAllele(TCR_germline, chain.j_call)
+        v_info = lookupAllele(TCR_germline, v_call)
+        j_info = lookupAllele(TCR_germline, j_call)
     elif type(chain) in [ HeavyChain, KappaChain, LambdaChain ]:
-        v_info = lookupAllele(IG_germline, chain.v_call)
-        j_info = lookupAllele(IG_germline, chain.j_call)
+        v_info = lookupAllele(IG_germline, v_call)
+        j_info = lookupAllele(IG_germline, j_call)
 
     if v_info is None:
         return
@@ -287,6 +300,16 @@ def infer_vdj_sequence(chain, annotations):
         if len(chain.infer_vdj_sequence_aa) == 0:
             sys.exit(1)
 
+# mainly to handle poorly annotated data
+def clean_infer_vdj(chain):
+    if chain.infer_vdj_sequence is None:
+        chain.infer_vdj_sequence = chain.sequence
+        if chain.sequence_aa is not None:
+            chain.infer_vdj_sequence_aa = chain.sequence_aa
+        else:
+            chain.infer_vdj_sequence_aa = str(Seq(chain.sequence).translate())
+
+
 # obj: locus, sequence, sequence_aa, complete_vdj, junction_aa, cdr1_aa, cdr2_aa, v_call, j_call
 # annotations: v_germline_start, v_sequence_start, j_germline_end, j_sequence_end
 def make_chain(container, species, obj, annotations):
@@ -314,7 +337,6 @@ def make_chain(container, species, obj, annotations):
             v_call = obj['v_call'],
             j_call = obj['j_call'],
         )
-        container.alpha_chains[chain.akc_id] = chain
     elif obj['locus'] == 'TRB':
         chain = BetaChain(
             f'{nt_hash_id}',
@@ -329,7 +351,6 @@ def make_chain(container, species, obj, annotations):
             v_call = obj['v_call'],
             j_call = obj['j_call'],
         )
-        container.beta_chains[chain.akc_id] = chain
     elif obj['locus'] == 'TRG':
         chain = GammaChain(
             f'{nt_hash_id}',
@@ -344,7 +365,6 @@ def make_chain(container, species, obj, annotations):
             v_call = obj['v_call'],
             j_call = obj['j_call'],
         )
-        container.gamma_chains[chain.akc_id] = chain
     elif obj['locus'] == 'TRD':
         chain = DeltaChain(
             f'{nt_hash_id}',
@@ -359,7 +379,6 @@ def make_chain(container, species, obj, annotations):
             v_call = obj['v_call'],
             j_call = obj['j_call'],
         )
-        container.delta_chains[chain.akc_id] = chain
     elif obj['locus'] == 'IGH':
         chain = HeavyChain(
             f'{nt_hash_id}',
@@ -374,7 +393,6 @@ def make_chain(container, species, obj, annotations):
             v_call = obj['v_call'],
             j_call = obj['j_call'],
         )
-        container.heavy_chains[chain.akc_id] = chain
     elif obj['locus'] == 'IGK':
         chain = KappaChain(
             f'{nt_hash_id}',
@@ -389,7 +407,6 @@ def make_chain(container, species, obj, annotations):
             v_call = obj['v_call'],
             j_call = obj['j_call'],
         )
-        container.kappa_chains[chain.akc_id] = chain
     elif obj['locus'] == 'IGL':
         chain = LambdaChain(
             f'{nt_hash_id}',
@@ -404,10 +421,30 @@ def make_chain(container, species, obj, annotations):
             v_call = obj['v_call'],
             j_call = obj['j_call'],
         )
-        container.lambda_chains[chain.akc_id] = chain
 
     infer_vdj_sequence(chain, annotations)
+    clean_infer_vdj(chain)
     compute_chain_hashes(species, chain)
+
+    # use the infered nt vdj sequence hash as new akc_id
+    # if could not infer then this should be same akc_id
+    chain.akc_id = chain.hash_infer_vdj_sequence
+
+    if type(chain) == AlphaChain:
+        container.alpha_chains[chain.akc_id] = chain
+    elif type(chain) == BetaChain:
+        container.beta_chains[chain.akc_id] = chain
+    elif type(chain) == GammaChain:
+        container.gamma_chains[chain.akc_id] = chain
+    elif type(chain) == DeltaChain:
+        container.delta_chains[chain.akc_id] = chain
+    elif type(chain) == HeavyChain:
+        container.heavy_chains[chain.akc_id] = chain
+    elif type(chain) == KappaChain:
+        container.kappa_chains[chain.akc_id] = chain
+    elif type(chain) == LambdaChain:
+        container.lambda_chains[chain.akc_id] = chain
+
     #validate_chain(chain)
 
     return chain
