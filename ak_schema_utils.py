@@ -310,9 +310,21 @@ def clean_infer_vdj(chain):
             chain.infer_vdj_sequence_aa = str(Seq(chain.sequence).translate())
 
 
+def chain_is_empty(chain):
+    if (chain.sequence is None and
+            chain.sequence_aa is None and
+            chain.v_call is None and
+            chain.j_call is None and
+            chain.cdr1_aa is None and
+            chain.cdr2_aa is None and
+            chain.cdr3_aa is None and
+            chain.junction_aa is None):
+        return True
+    return False
+
 # obj: locus, sequence, sequence_aa, complete_vdj, junction_aa, cdr1_aa, cdr2_aa, v_call, j_call
 # annotations: v_germline_start, v_sequence_start, j_germline_end, j_sequence_end
-def make_chain(container, species, obj, annotations):
+def make_chain(container, species, obj, annotations, keep_if_empty=False):
     if obj['locus'] not in [ 'TRB', 'TRA', 'TRD', 'TRG', 'IGH', 'IGK', 'IGL' ]:
         print('unhandled locus:', obj['locus'])
         print(obj)
@@ -446,6 +458,9 @@ def make_chain(container, species, obj, annotations):
         container.lambda_chains[chain.akc_id] = chain
 
     #validate_chain(chain)
+
+    if not keep_if_empty and chain_is_empty(chain):
+        return None
 
     return chain
 
