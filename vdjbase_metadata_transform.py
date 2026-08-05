@@ -5,13 +5,7 @@ import os
 from linkml_runtime.utils.schemaview import SchemaView
 import airr
 from ak_schema import AIRRKnowledgeCommons, LibraryPreparationProcessing
-from ak_schema_utils import (
-    vdjbase_cache_list,
-    write_jsonl,
-    write_csv,
-    write_all_relationships,
-    vdjbase_data_dir,
-)
+from ak_schema_utils import *
 from transform_airr_repertoires import transform_airr_repertoires
 from transform_airr_genotypes import transform_airr_genotypes
 
@@ -143,26 +137,27 @@ def repertoire_transform(cache_id):
     # VDJbase should maintain a consistent mapping of VDJbase subject ID to study/subject across its datasets.
     # Warnings will be printed if any inconsistencies are found.
 
-    for filename in ['genomic_metadata_IGH.json', 'genomic_metadata_IGK.json', 'genomic_metadata_IGL.json']:
-        for vdjbase_name, (study_id, subject_id) in map_vdjbase_name_to_study_subject(vdjbase_data_dir + '/' + cache_id + '/' + filename).items():
+    # for filename in ['genomic_metadata_IGH.json', 'genomic_metadata_IGK.json', 'genomic_metadata_IGL.json']:
+    #     for vdjbase_name, (study_id, subject_id) in map_vdjbase_name_to_study_subject(VDJBASE_IMPORT_DATA + '/' + cache_id + '/' + filename).items():
+    #         if vdjbase_name in vdjbase_name_to_study_subject:
+    #             existing_study_id, existing_subject_id = vdjbase_name_to_study_subject[vdjbase_name]
+    #             if (existing_study_id, existing_subject_id) != (study_id, subject_id):
+    #                 print(f"Warning: VDJbase name: {vdjbase_name} already mapped to {existing_study_id} / {existing_subject_id}, now found mapping to {study_id} / {subject_id}")
+    #         else:
+    #             vdjbase_name_to_study_subject[vdjbase_name] = (study_id, subject_id)
+
+    #     container = transform_airr_repertoires(VDJBASE_IMPORT_DATA + '/' + cache_id + '/' + filename, container)
+
+#    for filename in ['airrseq_metadata_IGH.json', 'airrseq_metadata_IGK.json', 'airrseq_metadata_IGL.json', 'airrseq_metadata_TRB.json']:
+    for filename in ['repertoires.airr.json']:
+        for vdjbase_name, (study_id, subject_id) in map_vdjbase_name_to_study_subject(VDJBASE_IMPORT_DATA + '/' + cache_id + '/' + filename).items():
             if vdjbase_name in vdjbase_name_to_study_subject:
                 existing_study_id, existing_subject_id = vdjbase_name_to_study_subject[vdjbase_name]
                 if (existing_study_id, existing_subject_id) != (study_id, subject_id):
                     print(f"Warning: VDJbase name: {vdjbase_name} already mapped to {existing_study_id} / {existing_subject_id}, now found mapping to {study_id} / {subject_id}")
             else:
                 vdjbase_name_to_study_subject[vdjbase_name] = (study_id, subject_id)
-
-        container = transform_airr_repertoires(vdjbase_data_dir + '/' + cache_id + '/' + filename, container)
-
-    for filename in ['airrseq_metadata_IGH.json', 'airrseq_metadata_IGK.json', 'airrseq_metadata_IGL.json', 'airrseq_metadata_TRB.json']:
-        for vdjbase_name, (study_id, subject_id) in map_vdjbase_name_to_study_subject(vdjbase_data_dir + '/' + cache_id + '/' + filename).items():
-            if vdjbase_name in vdjbase_name_to_study_subject:
-                existing_study_id, existing_subject_id = vdjbase_name_to_study_subject[vdjbase_name]
-                if (existing_study_id, existing_subject_id) != (study_id, subject_id):
-                    print(f"Warning: VDJbase name: {vdjbase_name} already mapped to {existing_study_id} / {existing_subject_id}, now found mapping to {study_id} / {subject_id}")
-            else:
-                vdjbase_name_to_study_subject[vdjbase_name] = (study_id, subject_id)
-        container = transform_airr_repertoires(vdjbase_data_dir + '/' + cache_id + '/' + filename, container)
+        container = transform_airr_repertoires(VDJBASE_IMPORT_DATA + '/' + cache_id + '/' + filename, container)
 
 
     # make a mapping of VDJbase subject ID to investigation, participant
@@ -225,36 +220,24 @@ def repertoire_transform(cache_id):
 
     dump_studies_in_container(container)
 
-    container = transform_airr_genotypes(vdjbase_data_dir + '/' + cache_id + '/airrseq_all_genotypes.json', vdjbase_name_to_akc_ids, container, participant_id_to_sequencing_files)
-    container = transform_airr_genotypes(vdjbase_data_dir + '/' + cache_id + '/genomic_all_genotypes.json', vdjbase_name_to_akc_ids, container, participant_id_to_sequencing_files)
+    container = transform_airr_genotypes(VDJBASE_IMPORT_DATA + '/' + 'vdjbase-2025-08-231-0001-012' + '/airrseq_all_genotypes.json', vdjbase_name_to_akc_ids, container, participant_id_to_sequencing_files)
+#    container = transform_airr_genotypes(VDJBASE_TRANSFORM_DATA + '/' + cache_id + '/genomic_all_genotypes.json', vdjbase_name_to_akc_ids, container, participant_id_to_sequencing_files)
     
     # output data for just this cache_id
-    directory_name = f'{vdjbase_data_dir}/vdjbase_jsonl/{cache_id}'
+    json_dir = f'{VDJBASE_TRANSFORM_DATA}/vdjbase_jsonl/{cache_id}'
     try:
-        os.mkdir(directory_name)
+        os.mkdir(json_dir)
     except FileExistsError:
         pass
-    directory_name = f'{vdjbase_data_dir}/vdjbase_tsv/{cache_id}'
+    tsv_dir = f'{VDJBASE_TRANSFORM_DATA}/vdjbase_tsv/{cache_id}'
     try:
-        os.mkdir(directory_name)
+        os.mkdir(tsv_dir)
     except FileExistsError:
         pass
 
     # Write outputs
-    container_fields = [x.name for x in dataclasses.fields(container)]
-
-    # Write to JSONL and CSV
-    for container_field in container_fields:
-        if container_field in ['chains', 'ab_tcell_receptors', 'gd_tcell_receptors', 'bcell_receptors']:
-            continue
-        container_slot = ak_schema_view.get_slot(container_field)
-        tname = container_slot.range
-        write_jsonl(container, container_field, f'{vdjbase_data_dir}/vdjbase_jsonl/{cache_id}/{tname}.jsonl')
-        write_csv(container, container_field, f'{vdjbase_data_dir}/vdjbase_tsv/{cache_id}/{tname}.csv')
-
-    # CSV relationships
-    write_all_relationships(container, f'{vdjbase_data_dir}/vdjbase_tsv/{cache_id}/')
-
+    write_all_metadata(container, json_dir, tsv_dir)
+    write_all_metadata_relationships(container, tsv_dir)
 
 if __name__ == "__main__":
     for cache_id in vdjbase_cache_list:

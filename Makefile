@@ -134,7 +134,9 @@ help:
 	@echo "make query-irad         -- Generate query objects for transformed IRAD data"
 	@echo "make irad-copy          -- Copy transformed IRAD data to DB load directory"
 	@echo ""
-	@echo "make vdjbase-transform                      -- Transform VDJbase repertoires/genotypes for all studies"
+	@echo "make vdjbase-transform-genotype             -- Transform VDJbase genotypes for all studies"
+	@echo ""
+	@echo "make vdjbase-transform                      -- Transform VDJbase repertoires for all studies"
 	@echo "make vdjbase-transform-repertoire           -- Transform VDJBASE repertoires for all studies"
 	@echo "make vdjbase-transform-CACHE_ID             -- Transform VDJBASE repertoires and rearrangements for study CACHE_ID"
 	@echo "make vdjbase-transform-repertoire-CACHE_ID  -- Transform VDJBASE repertoires for study CACHE_ID"
@@ -259,8 +261,8 @@ extract-irad:
 
 extract-vdjbase:
 	@echo "Downloading VDJbase data."
-	# bash download_vdjbase_data.sh
-	python3 extract_vdjbase.py $(VDJBASE_IMPORT_DATA)
+	bash download_vdjbase_data.sh
+	#python3 extract_vdjbase.py $(VDJBASE_IMPORT_DATA)
 
 data-fixes: check-docker
 	@echo "Fixing data errors."
@@ -465,8 +467,8 @@ query-vdjbase: $(VDJBASE_QUERY_TARGETS)
 	@echo "DONE"
 	@echo ""
 
-# vdjbase-transform: ak_schema.py | $(VDJBASE_DATA)/vdjbase_tsv/
-# 	python3 vdjbase_metadata_transform.py vdjbase-2025-08-231-0001-012
+vdjbase-transform-genotype: ak_schema.py | $(VDJBASE_TRANSFORM_DATA)/vdjbase_tsv/
+	python3 vdjbase_metadata_transform.py vdjbase-2025-08-231-0001-012
 
 
 # Ontology exports and loads
