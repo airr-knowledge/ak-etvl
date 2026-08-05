@@ -468,6 +468,10 @@ def get_age(value, assay_id=""):
             age_min, age_max = age.split(" to ")
             if is_float(age_min) and is_float(age_max):
                 return float(age_min), float(age_max), unit
+        elif " and " in age:
+            age_min, age_max = age.split(" and ")
+            if is_float(age_min) and is_float(age_max):
+                return float(age_min), float(age_max), unit
         assert False
     except (AssertionError, ValueError):
         print(f"Error: could not standardize age for assay {assay_id} into a single age and unit: {value}")
