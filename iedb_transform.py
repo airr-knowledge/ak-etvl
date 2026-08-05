@@ -296,20 +296,6 @@ def make_reference_obj(ref_assay_df, investigation_akc_id):
 
     return reference
 
-def make_investigation_obj(container, ref_assay_df):
-    investigation = Investigation(
-        akc_id(),
-    )
-
-    reference = make_reference_obj(ref_assay_df, investigation.akc_id)
-    investigation.name = reference.title
-
-    container.investigations[investigation.akc_id] = investigation
-    container.references[reference.source_uri] = reference
-    investigation.documents.append(reference.source_uri)
-
-    return investigation
-
 def safe_get_type(row, column, type):
     if column in row:
         if row[column] is not None:
@@ -409,7 +395,7 @@ def make_iedb_receptor_antigen_assay(container, assay_row, assay_to_receptor, sp
 
     elif receptor_type == "BCR":
         specimen = Specimen(akc_id(),
-                            tissue=url_to_curie(assay_row[("Assay Antibody", "Antibody Source Material")]))
+                            tissue=None) # for BCR tissue is not collected
         assay = make_bcr_assay(assay_row,  specimen.akc_id)
 
     specimen.life_event = specimen_collection_event.akc_id
@@ -452,34 +438,53 @@ def make_assessment(container, assay_row, specimen_collection_event_akc_id):
 def get_assay_id_from_row(assay_row):
     return assay_row['Assay ID']['IEDB IRI'].split('/')[-1]
 
-def get_age(value):
-    # todo: age is not standardized
+def is_float(s):
+    try:
+        float(s)
+        return True
+    except (TypeError, ValueError):
+        return False
 
+
+def get_age(value, assay_id=""):
     if pd.isnull(value):
-        return None, None
+        return None, None, None
 
     try:
-        age, unit = value.split(" ")
-        assert unit in ("weeks", "years", "days",
-                        "months"), f"unknown unit: {value} {unit}"  # todo check with AgeUnitOntology
-        return age, unit
-    except (AssertionError, ValueError):
-        print(f"Error: could not standardize into a single age and unit: {value}")
+        age, unit = value.rsplit(" ", 1)
+        assert unit in ("weeks", "years", "days", "months", "year", "week", "day", "month"), \
+            f"unknown unit: {value} {unit}"
 
-    return None, None
+        if unit[-1] != "s":
+            unit = unit + "s"
+
+        if is_float(age):
+            return float(age), float(age), unit
+        elif "-" in age:
+            age_min, age_max = age.split("-")
+            if is_float(age_min.strip()) and is_float(age_max.strip()):
+                return float(age_min.strip()), float(age_max.strip()), unit
+        elif " to " in age:
+            age_min, age_max = age.split(" to ")
+            if is_float(age_min) and is_float(age_max):
+                return float(age_min), float(age_max), unit
+        assert False
+    except (AssertionError, ValueError):
+        print(f"Error: could not standardize age for assay {assay_id} into a single age and unit: {value}")
+
+    return None, None, None
 
 def get_participant(assay_row, arm_akc_id):
-    age, age_unit = get_age(assay_row[("Host", "Age")])
+    age_min, age_max, age_unit = get_age(assay_row[("Host", "Age")], assay_row[("Assay ID", "IEDB IRI")])
 
     return Participant(
         akc_id(),
         species=url_to_curie(assay_row[("Host", "IRI")]), # todo for mouse: could be species or strain
         sex=sex_to_curie(assay_row[("Host", "Sex")]),
-        # todo: comment out for now until can standardize
-        # age_min=age_min,
-        # age_max=age_max,
+        age_min=age_min,
+        age_max=age_max,
         age_unit=age_unit,
-        # todo geolocation ontology incomplete? cannot add  GAZ:00002845
+        # todo geolocation ontology incomplete? cannot add  GAZ:00002845 /  GAZ:00002646
         # geolocation=url_to_curie(assay_row[("Host", "Geolocation IRI")]),
         study_arm=arm_akc_id,
     )
@@ -501,61 +506,69 @@ def get_specimen_collection_life_event(participant_akc_id, study_event_akc_id):
                 life_event_type='OBI:0000659',  # = specimen collection process
             )
 
-def process_assay(container, tcr_assay_df, assay_to_receptor, assay_to_chain, type):
+def get_dataset(assay):
+    return AKDataSet(
+        akc_id(),
+        data_items=assay.akc_id
+    )
+
+def get_conclusion(investigation_id, dataset_id, result, assay_row):
+    return Conclusion(
+        akc_id(),
+        investigations=investigation_id,
+        datasets=dataset_id,
+        result=result,
+        # todo in schema make a free text data_location field, or drop this field entirely
+        data_location_type=assay_row[("Assay", "Location of Assay Data in Reference")],
+        data_location_value=assay_row[("Assay", "Location of Assay Data in Reference")],
+        organism=url_to_curie(assay_row[("Host", "IRI")]),
+        experiment_type=url_to_curie(assay_row[("Assay", "IRI")])
+    )
+
+def process_assay(container, assay_df, assay_to_receptor, assay_to_chain, type):
     print(f'Processing {type} assays')
 
-    for current_reference, ref_tcr_assay_df in tcr_assay_df.groupby(("Reference", "IEDB IRI")):
-        investigation = make_investigation_obj(container, ref_tcr_assay_df)
+    for current_reference, ref_assay_df in assay_df.groupby(("Reference", "IEDB IRI")):
+        investigation = Investigation(
+            akc_id(),
+        )
 
-        for idx, assay_row in ref_tcr_assay_df.iterrows():
+        reference = make_reference_obj(ref_assay_df, investigation.akc_id)
+        investigation.name = reference.title
+        investigation.documents.append(reference.source_uri)
+
+        container.investigations[investigation.akc_id] = investigation
+        container.references[reference.source_uri] = reference
+
+        for idx, assay_row in ref_assay_df.iterrows():
             # todo deal with fields that can have multiple values (e.g. see assay_df["1st in vivo Process"]["Disease Stage"].unique()
 
             arm = StudyArm(akc_id(), investigation=investigation.akc_id)
             study_event = StudyEvent(akc_id(), study_arms=[arm.akc_id])
             participant = get_participant(assay_row, arm.akc_id)
 
-
-            investigation.participants.append(participant.akc_id)
-
             immune_exposure_event = get_immune_exposure(assay_row, participant.akc_id)
             specimen_collection_event = get_specimen_collection_life_event(participant.akc_id, study_event.akc_id)
             # todo set specimen_collection_event.specimen_akc_id is now None, because there is a circular reference between the two
 
-            container.study_arms[arm.akc_id] = arm
-            container.study_events[study_event.akc_id] = study_event
-            container.participants[participant.akc_id] = participant
-
-            container.specimen_collections[specimen_collection_event.akc_id] = specimen_collection_event
-            container.life_events[specimen_collection_event.akc_id] = specimen_collection_event
-
-            container.immune_exposures[immune_exposure_event.akc_id] = immune_exposure_event
-            container.life_events[immune_exposure_event.akc_id] = immune_exposure_event
-
             assay = make_iedb_receptor_antigen_assay(container, assay_row, assay_to_receptor, specimen_collection_event, type)
 
             if assay is not None:
-                investigation.assays.append(assay.akc_id)
-
-                dataset = AKDataSet(
-                    akc_id(),
-                    data_items=assay.akc_id
-                )
-
+                dataset = get_dataset(assay)
                 assessment = make_assessment(container, assay_row, specimen_collection_event.akc_id)
+                conclusion = get_conclusion(investigation.akc_id, dataset.akc_id, assessment.measurement_value, assay_row)
 
-                conclusion = Conclusion(
-                    akc_id(),
-                    investigations=investigation.akc_id,
-                    datasets=dataset.akc_id,
-                    result=assessment.measurement_value,
-                    # todo in schema make a free text data_location field, or drop this field entirely
-                    data_location_type=assay_row[("Assay", "Location of Assay Data in Reference")],
-                    data_location_value=assay_row[("Assay", "Location of Assay Data in Reference")],
-                    organism=url_to_curie(assay_row[("Host", "IRI")]),
-                    experiment_type=url_to_curie(assay_row[("Assay", "IRI")])
-                )
+                investigation.participants.append(participant.akc_id)
+                investigation.assays.append(assay.akc_id)
                 investigation.conclusions.append(conclusion.akc_id)
 
+                container.study_arms[arm.akc_id] = arm
+                container.study_events[study_event.akc_id] = study_event
+                container.participants[participant.akc_id] = participant
+                container.specimen_collections[specimen_collection_event.akc_id] = specimen_collection_event
+                container.life_events[specimen_collection_event.akc_id] = specimen_collection_event
+                container.immune_exposures[immune_exposure_event.akc_id] = immune_exposure_event
+                container.life_events[immune_exposure_event.akc_id] = immune_exposure_event
                 container.datasets[dataset.akc_id] = dataset
                 container.conclusions[conclusion.akc_id] = conclusion
 
@@ -597,6 +610,40 @@ def convert(tcell_path, tcr_path, bcell_path, bcr_path):
     # singleton container, initially empty
     container = AIRRKnowledgeCommons(
     )
+
+    #
+    # investigations: Optional[Union[Dict[Union[str, InvestigationAkcId], Union[dict, "Investigation"]], List[Union[dict, "Investigation"]]]] = empty_dict()
+    # references: Optional[Union[Dict[Union[str, ReferenceSourceUri], Union[dict, "Reference"]], List[Union[dict, "Reference"]]]] = empty_dict()
+    # study_arms: Optional[Union[Dict[Union[str, StudyArmAkcId], Union[dict, "StudyArm"]], List[Union[dict, "StudyArm"]]]] = empty_dict()
+    # study_events: Optional[Union[Dict[Union[str, StudyEventAkcId], Union[dict, "StudyEvent"]], List[Union[dict, "StudyEvent"]]]] = empty_dict()
+    # participants: Optional[Union[Dict[Union[str, ParticipantAkcId], Union[dict, "Participant"]], List[Union[dict, "Participant"]]]] = empty_dict()
+    # life_events: Optional[Union[Dict[Union[str, LifeEventAkcId], Union[dict, "LifeEvent"]], List[Union[dict, "LifeEvent"]]]] = empty_dict()
+    # immune_exposures: Optional[Union[Dict[Union[str, ImmuneExposureAkcId], Union[dict, "ImmuneExposure"]], List[Union[dict, "ImmuneExposure"]]]] = empty_dict()
+    # assessments: Optional[Union[Dict[Union[str, AssessmentAkcId], Union[dict, "Assessment"]], List[Union[dict, "Assessment"]]]] = empty_dict()
+    # specimens: Optional[Union[Dict[Union[str, SpecimenAkcId], Union[dict, "Specimen"]], List[Union[dict, "Specimen"]]]] = empty_dict()
+    # specimen_collections: Optional[Union[Dict[Union[str, SpecimenCollectionAkcId], Union[dict, "SpecimenCollection"]], List[Union[dict, "SpecimenCollection"]]]] = empty_dict()
+    # specimen_processings: Optional[Union[Dict[Union[str, SpecimenProcessingAkcId], Union[dict, "SpecimenProcessing"]], List[Union[dict, "SpecimenProcessing"]]]] = empty_dict()
+    # assays: Optional[Union[Dict[Union[str, AssayAkcId], Union[dict, "Assay"]], List[Union[dict, "Assay"]]]] = empty_dict()
+    # datasets: Optional[Union[Dict[Union[str, AKDataSetAkcId], Union[dict, "AKDataSet"]], List[Union[dict, "AKDataSet"]]]] = empty_dict()
+    # sequence_data: Optional[Union[Dict[Union[str, SequenceDataAkcId], Union[dict, "SequenceData"]], List[Union[dict, "SequenceData"]]]] = empty_dict()
+    # transformations: Optional[Union[Dict[Union[str, DataTransformationAkcId], Union[dict, "DataTransformation"]], List[Union[dict, "DataTransformation"]]]] = empty_dict()
+    # input_output_map: Optional[Union[Union[dict, "InputOutputDataMap"], List[Union[dict, "InputOutputDataMap"]]]] = empty_list()
+    # conclusions: Optional[Union[Dict[Union[str, ConclusionAkcId], Union[dict, "Conclusion"]], List[Union[dict, "Conclusion"]]]] = empty_dict()
+    # alpha_chains: Optional[Union[Dict[Union[str, AlphaChainAkcId], Union[dict, "AlphaChain"]], List[Union[dict, "AlphaChain"]]]] = empty_dict()
+    # beta_chains: Optional[Union[Dict[Union[str, BetaChainAkcId], Union[dict, "BetaChain"]], List[Union[dict, "BetaChain"]]]] = empty_dict()
+    # ab_tcell_receptors: Optional[Union[Dict[Union[str, AlphaBetaTCRAkcId], Union[dict, "AlphaBetaTCR"]], List[Union[dict, "AlphaBetaTCR"]]]] = empty_dict()
+    # gamma_chains: Optional[Union[Dict[Union[str, GammaChainAkcId], Union[dict, "GammaChain"]], List[Union[dict, "GammaChain"]]]] = empty_dict()
+    # delta_chains: Optional[Union[Dict[Union[str, DeltaChainAkcId], Union[dict, "DeltaChain"]], List[Union[dict, "DeltaChain"]]]] = empty_dict()
+    # gd_tcell_receptors: Optional[Union[Dict[Union[str, GammaDeltaTCRAkcId], Union[dict, "GammaDeltaTCR"]], List[Union[dict, "GammaDeltaTCR"]]]] = empty_dict()
+    # heavy_chains: Optional[Union[Dict[Union[str, HeavyChainAkcId], Union[dict, "HeavyChain"]], List[Union[dict, "HeavyChain"]]]] = empty_dict()
+    # kappa_chains: Optional[Union[Dict[Union[str, KappaChainAkcId], Union[dict, "KappaChain"]], List[Union[dict, "KappaChain"]]]] = empty_dict()
+    # lambda_chains: Optional[Union[Dict[Union[str, LambdaChainAkcId], Union[dict, "LambdaChain"]], List[Union[dict, "LambdaChain"]]]] = empty_dict()
+    # bcell_receptors: Optional[Union[Dict[Union[str, BCellReceptorAkcId], Union[dict, "BCellReceptor"]], List[Union[dict, "BCellReceptor"]]]] = empty_dict()
+    # antigens: Optional[Union[Dict[Union[str, AntigenAkcId], Union[dict, "Antigen"]], List[Union[dict, "Antigen"]]]] = empty_dict()
+    # epitopes: Optional[Union[Dict[Union[str, EpitopeAkcId], Union[dict, "Epitope"]], List[Union[dict, "Epitope"]]]] = empty_dict()
+    # tcr_complexes: Optional[Union[Dict[Union[str, TCRpMHCComplexAkcId], Union[dict, "TCRpMHCComplex"]], List[Union[dict, "TCRpMHCComplex"]]]] = empty_dict()
+    # antibody_complexes: Optional[Union[Dict[Union[str, AntibodyAntigenComplexAkcId], Union[dict, "AntibodyAntigenComplex"]], List[Union[dict, "AntibodyAntigenComplex"]]]] = empty_dict()
+    # receptor_composites: Optional[Union[Dict[Union[str, ReceptorCompositeAkcId], Union[dict, "ReceptorComposite"]], List[Union[dict, "ReceptorComposite"]]]] = empty_dict()
 
     assay_to_tcr, assay_to_tcr_chain = get_receptor_objects(container, tcr_df, "TCR")
     assay_to_bcr, assay_to_bcr_chain = get_receptor_objects(container, bcr_df, "BCR")
