@@ -306,7 +306,7 @@ def clean_infer_vdj(chain):
         chain.infer_vdj_sequence = chain.sequence
         if chain.sequence_aa is not None:
             chain.infer_vdj_sequence_aa = chain.sequence_aa
-        else:
+        elif chain.sequence is not None:
             chain.infer_vdj_sequence_aa = str(Seq(chain.sequence).translate())
 
 
