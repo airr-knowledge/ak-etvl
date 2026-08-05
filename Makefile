@@ -301,8 +301,9 @@ $(IRAD_TRANSFORM_DATA)/irad_tsv/: check-docker
 
 irad-transform: ak_schema.py | $(IRAD_TRANSFORM_DATA)/irad_tsv/
 	@echo ""
-	@echo "Not Implementd."
+	@echo "IRAD transform Not fully implemented yet"
 	@echo ""
+	python3 irad_transform.py "$(IRAD_IMPORT_DATA)/irad-rearrangements-cleaned.csv"
 
 irad-copy: check-docker
 	mkdir -p $(AK_DATA_LOAD)/irad
