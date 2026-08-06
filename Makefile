@@ -28,6 +28,8 @@ export IEDB_TRANSFORM_DATA
 
 VDJBASE_DATA=$(AK_DATA)/vdjbase
 
+IMMUNESPACE_DATA=$(AK_DATA)/immunespace
+
 # transformed data ready for DB load
 # inside docker
 AK_DATA_LOAD=$(AK_DATA)/ak-data-load/$(POSTGRES_DB)
@@ -36,8 +38,6 @@ export AK_DATA_LOAD
 AIRRKB_LOAD=$(IMPORT_DATA)/ak-data-import/ak-data-load/$(POSTGRES_DB)
 export AIRRKB_LOAD
 
-
-export AK_DATA_LOAD
 
 # TODO: studies are hard-coded, matching list in ak_schema_utils.py
 # study list for ADC rearrangements
