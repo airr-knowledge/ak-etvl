@@ -11,6 +11,7 @@ import hashlib
 import itertools
 import uuid
 from dateutil import parser
+from Bio.Seq import Seq
 
 from linkml_runtime.utils.schemaview import SchemaView
 from linkml_runtime.linkml_model.meta import EnumDefinition, PermissibleValue, SchemaDefinition
@@ -28,22 +29,30 @@ validator = Validator(
     validation_plugins=[JsonschemaValidationPlugin(closed=True)]
 )
 
+# ADC study(cache) list
+from adc_study_list import read_list_from_file
+
+adc_cache_list = read_list_from_file(cache_name='adc')
+vdjbase_cache_list = read_list_from_file(cache_name='vdjbase')
 
 # for access to linkml metadata for the AK schema
 ak_schema_view = SchemaView("ak-schema/project/linkml/ak_schema.yaml")
 
 # data import/export directories
+# The Makefile defines these in the environment
 # set ak_data_dir from the environment variable AK_DATA_DIR if it exists
-ak_data_dir = os.environ.get('AK_DATA_DIR', '/ak_data')
+AK_DATA = os.environ.get('AK_DATA')
+if not AK_DATA:
+    print("AK_DATA is not defined.")
+    sys.exit(1)
 
 ADC_IMPORT_DATA = os.environ.get('ADC_IMPORT_DATA')
 if not ADC_IMPORT_DATA:
     print("ADC_IMPORT_DATA is not defined.")
-    sys.exit(1)
+
 ADC_TRANSFORM_DATA = os.environ.get('ADC_TRANSFORM_DATA')
 if not ADC_TRANSFORM_DATA:
     print("ADC_TRANSFORM_DATA is not defined.")
-    sys.exit(1)
 
 IEDB_IMPORT_DATA = os.environ.get('IEDB_IMPORT_DATA')
 if not IEDB_IMPORT_DATA:
@@ -53,183 +62,30 @@ IEDB_TRANSFORM_DATA = os.environ.get('IEDB_TRANSFORM_DATA')
 if not IEDB_TRANSFORM_DATA:
     print("IEDB_TRANSFORM_DATA is not defined.")
 
-vdjbase_data_dir = ak_data_dir + '/vdjbase'
+VDJBASE_IMPORT_DATA = os.environ.get('VDJBASE_IMPORT_DATA')
+if not VDJBASE_IMPORT_DATA:
+    print("VDJBASE_IMPORT_DATA is not defined.")
 
-ak_load_dir = ak_data_dir + '/ak-data-load'
+VDJBASE_TRANSFORM_DATA = os.environ.get('VDJBASE_TRANSFORM_DATA')
+if not VDJBASE_TRANSFORM_DATA:
+    print("VDJBASE_TRANSFORM_DATA is not defined.")
 
-# ADC study list
-vdjserver_tcr_cache_list = [
-    '2314581927515778580-242ac117-0001-012', # PRJNA608742
-    '2531647238962745836-242ac114-0001-012', # PRJNA724733
-    '3567053283467128340-242ac117-0001-012', # PRJNA606979
-    '4086105921948741140-242ac114-0001-012', # PRJNA747292
-    '4507038074455191060-242ac114-0001-012', # PRJNA472381
-    '5861142787889753620-242ac114-0001-012', # 4505707319090933270-242ac113-0001-012
-    '6270798281029250580-242ac117-0001-012', # PRJNA680539
-    '6295837940364930580-242ac117-0001-012', # BIOPROJECT:PRJNA639580
-    '6484265580256563691-242ac113-0001-012', # ImmuneCODE-COVID-Release-002: COVID-19-HUniv12Oct
-    '6496720985414963691-242ac113-0001-012', # PRJNA593622
-    '6522963235593523691-242ac113-0001-012', # ImmuneCODE-COVID-Release-002: COVID-19-Adaptive
-    '6550279227596083691-242ac113-0001-012', # ImmuneCODE-COVID-Release-002: COVID-19-BWNW
-    '6563292978502963691-242ac113-0001-012', # PRJNA362309
-#    '6577294571887923691-242ac113-0001-012', # dewitt-2015-jvi
-    '6618998704332083691-242ac113-0001-012', # ImmuneCODE-COVID-Release-002: COVID-19-IRST/AUSL
-    '6633086197062963691-242ac113-0001-012', # ImmuneCODE-COVID-Release-002: COVID-19-ISB
-    '6647517287177523691-242ac113-0001-012', # 3276777473314001386-242ac116-0001-012
-    '6661390031543603691-242ac113-0001-012', # ImmuneCODE-COVID-Release-002: COVID-19-DLS
-    '6675219826236723691-242ac113-0001-012', # ImmuneCODE-COVID-Release-002: COVID-19-NIH/NIAID
-    '6716408562605363691-242ac113-0001-012', # langkuhs-2018-plosone
-    '6824255191407923691-242ac113-0001-012', # emerson-2017-natgen
-    '6838858080214323691-242ac113-0001-012', # 1371444213709729305-242ac11c-0001-012
-#    '6874985559628780011-242ac117-0001-012', # TCR:PRJNA511481
-    '6906582706313892331-242ac117-0001-012', # 4995411523885404651-242ac118-0001-012
-]
-vdjserver_ig_cache_list = [
-    '138180023656967700-242ac114-0001-012',  # PRJNA549712
-    '1767545687058878956-242ac117-0001-012', # PRJNA578389
-    '2678435128703839765-242ac117-0001-012', # PRJNA642962
-    '6378122916818653676-242ac117-0001-012', # PRJNA624801
-    '6470478735236403691-242ac113-0001-012', # PRJEB18631
-    '6536105835519283691-242ac113-0001-012', # PRJNA645245
-    '6590523071159603691-242ac113-0001-012', # PRJNA260556
-    '6603493872393523691-242ac113-0001-012', # PRJNA283640
-    '6688405375835443691-242ac113-0001-012', # PRJNA349143
-    '6701977472490803691-242ac113-0001-012', # PRJNA248475
-    '6853976365096243691-242ac113-0001-012', # PRJNA406949
-    '6869481197034803691-242ac113-0001-012', # robins-bcell-2016
-    '6883611639438643691-242ac113-0001-012', # PRJNA272713
-    '6897613232823603691-242ac113-0001-012', # PRJNA315079
-]
-vdjserver_both_cache_list = [
-    '6508961642208563691-242ac113-0001-012', # PRJNA300878
-]
+# import IRAD directories
+IRAD_IMPORT_DATA = os.environ.get('IRAD_IMPORT_DATA')
+if not IRAD_IMPORT_DATA:
+    print("IRAD_IMPORT_DATA is not defined.")
 
-ipa_tcr_cache_list = [
-    '1546893841758097901-242ac11b-0001-012', # PRJNA316033
-    '1589929414064017901-242ac11b-0001-012', # PRJNA315543
-    '1631719445854097901-242ac11b-0001-012', # PRJNA506151
-    '1665177241089937901-242ac11b-0001-012', # PRJNA325416
-    '1703144751986577901-242ac11b-0001-012', # PRJNA356992
-    '1818767539323343341-242ac11b-0001-012', # PRJNA330606
-    '2190435173075840530-242ac118-0001-012', # DOI:10.21417/B7C88S
-    '3791830297704337901-242ac11b-0001-012', # PRJNA493983
-    '4896275633090653715-242ac11b-0001-012', # PRJNA633317
-    '5034739262512754195-242ac11b-0001-012', # PRJNA311704-001
-    '5524076507527057901-242ac11b-0001-012', # IR-Binder-000002
-    '5573468631431057901-242ac11b-0001-012', # IR-Efimov-000001
-    '5626983923939217901-242ac11b-0001-012', # IR-Binder-000001
-    '5875190083975057901-242ac11b-0001-012', # PRJCA002413
-    '5919600045815697901-242ac11b-0001-012', # IR-Efimov-000002
-    '620211697973137901-242ac11b-0001-012',  # PRJNA312319
-    '7430997044253299181-242ac11b-0001-012', # PRJNA229070
-    '7625215465378419181-242ac11b-0001-012', # PRJNA321261
-    '7636497343395917330-242ac117-0001-012', # PRJNA744851
-    '8434237213378080275-242ac11b-0001-012', # DOI:10.21417/AMM2022JCII
-    '8498404024780320275-242ac11b-0001-012', # DOI:10.1172/JCI.insight.88242
-    '8575123754278514195-242ac11b-0001-012', # PRJNA509910
-    '970356185718124050-242ac117-0001-012',  # DOI:10.1073/pnas.2107208118
-]
+IRAD_TRANSFORM_DATA = os.environ.get('IRAD_TRANSFORM_DATA')
+if not IRAD_TRANSFORM_DATA:
+    print("IRAD_TRANSFORM_DATA is not defined.")
 
-ipa_ig_cache_list = [
-    '3860335026075537901-242ac11b-0001-012', # PRJNA381394
-    '4121328567672434195-242ac11b-0001-012', # IR-Roche-000001
-    '5348884791523217901-242ac11b-0001-012', # PRJNA741267
-    '5398534613464977901-242ac11b-0001-012', # PRJNA752617
-    '5444748461569937901-242ac11b-0001-012', # PRJNA715378
-    '5481255683585937901-242ac11b-0001-012', # PRJNA731610
-    '5667442515867537901-242ac11b-0001-012', # PRJNA628125
-    '5710177440462737901-242ac11b-0001-012', # PRJNA648677
-    '5755875892492177901-242ac11b-0001-012', # PRJNA638224
-    '5786885556369297901-242ac11b-0001-012', # PRJNA624801
-    '5833099404474257901-242ac11b-0001-012', # PRJNA630455
-    '5963881158637457901-242ac11b-0001-012', # PRJNA669143
-    '6007990472767377901-242ac11b-0001-012', # E-MTAB-9995
-    '7038437033398899181-242ac11b-0001-012', # PRJEB8745
-    '7094829953995379181-242ac11b-0001-012', # PRJEB1289
-    '7145639417107059181-242ac11b-0001-012', # PRJEB9332
-    '7198897011577459181-242ac11b-0001-012', # PRJNA206548
-    '7245411507393139181-242ac11b-0001-012', # PRJNA248411
-    '7285655350956659181-242ac11b-0001-012', # PRJNA195543
-    '7326070993212019181-242ac11b-0001-012', # PRJNA188191
-    '7391397445784179181-242ac11b-0001-012', # SRP001460
-    '7480260319138419181-242ac11b-0001-012', # PRJNA280743
-    '7525572224111219181-242ac11b-0001-012', # PRJNA368623
-    '7573504059134579181-242ac11b-0001-012', # PRJNA275625
-]
 
-ipa_both_cache_list = []
-
-# IPA studies with repertoire_id issue
-# 1546893841758097901-242ac11b-0001-012
-# 1589929414064017901-242ac11b-0001-012
-# 1631719445854097901-242ac11b-0001-012
-# 1665177241089937901-242ac11b-0001-012
-# 1703144751986577901-242ac11b-0001-012
-# 1818767539323343341-242ac11b-0001-012
-# 3791830297704337901-242ac11b-0001-012
-# 3860335026075537901-242ac11b-0001-012
-# 620211697973137901-242ac11b-0001-012
-# 7038437033398899181-242ac11b-0001-012
-# 7094829953995379181-242ac11b-0001-012
-# 7145639417107059181-242ac11b-0001-012
-# 7198897011577459181-242ac11b-0001-012
-# 7245411507393139181-242ac11b-0001-012
-# 7285655350956659181-242ac11b-0001-012
-# 7326070993212019181-242ac11b-0001-012
-# 7391397445784179181-242ac11b-0001-012
-# 7430997044253299181-242ac11b-0001-012
-# 7480260319138419181-242ac11b-0001-012
-# 7525572224111219181-242ac11b-0001-012
-# 7573504059134579181-242ac11b-0001-012
-# 7625215465378419181-242ac11b-0001-012
-
-# These are studies that are duplicated in VDJServer
-ipa_duplicate_skip_list = [
-    '1522853638492131821-242ac11b-0001-012', # ImmuneCODE-COVID-Release-002: COVID-19-Adaptive
-    '1602911828889571821-242ac11b-0001-012', # ImmuneCODE-COVID-Release-002: COVID-19-ISB
-    '1737559053619171821-242ac11b-0001-012', # ImmuneCODE-COVID-Release-002: COVID-19-DLS
-    '1791374993838051821-242ac11b-0001-012', # ImmuneCODE-COVID-Release-002: COVID-19-BWNW
-    '3700170190827613715-242ac11b-0001-012', # ImmuneCODE-COVID-Release-002: COVID-19-HUniv12Oct
-    '3759956135587933715-242ac11b-0001-012', # ImmuneCODE-COVID-Release-002: COVID-19-IRST/AUSL
-    '3808446316359773715-242ac11b-0001-012', # ImmuneCODE-COVID-Release-002: COVID-19-NIH/NIAID
-    '4944293367459933715-242ac11b-0001-012', # PRJNA608742
-]
-
-other_cache_list = [
-    '7009307527175794195-242ac11b-0001-012', # TAZQRXHQ
-    '7088807371824754195-242ac11b-0001-012', # ADFPAKLS
-    '7137855898345074195-242ac11b-0001-012', # 2YNBAIAJ
-    '7194248818941554195-242ac11b-0001-012', # 6R5ENPH5
-    '7274092260974194195-242ac11b-0001-012', # NYEKYTEN
-    '7333319859986034195-242ac11b-0001-012', # BIJ6B5TC
-]
-
-test_cache_list = [
-#    '2314581927515778580-242ac117-0001-012', # PRJNA608742
-#    '4507038074455191060-242ac114-0001-012', # PRJNA472381
-#    '2531647238962745836-242ac114-0001-012', # PRJNA724733
-#    '6270798281029250580-242ac117-0001-012', # PRJNA680539
-    '6508961642208563691-242ac113-0001-012', # PRJNA300878
-]
-
-vdjbase_cache_list = [
-    'vdjbase-2025-08-231-0001-012',
-]
-
-cache_list = []
-cache_list.extend(ipa_tcr_cache_list)
-cache_list.extend(ipa_ig_cache_list)
-cache_list.extend(ipa_both_cache_list)
-
-cache_list.extend(vdjserver_tcr_cache_list)
-cache_list.extend(vdjserver_ig_cache_list)
-cache_list.extend(vdjserver_both_cache_list)
-
-cache_list.extend(other_cache_list)
-#cache_list.extend(vdjbase_cache_list)
-
-#cache_list.extend(test_cache_list)
-
+# load germlines
+from gldb import *
+# human IG is OGRDB
+human_IG_germline = loadGermline('germlines/ogrdb_human_germline.airr.json')
+# human TCR is VDJServer/IMGT
+human_TCR_germline = loadGermline('germlines/vdjserver_human_germline.airr.json')
 
 curie_prefix_to_url = {curie.prefix: str(curie) for curie in globals().values() if isinstance(curie, CurieNamespace)}
 
@@ -261,98 +117,354 @@ def adc_ontology(field):
         else:
             return None
 
-def seq_hash(sequence):
+# standard hash function
+def akc_hash(s):
+    return hashlib.sha256(s.encode('ascii')).hexdigest()
+
+# chain hash
+# Hash id for a NT or AA sequence string for a chain.
+#
+# Chains with different sequence will have different hashes.
+# We create the equivalence class at the receptor level.
+#
+# AKC_HASH prefix implies the species/sequence was hashed
+# AKC prefix implies no sequence available
+def seq_hash_id(species, sequence):
+    if sequence is None:
+        return akc_id()
+
     # canonicalize it, uppercase
     seq = sequence.upper()
     # TODO: check alphabet?
     # hash implies exact sequence match, most stringent
-    h = hashlib.sha256(seq.encode('ascii')).hexdigest()
-    return h
 
-def seq_hash_id(species, sequence):
     if species is None:
-        h = seq_hash(sequence)
+        h = akc_hash(sequence)
     else:
-        h = seq_hash(species + '|' + sequence)
+        h = akc_hash(species + '|' + sequence)
+
     hs = "AKC_HASH:" + h
     return hs
 
-def junction_aa_vj_hash(junction_aa, v, j):
-    # canonicalize it, combine and uppercase
-    # use separator just in case
-    c = junction_aa.upper() + '|' + v.upper() + '|' + j.upper()
-    # TODO: check alphabet, gene names?
-    # hash implies exact sequence match, most stringent
-    h = hashlib.sha256(c.encode('ascii')).hexdigest()
-    return h
+# compute all the secondary hashes on just the chain fields in one place
+def compute_chain_hashes(species, chain):
+    if chain.infer_vdj_sequence is not None:
+        chain.hash_infer_vdj_sequence = seq_hash_id(species, chain.infer_vdj_sequence)
+    else:
+        chain.hash_infer_vdj_sequence = akc_id()
+    if chain.infer_vdj_sequence_aa is not None:
+        chain.hash_infer_vdj_sequence_aa = seq_hash_id(species, chain.infer_vdj_sequence_aa)
+    else:
+        chain.hash_infer_vdj_sequence_aa = akc_id()
+    return
 
-def tcr_complex_hash(receptor, epitope, mhc):
-    if receptor is not None:
-        h = receptor.akc_id
-    else:
-        h = 'AKC_ID:NULL'
-    if epitope is not None:
-        h = h + '|' + epitope.akc_id
-    else:
-        h = h + '|' + 'AKC_ID:NULL'
-    if mhc is not None:
-        h = h + '|' + mhc.gene # todo mhc does not have akc_id; gene is MRO
-    else:
-        h = h + '|' + 'AKC_ID:NULL'
-    hc = "AKC_HASH:" + seq_hash(h)
-    return hc
+# receptor hash
+# Uses the inferred sequence of the chains, if possible, so that equivalent receptors are collapsed
+# We assume the species is already encoded in the chain hashes
+def receptor_hash(chain1, chain2):
+    s1 = ''
+    if chain1:
+        if chain1.hash_infer_vdj_sequence_aa:
+            s1 = chain1.hash_infer_vdj_sequence_aa
+        else:
+            s1 = chain1.akc_id
+    s2 = ''
+    if chain2:
+        if chain2.hash_infer_vdj_sequence_aa:
+            s2 = chain2.hash_infer_vdj_sequence_aa
+        else:
+            s2 = chain2.akc_id
+    return 'AKC_RECEPTOR:' + akc_hash(s1 + s2)
 
-def make_chain_from_adc(species, obj):
+def complex_hash(receptor_id, antigen_id, epitope_id, mhc_id):
+    # if it is just a receptor, use the same ID
+    if antigen_id is None and epitope_id is None and mhc_id is None:
+        return receptor_id
+    else:
+        s = receptor_id
+        if antigen_id:
+            s = s + '|' + antigen_id
+        else:
+            s = s + '|' + 'AKC:NULL'
+        if epitope_id:
+            s = s + '|' + epitope_id
+        else:
+            s = s + '|' + 'AKC:NULL'
+        if mhc_id:
+            s = s + '|' + mhc_id
+        return 'AKC_COMPLEX:' + akc_hash(s)
+
+# infer (if possible) the complete VDJ sequence from existing sequence and germline
+def infer_vdj_sequence(chain, annotations):
+    debug_msg = False
+    if annotations is None:
+        return
+    if (annotations['j_germline_end'] is None) or (annotations['j_sequence_end'] is None) or (annotations['v_germline_start'] is None) or (annotations['v_sequence_start'] is None):
+        return
+    # if annotations['rev_comp']:
+    #     print(f"sequence is reverse complement.")
+        #debug_msg = True
+        #sys.exit(1)
+
+    if debug_msg:
+        print(chain)
+        print(annotations)
+
+    # just human for now
+    if chain.species == 'NCBITAXON:9606':
+        TCR_germline = human_TCR_germline
+        IG_germline = human_IG_germline
+    else:
+        return
+
+    # multiple V/J calls?
+    # take first one, which should match to given IgBlast annotation
+    v_calls = [item.strip() for item in chain.v_call.split(",")]
+    j_calls = [item.strip() for item in chain.j_call.split(",")]
+    if len(v_calls) > 1:
+        v_call = v_calls[0]
+    else:
+        v_call = chain.v_call
+    if len(j_calls) > 1:
+        j_call = j_calls[0]
+    else:
+        j_call = chain.j_call
+
+    v_info = None
+    j_info = None
+    if type(chain) in [ BetaChain, AlphaChain, GammaChain, DeltaChain ]:
+        v_info = lookupAllele(TCR_germline, v_call)
+        j_info = lookupAllele(TCR_germline, j_call)
+    elif type(chain) in [ HeavyChain, KappaChain, LambdaChain ]:
+        v_info = lookupAllele(IG_germline, v_call)
+        j_info = lookupAllele(IG_germline, j_call)
+
+    if v_info is None:
+        return
+    else:
+        chain.v_gene = getGene(v_info)
+        chain.v_subgroup = getSubgroup(v_info)
+    if v_info['coding_sequence'] is None:
+        print(f"germline allele description {v_info['label']} is missing coding_sequence.")
+        return
+    if j_info is None:
+        return
+    else:
+        chain.j_gene = getGene(j_info)
+        chain.j_subgroup = getSubgroup(j_info)
+    if j_info['coding_sequence'] is None:
+        print(f"germline allele description {j_info['label']} is missing coding_sequence.")
+        return
+
+    trimmed_sequence = chain.sequence
+    if debug_msg:
+        print(v_info['coding_sequence'])
+        print(len(v_info['coding_sequence']))
+        print(j_info['coding_sequence'])
+        print(len(j_info['coding_sequence']))
+        print(trimmed_sequence)
+        print(len(trimmed_sequence))
+
+    # J gene, four possible overlap scenarios
+    if annotations['j_germline_end'] == len(j_info['coding_sequence']):
+        # sequence has end of J
+        if len(trimmed_sequence) > annotations['j_sequence_end']:
+            # extra sequence at end to be trimmed
+            trimmed_sequence = trimmed_sequence[0:annotations['j_sequence_end'] - 1]
+    else:
+        if len(trimmed_sequence) > annotations['j_sequence_end']:
+            # extra sequence at end to be trimmed
+            trimmed_sequence = trimmed_sequence[0:annotations['j_sequence_end'] - 1]
+        # sequence is missing J end, need to add
+        trimmed_sequence = trimmed_sequence + j_info['coding_sequence'][annotations['j_germline_end']:]
+
+    # V gene, four possible overlap scenarios
+    if annotations['v_germline_start'] == 1:
+        # sequence has start of V
+        if annotations['v_sequence_start'] > 1:
+            # extra sequence at the beginning to be trimmed
+            trimmed_sequence = trimmed_sequence[annotations['v_sequence_start'] - 1:]
+    else:
+        if annotations['v_sequence_start'] > 1:
+            # extra sequence at the beginning to be trimmed
+            trimmed_sequence = trimmed_sequence[annotations['v_sequence_start'] - 1:]
+        # sequence is missing V start, need to add
+        trimmed_sequence = v_info['coding_sequence'][0:annotations['v_germline_start'] - 1] + trimmed_sequence
+    chain.infer_vdj_sequence = trimmed_sequence
+    chain.infer_vdj_sequence_aa = str(Seq(trimmed_sequence).translate())
+    if debug_msg:
+        print(chain.infer_vdj_sequence)
+        print(len(chain.infer_vdj_sequence) % 3)
+        print(chain.infer_vdj_sequence_aa)
+        print(chain)
+        if len(chain.infer_vdj_sequence_aa) == 0:
+            sys.exit(1)
+
+# mainly to handle poorly annotated data
+def clean_infer_vdj(chain):
+    if chain.infer_vdj_sequence is None:
+        chain.infer_vdj_sequence = chain.sequence
+        if chain.sequence_aa is not None:
+            chain.infer_vdj_sequence_aa = chain.sequence_aa
+        elif chain.sequence is not None:
+            chain.infer_vdj_sequence_aa = str(Seq(chain.sequence).translate())
+
+
+def chain_is_empty(chain):
+    if (chain.sequence is None and
+            chain.sequence_aa is None and
+            chain.v_call is None and
+            chain.j_call is None and
+            chain.cdr1_aa is None and
+            chain.cdr2_aa is None and
+            chain.cdr3_aa is None and
+            chain.junction_aa is None):
+        return True
+    return False
+
+# obj: locus, sequence, sequence_aa, complete_vdj, junction_aa, cdr1_aa, cdr2_aa, v_call, j_call
+# annotations: v_germline_start, v_sequence_start, j_germline_end, j_sequence_end
+def make_chain(container, species, obj, annotations, keep_if_empty=False):
     if obj['locus'] not in [ 'TRB', 'TRA', 'TRD', 'TRG', 'IGH', 'IGK', 'IGL' ]:
         print('unhandled locus:', obj['locus'])
+        print(obj)
         return None
 
     # calculate exact match hashes
     # exact nucleotide sequence match, most stringent
-    if obj['sequence'] is None:
-        nt_hash_id = akc_id()
-    else:
-        nt_hash_id = seq_hash_id(species, obj['sequence'])
+    nt_hash_id = seq_hash_id(species, obj['sequence'])
 
-    # exact aa sequence match
-    if obj['sequence_aa'] is None:
-        aa_hash = None
-    else:
-        aa_hash = seq_hash(obj['sequence_aa'])
+    chain = None
+    if obj['locus'] == 'TRA':
+        chain = AlphaChain(
+            f'{nt_hash_id}',
+            species = species,
+            complete_vdj = obj['complete_vdj'],
+            sequence = obj['sequence'],
+            sequence_aa = obj['sequence_aa'],
+            locus = LocusEnum(obj['locus']),
+            junction_aa = obj['junction_aa'],
+            cdr1_aa = obj['cdr1_aa'],
+            cdr2_aa = obj['cdr2_aa'],
+            v_call = obj['v_call'],
+            j_call = obj['j_call'],
+        )
+    elif obj['locus'] == 'TRB':
+        chain = BetaChain(
+            f'{nt_hash_id}',
+            species = species,
+            complete_vdj = obj['complete_vdj'],
+            sequence = obj['sequence'],
+            sequence_aa = obj['sequence_aa'],
+            locus = LocusEnum(obj['locus']),
+            junction_aa = obj['junction_aa'],
+            cdr1_aa=obj['cdr1_aa'],
+            cdr2_aa=obj['cdr2_aa'],
+            v_call = obj['v_call'],
+            j_call = obj['j_call'],
+        )
+    elif obj['locus'] == 'TRG':
+        chain = GammaChain(
+            f'{nt_hash_id}',
+            species = species,
+            complete_vdj = obj['complete_vdj'],
+            sequence = obj['sequence'],
+            sequence_aa = obj['sequence_aa'],
+            locus = LocusEnum(obj['locus']),
+            junction_aa = obj['junction_aa'],
+            cdr1_aa=obj['cdr1_aa'],
+            cdr2_aa=obj['cdr2_aa'],
+            v_call = obj['v_call'],
+            j_call = obj['j_call'],
+        )
+    elif obj['locus'] == 'TRD':
+        chain = DeltaChain(
+            f'{nt_hash_id}',
+            species = species,
+            complete_vdj = obj['complete_vdj'],
+            sequence = obj['sequence'],
+            sequence_aa = obj['sequence_aa'],
+            locus = LocusEnum(obj['locus']),
+            junction_aa = obj['junction_aa'],
+            cdr1_aa=obj['cdr1_aa'],
+            cdr2_aa=obj['cdr2_aa'],
+            v_call = obj['v_call'],
+            j_call = obj['j_call'],
+        )
+    elif obj['locus'] == 'IGH':
+        chain = HeavyChain(
+            f'{nt_hash_id}',
+            species = species,
+            complete_vdj = obj['complete_vdj'],
+            sequence = obj['sequence'],
+            sequence_aa = obj['sequence_aa'],
+            locus = LocusEnum(obj['locus']),
+            junction_aa = obj['junction_aa'],
+            cdr1_aa=obj['cdr1_aa'],
+            cdr2_aa=obj['cdr2_aa'],
+            v_call = obj['v_call'],
+            j_call = obj['j_call'],
+        )
+    elif obj['locus'] == 'IGK':
+        chain = KappaChain(
+            f'{nt_hash_id}',
+            species = species,
+            complete_vdj = obj['complete_vdj'],
+            sequence = obj['sequence'],
+            sequence_aa = obj['sequence_aa'],
+            locus = LocusEnum(obj['locus']),
+            junction_aa = obj['junction_aa'],
+            cdr1_aa = obj['cdr1_aa'],
+            cdr2_aa = obj['cdr2_aa'],
+            v_call = obj['v_call'],
+            j_call = obj['j_call'],
+        )
+    elif obj['locus'] == 'IGL':
+        chain = LambdaChain(
+            f'{nt_hash_id}',
+            species = species,
+            complete_vdj = obj['complete_vdj'],
+            sequence = obj['sequence'],
+            sequence_aa = obj['sequence_aa'],
+            locus = LocusEnum(obj['locus']),
+            junction_aa = obj['junction_aa'],
+            cdr1_aa = obj['cdr1_aa'],
+            cdr2_aa = obj['cdr2_aa'],
+            v_call = obj['v_call'],
+            j_call = obj['j_call'],
+        )
 
-    # exact CDR3 aa sequence and V and J alleles
-    if obj['junction_aa'] and obj['v_call'] and obj['j_call']:
-        junction_aa_vj_allele_hash = junction_aa_vj_hash(obj['junction_aa'], obj['v_call'], obj['j_call'])
-    else:
-        junction_aa_vj_allele_hash = None
-    #junction_aa_vj_gene_hash = junction_aa_vj_hash(obj['junction_aa'], obj['v_gene'], obj['j_gene'])
+    infer_vdj_sequence(chain, annotations)
+    clean_infer_vdj(chain)
+    compute_chain_hashes(species, chain)
 
-    chain = Chain(
-        f'{nt_hash_id}',
-        species = species,
-        aa_hash = aa_hash,
-        junction_aa_vj_allele_hash = junction_aa_vj_allele_hash,
-        #junction_aa_vj_gene_hash = junction_aa_vj_gene_hash,
-        complete_vdj = obj['complete_vdj'],
-        sequence = obj['sequence'],
-        sequence_aa = obj['sequence_aa'],
-        locus = LocusEnum(obj['locus']),
-        junction_aa = obj['junction_aa'],
-        v_call = obj['v_call'],
-        j_call = obj['j_call'],
-    )
+    # use the infered nt vdj sequence hash as new akc_id
+    # if could not infer then this should be same akc_id
+    chain.akc_id = chain.hash_infer_vdj_sequence
+
+    if type(chain) == AlphaChain:
+        container.alpha_chains[chain.akc_id] = chain
+    elif type(chain) == BetaChain:
+        container.beta_chains[chain.akc_id] = chain
+    elif type(chain) == GammaChain:
+        container.gamma_chains[chain.akc_id] = chain
+    elif type(chain) == DeltaChain:
+        container.delta_chains[chain.akc_id] = chain
+    elif type(chain) == HeavyChain:
+        container.heavy_chains[chain.akc_id] = chain
+    elif type(chain) == KappaChain:
+        container.kappa_chains[chain.akc_id] = chain
+    elif type(chain) == LambdaChain:
+        container.lambda_chains[chain.akc_id] = chain
+
+    #validate_chain(chain)
+
+    if not keep_if_empty and chain_is_empty(chain):
+        return None
+
     return chain
 
-chain_types = {
-    'alpha': 'TRA',
-    'beta': 'TRB',
-    'gamma': 'TRG',
-    'delta': 'TRD',
-    'heavy': 'IGH',
-    'kappa_light': 'IGK',
-    'lambda_light': 'IGL',
-    'light': 'IGL'
-}
+
 
 
 def safe_get_field(chain, fields, expected_type=str):
@@ -370,80 +482,7 @@ def safe_get_sequence(sequence, min_len):
             return sequence
 
 
-def make_iedb_chain(container, iedb_chain, validate_data=True):
-    '''Given a row dictionary and a chain name ("Chain 1" or "Chain 2"), return a new Chain object.
-    Use Calculated columns only'''
-
-    # Todo:
-    # - Use Junction Calculated is to be added to IEDB export (use internal file for now)
-    # - Use V Domain Calculated is to be added to IEDB export (use internal file for now)
-    # - Account for CDR3-only NT sequence: do we want to keep nt seq if it is only CDR3? need length restriction?
-    # - find a place to maintain the IEDB reference
-    # - discuss (VJ) hashes: cannot presume allele from VJ? do we need both V and J for hash?
-
-    if iedb_chain["Type"] not in chain_types:
-        if iedb_chain["Type"] is not None:
-            print("Unsupported chain:", iedb_chain["Type"])
-        return None
-
-    species = url_to_curie(iedb_chain['Organism IRI'])
-
-    nt_vdj_sequence = safe_get_sequence(iedb_chain['Nucleotide Sequence'], 150)
-    aa_vdj_sequence = safe_get_sequence(iedb_chain['V Domain Calculated'], 50)
-
-    # calculate exact match hashes
-    # exact nucleotide sequence match, most stringent
-    if type(nt_vdj_sequence) is str:
-        nt_hash_id = seq_hash_id(species, nt_vdj_sequence)
-    else:
-        nt_hash_id = akc_id()
-
-    # exact aa sequence match
-    if type(aa_vdj_sequence) is str:
-        aa_hash = seq_hash(aa_vdj_sequence)
-    else:
-        aa_hash = None # todo why does nt get akc_id() as hash and protein does not?
-
-    c = Chain(
-        akc_id=f'{nt_hash_id}',
-        species=species,
-        aa_hash=aa_hash,
-        # complete_vdj=None,
-        sequence=nt_vdj_sequence,
-        sequence_aa=aa_vdj_sequence,
-        locus=chain_types[iedb_chain['Type']],
-        v_call=iedb_chain["Calculated V Gene"],
-        d_call=iedb_chain["Calculated D Gene"],
-        j_call=iedb_chain["Calculated J Gene"],
-        junction_aa=iedb_chain["Junction Calculated"],
-        cdr1_aa=iedb_chain["CDR1 Calculated"],
-        cdr2_aa=iedb_chain["CDR2 Calculated"],
-        cdr3_aa=iedb_chain["CDR3 Calculated"]
-    )
-
-    if validate_data:
-        s = json.loads(json_dumper.dumps(c))
-        del s['@type']
-        report = validator.validate(s, "Chain")
-
-        for result in report.results:
-            print(result.message)
-
-    if c['junction_aa'] and c['v_call'] and c['j_call']:
-        v = c['v_call'].split("*")[0]
-        j = c['j_call'].split("*")[0]
-        junction_aa_vj_gene_hash = junction_aa_vj_hash(c['junction_aa'], v, j)
-    else:
-        junction_aa_vj_gene_hash = None
-
-    c['junction_aa_vj_gene_hash'] = junction_aa_vj_gene_hash
-
-    container.chains[c.akc_id] = c
-
-    return c
-
-
-def make_receptor(container, chains):
+def make_receptor(container, species, chains):
 
     if len(chains) != 2:
         print('ERROR: make_receptor assumes only 2 chains.')
@@ -463,38 +502,38 @@ def make_receptor(container, chains):
     igl_chain = None
 
     if chains[0] is not None:
-        if str(chains[0].locus) == 'TRB':
+        if type(chains[0]) == BetaChain:
             trb_chain = chains[0]
-        elif str(chains[0].locus) == 'TRA':
+        elif type(chains[0]) == AlphaChain:
             tra_chain = chains[0]
-        elif str(chains[0].locus) == 'TRD':
+        elif type(chains[0]) == DeltaChain:
             trd_chain = chains[0]
-        elif str(chains[0].locus) == 'TRG':
+        elif type(chains[0]) == GammaChain:
             trg_chain = chains[0]
-        elif str(chains[0].locus) == 'IGH':
+        elif type(chains[0]) == HeavyChain:
             igh_chain = chains[0]
-        elif str(chains[0].locus) == 'IGK':
+        elif type(chains[0]) == KappaChain:
             igk_chain = chains[0]
-        elif str(chains[0].locus) == 'IGL':
+        elif type(chains[0]) == LambdaChain:
             igl_chain = chains[0]
         else:
             print('ERROR: unknown chain: ' + str(chains[0].locus))
             return None
 
     if chains[1] is not None:
-        if str(chains[1].locus) == 'TRB':
+        if type(chains[1]) == BetaChain:
             trb_chain = chains[1]
-        elif str(chains[1].locus) == 'TRA':
+        elif type(chains[1]) == AlphaChain:
             tra_chain = chains[1]
-        elif str(chains[1].locus) == 'TRD':
+        elif type(chains[1]) == DeltaChain:
             trd_chain = chains[1]
-        elif str(chains[1].locus) == 'TRG':
+        elif type(chains[1]) == GammaChain:
             trg_chain = chains[1]
-        elif str(chains[1].locus) == 'IGH':
+        elif type(chains[1]) == HeavyChain:
             igh_chain = chains[1]
-        elif str(chains[1].locus) == 'IGK':
+        elif type(chains[1]) == KappaChain:
             igk_chain = chains[1]
-        elif str(chains[1].locus) == 'IGL':
+        elif type(chains[1]) == LambdaChain:
             igl_chain = chains[1]
         else:
             print('ERROR: unknown chain: ' + str(chains[1].locus))
@@ -505,41 +544,53 @@ def make_receptor(container, chains):
     if tra_chain or trb_chain:
         if tra_chain is None:
             receptor = AlphaBetaTCR(
-                "AKC_RECEPTOR:" + seq_hash(trb_chain.akc_id),
-                trb_chain=trb_chain.akc_id
+                receptor_hash(None, trb_chain),
+                species=species,
+                trb_chain=trb_chain.hash_infer_vdj_sequence_aa,
+                paired_chain=False
             )
             container.ab_tcell_receptors[receptor.akc_id] = receptor
         elif trb_chain is None:
             receptor = AlphaBetaTCR(
-                "AKC_RECEPTOR:" + seq_hash(tra_chain.akc_id),
-                tra_chain=tra_chain.akc_id
+                receptor_hash(tra_chain, None),
+                species=species,
+                tra_chain=tra_chain.hash_infer_vdj_sequence_aa,
+                paired_chain=False
             )
             container.ab_tcell_receptors[receptor.akc_id] = receptor
         else:
             receptor = AlphaBetaTCR(
-                "AKC_RECEPTOR:" + seq_hash(tra_chain.akc_id + trb_chain.akc_id),
-                tra_chain=tra_chain.akc_id,
-                trb_chain=trb_chain.akc_id
+                receptor_hash(tra_chain, trb_chain),
+                species=species,
+                tra_chain=tra_chain.hash_infer_vdj_sequence_aa,
+                trb_chain=trb_chain.hash_infer_vdj_sequence_aa,
+                paired_chain=True
             )
             container.ab_tcell_receptors[receptor.akc_id] = receptor
     elif trg_chain or trd_chain:
         if trg_chain is None:
             receptor = GammaDeltaTCR(
-                "AKC_RECEPTOR:" + seq_hash(trd_chain.akc_id),
-                trd_chain=trd_chain.akc_id
+                receptor_hash(None, trd_chain),
+                species=species,
+                trd_chain=trd_chain.hash_infer_vdj_sequence_aa,
+                paired_chain=False
             )
             container.gd_tcell_receptors[receptor.akc_id] = receptor
         elif trd_chain is None:
             receptor = GammaDeltaTCR(
-                "AKC_RECEPTOR:" + seq_hash(trg_chain.akc_id),
-                trg_chain=trg_chain.akc_id
+                receptor_hash(trg_chain, None),
+                species=species,
+                trg_chain=trg_chain.hash_infer_vdj_sequence_aa,
+                paired_chain=False
             )
             container.gd_tcell_receptors[receptor.akc_id] = receptor
         else:
             receptor = GammaDeltaTCR(
-                "AKC_RECEPTOR:" + seq_hash(trg_chain.akc_id + trd_chain.akc_id),
-                trg_chain=trg_chain.akc_id,
-                trd_chain=trd_chain.akc_id
+                receptor_hash(trg_chain, trd_chain),
+                species=species,
+                trg_chain=trg_chain.hash_infer_vdj_sequence_aa,
+                trd_chain=trd_chain.hash_infer_vdj_sequence_aa,
+                paired_chain=True
             )
             container.gd_tcell_receptors[receptor.akc_id] = receptor
 
@@ -549,35 +600,45 @@ def make_receptor(container, chains):
         if igh_chain is None:
             if igl_chain is not None:
                 receptor = BCellReceptor(
-                    "AKC_RECEPTOR:" + seq_hash(igl_chain.akc_id),
-                    igl_chain=igl_chain.akc_id
+                    receptor_hash(None, igl_chain),
+                    species=species,
+                    igl_chain=igl_chain.hash_infer_vdj_sequence_aa,
+                    paired_chain=False
                 )
                 container.bcell_receptors[receptor.akc_id] = receptor
             else:
                 receptor = BCellReceptor(
-                    "AKC_RECEPTOR:" + seq_hash(igk_chain.akc_id),
-                    igk_chain=igk_chain.akc_id
+                    receptor_hash(None, igk_chain),
+                    species=species,
+                    igk_chain=igk_chain.hash_infer_vdj_sequence_aa,
+                    paired_chain=False
                 )
                 container.bcell_receptors[receptor.akc_id] = receptor
         else:
             if igl_chain is not None:
                 receptor = BCellReceptor(
-                    "AKC_RECEPTOR:" + seq_hash(igh_chain.akc_id + igl_chain.akc_id),
-                    igh_chain=igh_chain.akc_id,
-                    igl_chain=igl_chain.akc_id
+                    receptor_hash(igh_chain, igl_chain),
+                    species=species,
+                    igh_chain=igh_chain.hash_infer_vdj_sequence_aa,
+                    igl_chain=igl_chain.hash_infer_vdj_sequence_aa,
+                    paired_chain=True
                 )
                 container.bcell_receptors[receptor.akc_id] = receptor
             elif igk_chain is not None:
                 receptor = BCellReceptor(
-                    "AKC_RECEPTOR:" + seq_hash(igh_chain.akc_id + igk_chain.akc_id),
-                    igh_chain=igh_chain.akc_id,
-                    igk_chain=igk_chain.akc_id
+                    receptor_hash(igh_chain, igk_chain),
+                    species=species,
+                    igh_chain=igh_chain.hash_infer_vdj_sequence_aa,
+                    igk_chain=igk_chain.hash_infer_vdj_sequence_aa,
+                    paired_chain=True
                 )
                 container.bcell_receptors[receptor.akc_id] = receptor
             else:
                 receptor = BCellReceptor(
-                    "AKC_RECEPTOR:" + seq_hash(igh_chain.akc_id),
-                    igh_chain=igh_chain.akc_id
+                    receptor_hash(igh_chain, None),
+                    species=species,
+                    igh_chain=igh_chain.hash_infer_vdj_sequence_aa,
+                    paired_chain=False
                 )
                 container.bcell_receptors[receptor.akc_id] = receptor
     else:
@@ -586,73 +647,164 @@ def make_receptor(container, chains):
     return receptor
 
 
-def make_adc_complex(container, receptor, epitope, mhc):
-    tcr_complex = None
+def make_complex(container, receptor, antigen_id, epitope_id, mhc_id, assay_ids):
+    assert type(receptor) in (AlphaBetaTCR, GammaDeltaTCR, BCellReceptor), "Unknown receptor type, found: " + str(type(receptor))
+
     receptor_id = None
     if receptor:
         receptor_id = receptor.akc_id
-    epitope_id = None
-    if epitope:
-        epitope_id = epitope.akc_id
-    mhc_id = None
-    if mhc:
-        mhc_id = mhc.akc_id
 
-    if type(receptor) in (AlphaBetaTCR, GammaDeltaTCR):
-        tcr_complex = TCRpMHCComplex(tcr_complex_hash(receptor, epitope, mhc), tcr=receptor_id, epitope=epitope_id, mhc=mhc_id)
+    complex = None
+    if type(receptor) == AlphaBetaTCR:
+        complex = TCRpMHCComplex(complex_hash(receptor_id, antigen_id, epitope_id, mhc_id),
+                                 species=receptor.species,
+                                 ab_tcr=receptor_id,
+                                 antigen=antigen_id,
+                                 epitope=epitope_id,
+                                 mhc=mhc_id)
+        if complex:
+            container.tcr_complexes[complex.akc_id] = complex
+            composite = make_receptor_composite(container, complex)
+            add_to_assays(container, assay_ids, complex, composite)
+
+    elif type(receptor) == GammaDeltaTCR:
+        complex = TCRpMHCComplex(complex_hash(receptor_id, antigen_id, epitope_id, mhc_id),
+                                 species=receptor.species,
+                                 gd_tcr=receptor_id,
+                                 antigen=antigen_id,
+                                 epitope=epitope_id,
+                                 mhc=mhc_id)
+        if complex:
+            container.tcr_complexes[complex.akc_id] = complex
+            composite = make_receptor_composite(container, complex)
+            add_to_assays(container, assay_ids, complex, composite)
     else:
-        print('ERROR: could not make TCR complex')
+        if mhc_id is not None:
+            print(f'ERROR: MHC ID was given for an antibody complex (receptor_id = {receptor_id}), this is not expected')
 
-    if tcr_complex:
-        container.tcr_complexes[tcr_complex.akc_id] = tcr_complex
-    return tcr_complex
+        complex = AntibodyAntigenComplex(complex_hash(receptor_id, antigen_id, epitope_id, None),
+                                         species=receptor.species,
+                                         antibody=receptor_id,
+                                         antigen=antigen_id,
+                                         epitope=epitope_id)
+        if complex:
+            container.antibody_complexes[complex.akc_id] = complex
+            composite = make_receptor_composite(container, complex)
+            add_to_assays(container, assay_ids, complex, composite)
 
+    return complex, composite
 
-def make_tcr_pmhc_complex(container, receptor, epitope, mhc):
-    assert type(receptor) in (AlphaBetaTCR, GammaDeltaTCR), "Expected alphabeta or gammadelta TCR, found: " + str(type(receptor))
-    assert type(epitope) == PeptidicEpitope, "Expected peptidic epitope, found: " + str(type(epitope))
+# these composite classes are for query optimization in the database
+# composite subclasses must retain the same AKC_ID to keep linkage with main data model
+def make_receptor_composite(container, complex):
+    assert type(complex) in (TCRpMHCComplex, AntibodyAntigenComplex), "Unknown complex type, found: " + str(type(complex))
 
-    mro_mhc = mhc.gene if mhc is not None else None
+    composite = None
+    paired_composite = None
+    ab_composite = None
+    paired_ab_composite = None
+    gd_composite = None
+    paired_gd_composite = None
+    ig_composite = None
+    paired_ig_composite = None
+    if type(complex) == TCRpMHCComplex:
+        composite = ReceptorComposite(complex.akc_id,
+                                      species=complex.species,
+                                      tcr_complex=complex.akc_id,
+                                      antigen=complex.antigen,
+                                      epitope=complex.epitope,
+                                      mhc=complex.mhc)
+        if complex.ab_tcr is not None:
+            composite.tra_chain = container.ab_tcell_receptors[complex.ab_tcr].tra_chain
+            composite.trb_chain = container.ab_tcell_receptors[complex.ab_tcr].trb_chain
+            composite.paired_chain = container.ab_tcell_receptors[complex.ab_tcr].paired_chain
+            ab_composite = AlphaBetaReceptorComposite(complex.akc_id,
+                                        species=complex.species,
+                                        paired_chain=composite.paired_chain,
+                                        tra_chain=composite.tra_chain,
+                                        trb_chain=composite.trb_chain,
+                                        tcr_complex=complex.akc_id,
+                                        antigen=complex.antigen,
+                                        epitope=complex.epitope,
+                                        mhc=complex.mhc)
+            if composite.paired_chain:
+                paired_ab_composite = PairedAlphaBetaReceptorComposite(**dataclasses.asdict(ab_composite))
+        elif complex.gd_tcr is not None:
+            composite.trg_chain = container.gd_tcell_receptors[complex.gd_tcr].trg_chain
+            composite.trd_chain = container.gd_tcell_receptors[complex.gd_tcr].trd_chain
+            composite.paired_chain = container.gd_tcell_receptors[complex.gd_tcr].paired_chain
+            gd_composite = GammaDeltaReceptorComposite(complex.akc_id,
+                                        species=complex.species,
+                                        paired_chain=composite.paired_chain,
+                                        trg_chain=composite.trg_chain,
+                                        trd_chain=composite.trd_chain,
+                                        tcr_complex=complex.akc_id,
+                                        antigen=complex.antigen,
+                                        epitope=complex.epitope,
+                                        mhc=complex.mhc)
+            if composite.paired_chain:
+                paired_gd_composite = PairedGammaDeltaReceptorComposite(**dataclasses.asdict(gd_composite))
+    else:
+        composite = ReceptorComposite(complex.akc_id,
+                                      species=complex.species,
+                                      antibody_complex=complex.akc_id,
+                                      antigen=complex.antigen,
+                                      epitope=complex.epitope)
+        if complex.antibody is not None:
+            composite.igh_chain = container.bcell_receptors[complex.antibody].igh_chain
+            composite.igk_chain = container.bcell_receptors[complex.antibody].igk_chain
+            composite.igl_chain = container.bcell_receptors[complex.antibody].igl_chain
+            composite.paired_chain = container.bcell_receptors[complex.antibody].paired_chain
+            ig_composite = BCellReceptorComposite(complex.akc_id,
+                                        species=complex.species,
+                                        paired_chain=composite.paired_chain,
+                                        igh_chain=composite.igh_chain,
+                                        igk_chain=composite.igk_chain,
+                                        igl_chain=composite.igl_chain,
+                                        antibody_complex=complex.akc_id,
+                                        antigen=complex.antigen,
+                                        epitope=complex.epitope)
+            if composite.paired_chain:
+                paired_ig_composite = PairedBCellReceptorComposite(**dataclasses.asdict(ig_composite))
+    if composite.paired_chain:
+        paired_composite = PairedReceptorComposite(**dataclasses.asdict(composite))
 
-    complex = TCRpMHCComplex(akc_id=tcr_complex_hash(receptor, epitope, mhc),
-                                 tcr=receptor.akc_id,
-                                 epitope=epitope.akc_id,
-                                 mhc=mro_mhc)
+    container.receptor_composites[composite.akc_id] = composite
+    if paired_composite:
+        container.paired_receptor_composites[paired_composite.akc_id] = paired_composite
+    if ab_composite:
+        container.ab_receptor_composites[ab_composite.akc_id] = ab_composite
+    if paired_ab_composite:
+        container.paired_ab_receptor_composites[paired_ab_composite.akc_id] = paired_ab_composite
+    if gd_composite:
+        container.gd_receptor_composites[gd_composite.akc_id] = gd_composite
+    if paired_gd_composite:
+        container.paired_gd_receptor_composites[paired_gd_composite.akc_id] = paired_gd_composite
+    if ig_composite:
+        container.bcell_receptor_composites[ig_composite.akc_id] = ig_composite
+    if paired_ig_composite:
+        container.paired_bcell_receptor_composites[paired_ig_composite.akc_id] = paired_ig_composite
+    return composite
 
-    if complex:
-        container.tcr_complexes[complex.akc_id] = complex
-
-    return complex
-
-def make_tcr_epitope_nonmhc_complex(container, receptor, epitope):
-    assert type(receptor) in (AlphaBetaTCR, GammaDeltaTCR), "Expected AlphaBetaTCR or GammaDeltaTCR, found: " + str(type(receptor))
-    assert type(epitope) in (DiscontinuousEpitope, NonPeptidicEpitope), "Expected DiscontinuousEpitope or NonPeptidicEpitope, found: " + str(type(epitope))
-
-    complex = TCREpitopeComplex(akc_id=tcr_complex_hash(receptor, epitope, None),
-                                tcr=receptor.akc_id,
-                                epitope=epitope.akc_id)
-
-    if complex:
-        container.tcr_complexes[complex.akc_id] = complex
-
-    return complex
-
-def make_antibody_antigen_complex(container, receptor, antigen, epitope):
-    assert type(receptor) == BCellReceptor, "Expected BCellReceptor, found: " + str(type(receptor))
-    assert type(antigen) == Antigen, "Expected Antigen, found: " + str(type(antigen))
-    # assert type(epitope) in (PeptidicEpitope, DiscontinuousEpitope, NonPeptidicEpitope), "Expected PeptidicEpitope, DiscontinuousEpitope, NonPeptidicEpitope, found: " + str(type(epitope))
-
-    complex = AntibodyAntigenComplex(akc_id=akc_id(),   # todo implement hash # bcr_complex_hash(receptor, epitope, antigen) ??
-                                     antibody=receptor.akc_id,
-                                     antigen=antigen.akc_id)
-                                     # epitope=epitope.akc_id)
-
-    # todo uncomment if bcr_complexes gets added to AKC object
-    # if complex:
-    #     container.bcr_complexes[complex.akc_id] = complex
-
-    return complex
-
+def add_to_assays(container, assay_ids, complex, composite):
+    if assay_ids is None:
+        return
+    for aid in assay_ids:
+        assay = container.assays[aid]
+        if type(complex) == TCRpMHCComplex:
+            if assay.tcr_complexes is None:
+                assay.tcr_complexes = list(complex.akc_id)
+            else:
+                assay.tcr_complexes.append(complex.akc_id)
+        else:
+            if assay.antibody_complexes is None:
+                assay.antibody_complexes = list(complex.akc_id)
+            else:
+                assay.antibody_complexes.append(complex.akc_id)
+        if assay.receptor_composites is None:
+            assay.receptor_composites = list(composite.akc_id)
+        else:
+            assay.receptor_composites.append(composite.akc_id)
 
 def check_three(chains):
 #    print(chains)
@@ -741,9 +893,10 @@ def load_ak_container(container, path, load_type):
     load_akc_objects(container, 'input_output_map', InputOutputDataMap, path)
     load_akc_objects(container, 'conclusions', Conclusion, path)
 
-    if load_type == 'adc':
+    if load_type == 'adc' or load_type == 'vdjbase':
         load_akc_objects(container, 'assays', AIRRSequencingAssay, path)
         load_akc_objects(container, 'sequence_data', AIRRSequencingData, path)
+        
     else:
         load_akc_objects(container, 'assays', TCellReceptorEpitopeBindingAssay, path, True)
     print(f"Loaded AK data with {len(container['assays'])} assays")
@@ -755,6 +908,36 @@ def load_ak_container(container, path, load_type):
     #print(f"Loaded AK data with {len(container['ab_tcell_receptors'])} AlphaBetaTCR")
     #load_akc_objects(container, 'chains', Chain, path)
     #print(f"Loaded AK data with {len(container['chains'])} chains")
+
+def ak_container_summary(container):
+    print()
+    print(f'Container Summary')
+    print(f'-----------------')
+    print()
+    print(len(container.ab_tcell_receptors), 'total alpha/beta TCRs')
+    print(len(container.beta_chains), 'total beta chains')
+    print(len(container.alpha_chains), 'total alpha chains')
+    print()
+    print(len(container.gd_tcell_receptors), 'total gamma/delta TCRs')
+    print(len(container.gamma_chains), 'total gamma chains')
+    print(len(container.delta_chains), 'total delta chains')
+    print()
+    print(len(container.tcr_complexes), 'TCRpMHC complexes')
+    print(len(container.epitopes), 'epitopes')
+    print(len(container.antigens), 'antigens')
+    print()
+    print(len(container.bcell_receptors), 'total BCRs')
+    print(len(container.heavy_chains), 'total heavy chains')
+    print(len(container.kappa_chains), 'total kappa chains')
+    print(len(container.lambda_chains), 'total lambda chains')
+    print()
+    print(len(container.antibody_complexes), 'Antibody antigen complexes')
+    print()
+    print(len(container.receptor_composites), 'Receptor composites')
+    print()
+    print(f'-----------------')
+  
+
 
 def write_jsonl(container, container_field, outfile, exclude=None):
     print(outfile)
@@ -801,8 +984,8 @@ def write_csv(container, container_field, outfile):
 # CSV relationships
 # we convert to lowercase because mixed case with SQL is a hassle
 def write_relationship_csv(class_name, class_obj, range_name, outpath, is_foreign=False):
-    outfile = f'{outpath}{class_name}_{range_name}.csv'
-    print(f"Saving relationship into CSV file: {outfile}")
+    outfile = f'{outpath}/{class_name}_{range_name}.csv'
+    print(f"Saving {class_name} - {range_name} relationship into CSV file: {outfile}")
     with open(outfile, 'w') as f:
         if is_foreign:
             flatnames = [ class_name.lower() + '_akc_id', range_name.lower() + '_source_uri' ]
@@ -816,20 +999,84 @@ def write_relationship_csv(class_name, class_obj, range_name, outpath, is_foreig
                 for p in i[range_name]:
                     f.write(i.akc_id + ',' + p + '\n')
 
-def write_all_relationships(container, outpath):
+
+chain_container_fields = [
+    'alpha_chains',
+    'beta_chains',
+    'gamma_chains',
+    'delta_chains',
+    'heavy_chains',
+    'kappa_chains',
+    'lambda_chains',
+    'ab_tcell_receptors',
+    'tcr_complexes',
+    'gd_tcell_receptors',
+    'bcell_receptors',
+    'antibody_complexes',
+    'receptor_composites',
+    'ab_receptor_composites',
+    'gd_receptor_composites',
+    'bcell_receptor_composites',
+    'paired_receptor_composites',
+    'paired_ab_receptor_composites',
+    'paired_gd_receptor_composites',
+    'paired_bcell_receptor_composites'
+]
+
+def write_all_metadata_jsonl(container, json_dir):
+    container_fields = [x.name for x in dataclasses.fields(container)]
+    for container_field in container_fields:
+        if container_field in chain_container_fields:
+            continue
+        container_slot = ak_schema_view.get_slot(container_field)
+        tname = container_slot.range
+        write_jsonl(container, container_field, f"{json_dir}/{tname}.jsonl",)
+
+def write_all_metadata_csv(container, csv_dir):
+    container_fields = [x.name for x in dataclasses.fields(container)]
+    for container_field in container_fields:
+        if container_field in chain_container_fields:
+            continue
+        container_slot = ak_schema_view.get_slot(container_field)
+        tname = container_slot.range
+        write_csv(container, container_field, f"{csv_dir}/{tname}.csv",)
+
+def write_all_metadata(container, json_dir, csv_dir):
+    write_all_metadata_jsonl(container, json_dir)
+    write_all_metadata_csv(container, csv_dir)
+
+def write_all_chains_csv(container, csv_dir):
+    container_fields = [x.name for x in dataclasses.fields(container)]
+    for container_field in container_fields:
+        if container_field in chain_container_fields:
+            container_slot = ak_schema_view.get_slot(container_field)
+            tname = container_slot.range
+            write_csv(container, container_field, f"{csv_dir}/{tname}.csv",)
+
+def write_all_chains(container, json_dir, csv_dir):
+    # no jsonl for chain data right now, very large, slow and currently not used
+    #write_all_chains_jsonl(container, json_dir)
+    write_all_chains_csv(container, csv_dir)
+
+def write_all_metadata_relationships(container, csv_dir):
     # TODO: would be better to iterate over linkml metadata, to handle all
     # instead we hard-code in a simple way
 
     # investigation relationships
-    write_relationship_csv('Investigation', container.investigations, 'participants', outpath)
-    write_relationship_csv('Investigation', container.investigations, 'assays', outpath)
-    write_relationship_csv('Investigation', container.investigations, 'conclusions', outpath)
-    write_relationship_csv('Investigation', container.investigations, 'documents', outpath, True)
+    write_relationship_csv('Investigation', container.investigations, 'participants', csv_dir)
+    write_relationship_csv('Investigation', container.investigations, 'assays', csv_dir)
+    write_relationship_csv('Investigation', container.investigations, 'conclusions', csv_dir)
+    write_relationship_csv('Investigation', container.investigations, 'documents', csv_dir, True)
+
+def write_all_chain_relationships(container, csv_dir):
+    # TODO: would be better to iterate over linkml metadata, to handle all
+    # instead we hard-code in a simple way
 
     # assay relationships
-    #write_relationship_csv('Assay', container.assays, 'tcell_receptors', outpath)
-    #write_relationship_csv('Assay', container.assays, 'tcell_chains', outpath)
+    write_relationship_csv('Assay', container.assays, 'receptor_composites', csv_dir)
 
+    # Antigen/Epitope relationships
+    write_relationship_csv('Antigen', container.antigens, 'epitopes', csv_dir)
 
 def load_chains(filename):
     return None

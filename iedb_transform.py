@@ -3,20 +3,11 @@
 # Use Makefile to run
 #
 
-import dataclasses
-import click
-import csv
-import json
 import pandas as pd
-import sys
+from pathlib import Path
 
-from linkml_runtime.utils.schemaview import SchemaView
-
-from linkml_runtime.linkml_model.meta import EnumDefinition, PermissibleValue, SchemaDefinition
-from linkml_runtime.dumpers import yaml_dumper, json_dumper, tsv_dumper
-from ak_schema import *
 from ak_schema_utils import *
-from linkml.validator import Validator, validate
+from linkml.validator import Validator
 from linkml.validator.plugins import PydanticValidationPlugin
 validator = Validator(
     schema="ak-schema/project/linkml/ak_schema.yaml",
@@ -26,17 +17,8 @@ validator = Validator(
 
 ak_schema_view = SchemaView("ak-schema/project/linkml/ak_schema.yaml")
 
-
-def id(input):  # todo same as ak_schema_utils??
-    """Convert a URL to an ID."""
-    for prefix, url in curie_prefix_to_url.items():
-        if input.startswith(url):
-            return input.replace(url, '')
-    return input
-
 def safe_get_assay_ids_per_tcr(tcr_df):
-    # resolving inconsistent input types (str/int/nan)
-    return tcr_df[("Assay", "IEDB IDs")].astype(str).str.split(', ')
+    return tcr_df[tcr_df[("Assay", "IEDB IDs")].notna()][("Assay", "IEDB IDs")].astype(str).str.split(', ')
 
 
 def get_tcr_df_for_assay(tcr_df, assay_id):
@@ -49,14 +31,50 @@ def get_tcr_df_for_assay(tcr_df, assay_id):
     return tcr_df_for_assay
 
 
-def read_double_header_df(path, separator="auto"):
+def read_df(path, separator="auto", header=0):
+    assert Path(path).is_file(), f"File does not exist: {path}"
+
     if separator == "auto":
         separator = "," if path.endswith(".csv") else "\t"
 
-    df = pd.read_csv(path, header=[0, 1], sep=separator, low_memory=False,  dtype=str)
+    df = pd.read_csv(path, header=header, sep=separator, low_memory=False,  dtype=str)
     df = df.where(pd.notnull(df), None)
 
     return df
+
+def read_double_header_df(path, separator="auto"):
+    return read_df(path, separator=separator, header=[0, 1])
+
+
+def clean_receptor_df(receptor_df, receptor_type):
+    # resolving inconsistent input types (str/int/nan)
+    if any(receptor_df[("Assay", "IEDB IDs")].isna()):
+        omitted = receptor_df[receptor_df[("Assay", "IEDB IDs")].isna()][("Receptor", "IEDB Receptor ID")].to_list()
+        print(f"The following {receptor_type}s were omitted due to missing Assay IDs:", omitted)
+
+        receptor_df = receptor_df[receptor_df[("Assay", "IEDB IDs")].notna()]
+
+    # todo limit species to human and mouse
+    # todo limit to valid chain types
+    # todo limit assays to the ones left after TCR filtering
+
+    return receptor_df
+
+
+def get_assay_ids(receptor_df):
+    assay_ids = receptor_df[("Assay", "IEDB IDs")]
+    assay_ids = assay_ids.apply(lambda x: set() if pd.isna(x) else set(id.strip() for id in x.split(",")))
+    assay_ids = set().union(*assay_ids)
+
+    return assay_ids
+
+
+def clean_assay_df(cell_df, receptor_df, receptor_type):
+    receptor_assay_ids = get_assay_ids(receptor_df)
+    is_receptor_assay = cell_df["Assay ID"]["IEDB IRI"].apply(lambda x: x.rsplit("/", 1)[-1] in receptor_assay_ids)
+    cell_df = cell_df[is_receptor_assay]
+
+    return cell_df
 
 
 def get_assay_ids_with_tcrs(tcr_df):
@@ -65,12 +83,6 @@ def get_assay_ids_with_tcrs(tcr_df):
 
     # flat sorted list of all assay IDs of interest
     return sorted(set([x.strip() for sublist in assays_ids_per_tcr for x in sublist]), key=int)
-
-def get_assay_df_rows_with_tcrs(assay_df, tcr_df):
-    assay_ids_of_interest = get_assay_ids_with_tcrs(tcr_df)
-    assay_ids_from_iri = assay_df["Assay ID"]["IEDB IRI"].str.rsplit("/", n=1).str[-1]
-
-    return assay_df[assay_ids_from_iri.isin(assay_ids_of_interest)].reset_index(drop=True)
 
 def sex_to_curie(field):
     return {"M": "PATO:0020001", "F": "PATO:0020002", None: None}[field]
@@ -92,6 +104,58 @@ def safe_add_receptor_to_assay_dict(assay_to_receptor, assay_ids, receptor):
             else:
                 assay_to_receptor[aid].append(receptor)
 
+iedb_chain_map = {
+    'alpha': 'TRA',
+    'beta': 'TRB',
+    'gamma': 'TRG',
+    'delta': 'TRD',
+    'heavy': 'IGH',
+    'kappa_light': 'IGK',
+    'lambda_light': 'IGL',
+    'light': 'IGL'
+}
+
+def make_iedb_chain(container, iedb_chain):
+    # Todo:
+    # - find a place to maintain the IEDB reference
+    # - discuss (VJ) hashes: cannot presume allele from VJ? do we need both V and J for hash?
+
+    if iedb_chain["Type"] not in iedb_chain_map:
+        if iedb_chain["Type"] is not None:
+            print(f"Unsupported chain: {iedb_chain['Type']}. This receptor will be omitted.")
+        return None
+
+    species = url_to_curie(iedb_chain['Organism IRI'])
+
+    airr_obj = {'locus': iedb_chain_map[iedb_chain["Type"]],
+                'sequence': safe_get_sequence(iedb_chain['Nucleotide Sequence'], 150),
+                'sequence_aa': safe_get_sequence(iedb_chain['V Domain Calculated'], 50),
+                'complete_vdj': None,
+                'junction_aa': iedb_chain["Junction Calculated"],
+                'cdr1_aa': iedb_chain["CDR1 Calculated"],
+                'cdr2_aa': iedb_chain["CDR2 Calculated"],
+                'cdr3_aa': iedb_chain["CDR3 Calculated"], # todo do we want to keep cdr3 and junction in akc?
+                'v_call': iedb_chain["Calculated V Gene"],
+                'j_call': iedb_chain["Calculated J Gene"]
+                }
+
+    return make_chain(container, species, airr_obj, annotations=None)
+
+
+def get_receptor_species(receptor_row):
+    species_chain1 = url_to_curie(receptor_row['Chain 1']['Organism IRI'])
+    species_chain2 = url_to_curie(receptor_row['Chain 2']['Organism IRI'])
+
+    if species_chain1 == species_chain2:
+        species = species_chain1
+    elif species_chain1 is None or species_chain2 is None:
+        species = species_chain1 if species_chain1 is not None else species_chain2
+    else:
+        print(f"ERROR: receptor {receptor_row['Receptor']['Group IRI']} species do not match. Chain 1 = {species_chain1},  Chain 2 = {species_chain2}. "
+              f"The chain species will be set but receptor species will be Null. ")
+        species = None
+
+    return species
 
 def get_receptor_objects(container, receptor_df, type):
     print(f'Processing {type}s')
@@ -109,42 +173,128 @@ def get_receptor_objects(container, receptor_df, type):
         safe_add_chain_to_assay_dict(assay_to_chain_id, assay_ids, akc_chain_2)
 
         if akc_chain_1 or akc_chain_2:
-            receptor = make_receptor(container, [akc_chain_1, akc_chain_2])
+            species = get_receptor_species(receptor_row)
+
+            receptor = make_receptor(container, species, [akc_chain_1, akc_chain_2])
             safe_add_receptor_to_assay_dict(assay_to_receptor, assay_ids, receptor)
 
     return assay_to_receptor, assay_to_chain_id
 
+def make_peptidic_epitope(epitope_row, validate_data=False):
+    epitope = PeptidicEpitope(
+        url_to_curie(epitope_row["IEDB IRI"]),
+        sequence_aa=safe_get_peptide_sequence(epitope_row["Name"]),
+        modifications=epitope_row["Modifications"],
+        epitope_ref=url_to_curie(epitope_row["IEDB IRI"])
+    )
 
-def safe_get_reference_row(assay_df):
-    reference_df = assay_df["Reference"].drop_duplicates()
-    assert len(reference_df) == 1, f"ERROR: Expected same PMID to always have the same reference info, found:\n {reference_df}"
+    if validate_data:
+        validate_epitope(epitope, "PeptidicEpitope")
+
+    return epitope
+
+def make_discontinuous_epitope(epitope_row, validate_data=False):
+    # todo modifications not yet supported
+
+    epitope = DiscontinuousEpitope(
+        url_to_curie(epitope_row["IEDB IRI"]),
+        positional_residues=epitope_row["Name"],
+        # modifications=epitope_row["Modifications"], # todo should be either epitope__modifications or epitope__modified_residues
+        epitope_ref = url_to_curie(epitope_row["IEDB IRI"])
+    )
+
+    if validate_data:
+        validate_epitope(epitope, "DiscontinuousEpitope")
+
+    return epitope
+
+def make_non_peptidic_epitope(epitope_row, validate_data=False):
+    epitope = NonPeptidicEpitope(
+        url_to_curie(epitope_row["IEDB IRI"]),
+        epitope_name=epitope_row["Name"],
+        epitope_ref=url_to_curie(epitope_row["IEDB IRI"])
+    )
+
+    if validate_data:
+        validate_epitope(epitope, "NonPeptidicEpitope")
+
+    return epitope
+
+
+def make_epitope(container, epitope_row):
+    # todo merge all epitope types into a single epitope
+
+    if epitope_row["Object Type"] == 'Linear peptide':
+        epitope = make_peptidic_epitope(epitope_row)
+    elif epitope_row["Object Type"] in ('Discontinuous peptide', 'Discontinuous peptide on multi chain'):
+        epitope = make_discontinuous_epitope(epitope_row)
+    elif epitope_row["Object Type"] == 'Non-peptidic':
+        epitope = make_non_peptidic_epitope(epitope_row)
+    else:
+        print(f"Epitope type not yet supported: {epitope_row['Object Type']}")
+        return None
+
+    container.epitopes[epitope.akc_id] = epitope
+    return epitope
+
+
+def process_epitope_antigens(container, tcr_assay_df, bcr_assay_df):
+    print(f'Processing antigens with epitopes')
+
+    keep_cols = ["IEDB IRI", "Object Type", "Name", "Modified residues", "Modifications", "Source Molecule IRI", "Species IRI"]
+
+    epitope_df = pd.concat([tcr_assay_df["Epitope"], bcr_assay_df["Epitope"]])[keep_cols].drop_duplicates()
+
+    for epitope_idx, epitope_row in epitope_df.iterrows():
+        epitope = make_epitope(container, epitope_row)
+        container.epitopes[epitope.akc_id] = epitope
+
+    antigen_df = epitope_df[epitope_df["Source Molecule IRI"].notna()]
+
+    for current_iris, cur_antigen_epitope_df in antigen_df.groupby(["Source Molecule IRI", "Species IRI"]):
+        source_molecule_iri, organism_iri = current_iris
+
+        if pd.notna(source_molecule_iri):
+            epitope_ids =  [url_to_curie(epitope_iri) for epitope_iri in cur_antigen_epitope_df["IEDB IRI"]]
+
+            antigen = Antigen(url_to_curie(source_molecule_iri),
+                              source_molecule=url_to_curie(source_molecule_iri),
+                              source_species=url_to_curie(organism_iri),
+                              epitopes=epitope_ids)
+            container.antigens[antigen.akc_id] = antigen
+
+def process_mhc(container, tcr_assay_df):
+    mhc_df = tcr_assay_df["MHC Restriction"].drop_duplicates()
+    mhc_df = mhc_df[mhc_df["IRI"].notna()]
+
+    for mhc_idx, mhc_row in mhc_df.iterrows():
+        mhc = MajorHistocompatibilityComplex(akc_id=url_to_curie(mhc_row["IRI"]),
+                                                 mhc_class=mhc_iedb_to_akc(mhc_row["Class"]),
+                                                 mhc_label=mhc_row["Name"],
+                                                 mhc_ref=url_to_curie(mhc_row["IRI"]))
+
+        container.mhcs[mhc_idx] = mhc
+
+def make_reference_obj(ref_assay_df, investigation_akc_id):
+    reference_df = ref_assay_df["Reference"].drop_duplicates()
+
+    assert len(reference_df) == 1, f"ERROR: Expected same iedb reference_iri to always have the same reference info, found:\n {reference_df}"
     reference_row = reference_df.iloc[0]
 
-    return reference_row
-
-def make_investigation_objs(container, ref_tcr_assay_df):
-    reference_row = safe_get_reference_row(ref_tcr_assay_df)
-
-    investigation = Investigation(
-        akc_id(),
-        name=reference_row['Title'],
-    )
+    pmid_iri = f"PMID:{int(float(reference_row['PMID']))}" if pd.notna(reference_row['PMID']) else None
+    iedb_iri = url_to_curie(reference_row["IEDB IRI"]) # todo add IEDB_REFERENCE prefix
 
     reference = Reference(
-        source_uri=f"PMID:{reference_row['PMID']}",
-        sources=[f"PMID:{reference_row['PMID']}"],
-        investigations=investigation.akc_id,
-        title=reference_row['Title'],
-        authors=reference_row['Authors'].split('; '),
+        source_uri=pmid_iri if pmid_iri is not None else iedb_iri,
+        sources=[pmid_iri, iedb_iri] if pmid_iri is not None else [iedb_iri],
+        investigations=investigation_akc_id,
+        title=reference_row["Title"],
+        authors=reference_row["Authors"].split('; ') if pd.notna(reference_row['Authors']) else None,
         journal=reference_row['Journal'],
-        year=reference_row['Date'],
+        year=reference_row["Date"],
     )
 
-    container.investigations[investigation.akc_id] = investigation
-    container.references[reference.source_uri] = reference
-    investigation.documents.append(reference.source_uri)
-
-    return investigation
+    return reference
 
 def safe_get_type(row, column, type):
     if column in row:
@@ -164,77 +314,6 @@ def validate_epitope(epitope_obj, epitope_type):
         print(result.message)
 
 
-def make_peptidic_epitope(epitope_df, validate_data=True):
-    epitope = PeptidicEpitope(
-        akc_id(),
-        sequence_aa=safe_get_peptide_sequence(epitope_df['Name']), # todo store modifications
-        source_protein=url_to_curie(epitope_df['Molecule Parent IRI']),
-        source_organism=url_to_curie(epitope_df['Source Organism IRI'])
-    )
-
-    if validate_data:
-        validate_epitope(epitope, "PeptidicEpitope")
-
-    return epitope
-
-def make_discontinuous_epitope(epitope_df, validate_data=True):
-    # todo DiscontinuousEpitope to be added to schema, skipped for now
-    epitope = DiscontinuousEpitope(
-        akc_id(),
-        positional_residues=epitope_df['Name'],
-        source_protein=url_to_curie(epitope_df['Molecule Parent IRI']),
-        source_organism=url_to_curie(epitope_df['Source Organism IRI'])
-    )
-
-    if validate_data:
-        validate_epitope(epitope, "DiscontinuousEpitope")
-
-    return epitope
-
-def make_non_peptidic_epitope(epitope_df, validate_data=True):
-    # todo NonPeptidicEpitope to be added to schema, skipped for now
-    epitope = NonPeptidicEpitope(
-        akc_id(),
-        name=epitope_df['Name'],
-        source_molecule=url_to_curie(epitope_df['Molecule Parent IRI']),
-        source_organism=url_to_curie(epitope_df['Source Organism IRI'])
-    )
-
-    if validate_data:
-        validate_epitope(epitope, "NonPeptidicEpitope")
-
-    return epitope
-
-
-def make_epitope(container, epitope_df):
-    # todo
-    #    store as ForeignObject: curie(epitope_df['IEDB IRI'])
-
-    if epitope_df['Object Type'] == 'Linear peptide':
-        epitope = make_peptidic_epitope(epitope_df)
-    else:
-        return None # todo to be implemented, add other epitope types to schema:
-    # elif epitope_df['Object Type'] == 'Discontinuous peptide':
-    #     epitope = make_discontinuous_epitope(epitope_df)
-    # elif epitope_df['Object Type'] == 'Non-peptidic':
-    #     epitope = make_non_peptidic_epitope(epitope_df)
-    # else:
-    #     assert False, "Unknown epitope type: " + epitope_df['Object Type']
-
-    container.epitopes[epitope.akc_id] = epitope
-    return epitope
-
-
-def make_antigen(container, epitope_df):
-    antigen = Antigen(akc_id(), # todo should akc_id be based on molecule IRI? -> group together same antigen?
-                      source_protein = url_to_curie(epitope_df['Molecule Parent IRI']),
-                      source_organism = url_to_curie(epitope_df['Source Organism IRI'])
-                      )
-
-    # todo antigens need to be in the AIRRKnowledgeCommons container if they are to be stored
-    # container.antigens[antigen.akc_id] = epitope
-    return antigen
-
 
 def safe_get_mro_designation(string):
     mro_str = string.rsplit("/", maxsplit=1)[-1]
@@ -243,206 +322,259 @@ def safe_get_mro_designation(string):
 
     return mro_str.replace("MRO_", "MRO:")
 
-def safe_make_mhc(mhc_row):
-    if mhc_row["IRI"] is not None:
-        mro_designation = safe_get_mro_designation(mhc_row["IRI"])
 
-        mhc = MHCAllele(
-            allele_designation=mhc_row["Name"],  # todo name is not really allele, MHCAllele needs to be redesigned
-            gene=mro_designation,
-            # mhc_class=assay_row['MHC Restriction']["Class"] # todo would be good to have mhc class in MHC object
-        )
-        return mhc
-
-def make_iedb_tcr_complexes(container, assay_row, tcell_receptors, epitope):
-    tcr_complexes = []
-
-    if type(epitope) == PeptidicEpitope:
-        mhc = safe_make_mhc(assay_row["MHC Restriction"])
-
-        for tcell_receptor in tcell_receptors:
-            c = make_tcr_pmhc_complex(container, tcell_receptor, epitope, mhc)
-            if c:
-                tcr_complexes.append(c)
+def mhc_iedb_to_akc(mhc):
+    if mhc == "I":
+        return "MHC-I"
+    elif mhc == "II":
+        return "MHC-II"
+    elif mhc == "non classical":
+        return "MHC-nonclassical"
+    elif pd.isnull(mhc):
+        return None
     else:
-        for tcell_receptor in tcell_receptors:
-            c = make_tcr_epitope_nonmhc_complex(container, tcell_receptor, epitope)
-            if c:
-                tcr_complexes.append(c)
-
-    return tcr_complexes
+        print(f"ERROR: unknown MHC type: {mhc}")
 
 
-def make_iedb_bcr_complexes(container, assay_row,  bcell_receptors, epitope):
-    bcr_complexes = []
+def make_iedb_complexes(container, assay_row, assay_id, receptors):
+    antigen_id = url_to_curie(assay_row["Epitope"]["Source Molecule IRI"])
+    epitope_id = url_to_curie(assay_row["Epitope"]["IEDB IRI"])
 
-    antigen = make_antigen(container, assay_row['Epitope'])
+    if ("MHC Restriction", "IRI") in assay_row and assay_row[("MHC Restriction", "IRI")] is not None:
+        mhc_id = url_to_curie(assay_row[("MHC Restriction", "IRI")])
+    else:
+        mhc_id = None
 
-    for bcell_receptor in bcell_receptors:
-        c = make_antibody_antigen_complex(container, bcell_receptor, antigen, epitope)
-        if c:
-            bcr_complexes.append(c)
+    for receptor in receptors:
+        make_complex(container, receptor,
+                     antigen_id=antigen_id,
+                     epitope_id=epitope_id,
+                     mhc_id=mhc_id,
+                     assay_ids=[ assay_id ])
 
-    return bcr_complexes
 
-def make_iedb_assay(container, assay_row, assay_to_receptor, specimen_collection_life_event, type):
-    assay_id = get_assay_id_from_row(assay_row)
-    receptors = assay_to_receptor.get(assay_id, [])
-    epitope = make_epitope(container, assay_row['Epitope'])
-
-    if len(receptors) == 0:
-        print("Skipping Assay with no receptors")
-        return None
-
-    if epitope is None:
-        print("Skipping undefined epitope (different epitope types to be implemented)") # todo
-        return None
-
-    if type == "TCR":
-        receptor_epitope_complexes = make_iedb_tcr_complexes(container, assay_row, receptors, epitope)
-
-        specimen = Specimen(
-            akc_id(),
-            life_event=specimen_collection_life_event.akc_id,
-            tissue=url_to_curie(assay_row['Effector Cell']['Source Tissue IRI'])
-        )
-
-        assay = TCellReceptorEpitopeBindingAssay(
-            akc_id=akc_id(),
-            epitope=epitope.akc_id,
-            tcr_complexes=list(sorted(set([t.akc_id for t in receptor_epitope_complexes]))),
-            measurement_category=assay_row['Assay']['Qualitative Measurement'],
-            specimen=specimen.akc_id,
-            assay_type=url_to_curie(assay_row['Assay']['IRI'])
-            # specimen_processing=None,
-            # type=None,  # todo what is this
-            # has_specified_output=None  # todo what is this
-        )
-
-    elif type == "BCR":
-        receptor_epitope_complexes = make_iedb_bcr_complexes(container, assay_row, receptors, epitope)
-
-        specimen = Specimen(
-            akc_id=akc_id(),
-            life_event=specimen_collection_life_event.akc_id,
-            tissue=url_to_curie(assay_row["Assay Antibody"]["Antibody Source Material"])
-        )
-
-        assay = AntibodyAntigenBindingAssay(
-            akc_id=akc_id(),
-            # epitope=epitope.akc_id,
-            # antigen=antigen.akc_id,
-            # antibody_complexes=list(sorted(set([b.akc_id for b in receptor_epitope_complexes]))),
-            # measurement_category=assay_row['Assay']['Qualitative Measure'], # todo add to assay
-            specimen=specimen.akc_id,
-            assay_type=url_to_curie(assay_row['Assay']['IRI'])
-            # specimen_processing=None,
-            # type=None,  # todo what is this
-            # has_specified_output=None  # todo what is this
-        )
-
-    # todo does the assessment need to be linked to assay better? now only linked through Specimen/specimen_collection_life_event.akc_id
-    assessment = Assessment(
+def make_tcr_assay(assay_row, specimen_akc_id):
+    assay = TCellReceptorEpitopeBindingAssay(
         akc_id=akc_id(),
-        life_event=specimen_collection_life_event.akc_id,
-        assessment_type=assay_row["Assay"]["Method"],
-        target_entity_type=assay_row["Assay"]["Response measured"],
-        measurement_value=safe_get_type(assay_row["Assay"], "Quantitative measurement", float),
-        measurement_unit=assay_row["Assay"]["Units"]  # todo curie
-    )
-
-    container.specimens[specimen.akc_id] = specimen
-    container.assessments[assessment.akc_id] = assessment
-    container.assays[assay.akc_id] = assay
+        # tcr_complexes=list(sorted(set([t.akc_id for t in receptor_epitope_complexes]))),
+        mhc_evidence=url_to_curie(assay_row[("MHC Restriction", "Evidence IRI")]),
+        measurement_category=assay_row[("Assay", "Qualitative Measurement")],
+        specimen=specimen_akc_id,
+        assay_type=url_to_curie(assay_row[("Assay", "IRI")]),
+        specimen_processing=None,
+        has_specified_output=None)
 
     return assay
+
+def make_bcr_assay(assay_row, specimen_akc_id):
+    assay = AntibodyAntigenBindingAssay(
+        akc_id=akc_id(),
+        # antibody_complexes=list(sorted(set([b.akc_id for b in receptor_epitope_complexes]))),
+        # todo Qualitative Measure is the B cell assay 'outcome'
+        # measurement_category=assay_row[('Assay', 'Qualitative Measure')],
+        specimen=specimen_akc_id,
+        assay_type=url_to_curie(assay_row[("Assay", "IRI")]),
+        specimen_processing=None,
+        has_specified_output=None)
+
+    return assay
+
+def make_iedb_receptor_antigen_assay(container, assay_row, assay_to_receptor, specimen_collection_event, receptor_type):
+    assay_id = assay_row[("Assay ID", "IEDB IRI")].rsplit("/", 1)[-1]
+    receptors = assay_to_receptor.get(assay_id, [])
+
+    if len(receptors) == 0:
+        print(f"Skipping Assay {assay_id} with no receptors")
+        return None
+
+    if receptor_type == "TCR":
+        specimen = Specimen(akc_id(),
+                            tissue=url_to_curie(assay_row[("Effector Cell", "Source Tissue IRI")]))
+
+        assay = make_tcr_assay(assay_row, specimen.akc_id)
+
+    elif receptor_type == "BCR":
+        specimen = Specimen(akc_id(),
+                            tissue=None) # for BCR tissue is not collected
+        assay = make_bcr_assay(assay_row,  specimen.akc_id)
+
+    specimen.life_event = specimen_collection_event.akc_id
+    specimen_collection_event.specimen = specimen.akc_id
+    container.specimens[specimen.akc_id] = specimen
+    container.assays[assay.akc_id] = assay
+
+    make_iedb_complexes(container, assay_row, assay.akc_id, receptors)
+
+    return assay
+
+def make_assessment(container, assay_row, specimen_collection_event_akc_id):
+    measurement_value = None
+
+    if "Qualitative Measurement" in assay_row["Assay"]:
+        measurement_value = assay_row["Assay", "Qualitative Measurement"]
+        # todo IMPORTANT: measurement value does not account for positive/negative (string)
+         # this means TCR measurement outcome is overwritten for now!
+        measurement_value = None
+    elif "Quantitative Measure" in assay_row["Assay"]:
+        measurement_value = float(assay_row[("Assay", "Quantitative Measure")])
+
+    assessment = Assessment(
+        akc_id=akc_id(),
+        life_event=specimen_collection_event_akc_id,
+        assessment_type=assay_row[("Assay", "Method")],
+        target_entity_type=assay_row[("Assay", "Response measured")],
+        measurement_value=measurement_value,
+        measurement_unit=assay_row[("Assay", "Units")]
+        # todo suggestion: add direct link to assay, now only linked through specimen_collection_event.akc_id
+        # assay=assay.akc_id
+    )
+
+    container.assessments[assessment.akc_id] = assessment
+
+    return assessment
 
 
 
 def get_assay_id_from_row(assay_row):
     return assay_row['Assay ID']['IEDB IRI'].split('/')[-1]
 
-def process_assay(container, tcr_assay_df, assay_to_receptor, assay_to_chain, type):
+def is_float(s):
+    try:
+        float(s)
+        return True
+    except (TypeError, ValueError):
+        return False
+
+
+def get_age(value, assay_id=""):
+    if pd.isnull(value):
+        return None, None, None
+
+    try:
+        age, unit = value.rsplit(" ", 1)
+        assert unit in ("weeks", "years", "days", "months", "year", "week", "day", "month"), \
+            f"unknown unit: {value} {unit}"
+
+        if unit[-1] != "s":
+            unit = unit + "s"
+
+        if is_float(age):
+            return float(age), float(age), unit
+        elif "-" in age:
+            age_min, age_max = age.split("-")
+            if is_float(age_min.strip()) and is_float(age_max.strip()):
+                return float(age_min.strip()), float(age_max.strip()), unit
+        elif " to " in age:
+            age_min, age_max = age.split(" to ")
+            if is_float(age_min) and is_float(age_max):
+                return float(age_min), float(age_max), unit
+        elif " and " in age:
+            age_min, age_max = age.split(" and ")
+            if is_float(age_min) and is_float(age_max):
+                return float(age_min), float(age_max), unit
+        assert False
+    except (AssertionError, ValueError):
+        print(f"Error: could not standardize age for assay {assay_id} into a single age and unit: {value}")
+
+    return None, None, None
+
+def get_participant(assay_row, arm_akc_id):
+    age_min, age_max, age_unit = get_age(assay_row[("Host", "Age")], assay_row[("Assay ID", "IEDB IRI")])
+
+    return Participant(
+        akc_id(),
+        species=url_to_curie(assay_row[("Host", "IRI")]), # todo for mouse: could be species or strain
+        sex=sex_to_curie(assay_row[("Host", "Sex")]),
+        age_min=age_min,
+        age_max=age_max,
+        age_unit=age_unit,
+        # todo geolocation ontology incomplete? cannot add  GAZ:00002845 /  GAZ:00002646
+        # geolocation=url_to_curie(assay_row[("Host", "Geolocation IRI")]),
+        study_arm=arm_akc_id,
+    )
+
+def get_immune_exposure(assay_row, participant_akc_id):
+    return ImmuneExposure(
+        akc_id(),
+        participant=participant_akc_id,
+        exposure_material=url_to_curie(assay_row[("Assay Antigen", "Source Organism IRI")]),
+        disease=url_to_curie(assay_row[("1st in vivo Process", "Disease IRI")]),
+        disease_stage=url_to_curie(assay_row[("1st in vivo Process", "Disease Stage")]),
+    )
+
+def get_specimen_collection_life_event(participant_akc_id, study_event_akc_id):
+    return SpecimenCollection(
+                akc_id(),
+                participant=participant_akc_id,
+                study_event=study_event_akc_id,
+                life_event_type='OBI:0000659',  # = specimen collection process
+            )
+
+def get_dataset(assay):
+    return AKDataSet(
+        akc_id(),
+        data_items=assay.akc_id
+    )
+
+def get_conclusion(investigation_id, dataset_id, result, assay_row):
+    return Conclusion(
+        akc_id(),
+        investigations=investigation_id,
+        datasets=dataset_id,
+        result=result,
+        # todo in schema make a free text data_location field, or drop this field entirely
+        data_location_type=assay_row[("Assay", "Location of Assay Data in Reference")],
+        data_location_value=assay_row[("Assay", "Location of Assay Data in Reference")],
+        organism=url_to_curie(assay_row[("Host", "IRI")]),
+        experiment_type=url_to_curie(assay_row[("Assay", "IRI")])
+    )
+
+def process_assay(container, assay_df, assay_to_receptor, assay_to_chain, type):
     print(f'Processing {type} assays')
 
-    for current_reference, ref_tcr_assay_df in tcr_assay_df.groupby(('Reference', 'PMID')):
-        investigation = make_investigation_objs(container, ref_tcr_assay_df)
+    for current_reference, ref_assay_df in assay_df.groupby(("Reference", "IEDB IRI")):
+        investigation = Investigation(
+            akc_id(),
+        )
 
-        for idx, assay_row in ref_tcr_assay_df.iterrows():
+        reference = make_reference_obj(ref_assay_df, investigation.akc_id)
+        investigation.name = reference.title
+        investigation.documents.append(reference.source_uri)
+
+        container.investigations[investigation.akc_id] = investigation
+        container.references[reference.source_uri] = reference
+
+        for idx, assay_row in ref_assay_df.iterrows():
             # todo deal with fields that can have multiple values (e.g. see assay_df["1st in vivo Process"]["Disease Stage"].unique()
 
             arm = StudyArm(akc_id(), investigation=investigation.akc_id)
             study_event = StudyEvent(akc_id(), study_arms=[arm.akc_id])
+            participant = get_participant(assay_row, arm.akc_id)
 
-            participant = Participant(
-                akc_id(),
-                species=url_to_curie(assay_row['Host']['IRI']),
-                sex=sex_to_curie(assay_row['Host']['Sex']),
-                age=assay_row['Host']['Age'],
-                # todo geolocation is enum, should be curie
-                # geolocation=url_to_curie(assay_row['Host']['Geolocation IRI']),
-                study_arm=arm.akc_id,
-            )
-            investigation.participants.append(participant.akc_id)
+            immune_exposure_event = get_immune_exposure(assay_row, participant.akc_id)
+            specimen_collection_event = get_specimen_collection_life_event(participant.akc_id, study_event.akc_id)
+            # todo set specimen_collection_event.specimen_akc_id is now None, because there is a circular reference between the two
 
-            # todo figure out which life events are needed
-            #   exposure_life_event is now an 'orphan' event due to not being referenced in immune_exposure anymore
-            #   specimen_collection_life_event is associated with both Assessment and Specimen
-            exposure_life_event = LifeEvent(
-                akc_id(),
-                participant=participant.akc_id,
-                study_event=None,
-                life_event_type=assay_row['1st in vivo Process']['Process Type'], # todo add curie url to IEDB export
-            )
+            assay = make_iedb_receptor_antigen_assay(container, assay_row, assay_to_receptor, specimen_collection_event, type)
 
-            immune_exposure = ImmuneExposure(
-                akc_id(),
-                exposure_material=url_to_curie(assay_row['1st immunogen']['Source Organism IRI']),
-                disease=url_to_curie(assay_row['1st in vivo Process']['Disease IRI']),
-                disease_stage=assay_row['1st in vivo Process']['Disease Stage'], # todo add curie URL to IEDB output
-            )
+            if assay is not None:
+                dataset = get_dataset(assay)
+                assessment = make_assessment(container, assay_row, specimen_collection_event.akc_id)
+                conclusion = get_conclusion(investigation.akc_id, dataset.akc_id, assessment.measurement_value, assay_row)
 
-            specimen_collection_life_event = LifeEvent(
-                akc_id(),
-                participant=participant.akc_id,
-                study_event=study_event.akc_id,
-                life_event_type='OBI:0000659',  # = specimen collection process
-            )
+                investigation.participants.append(participant.akc_id)
+                investigation.assays.append(assay.akc_id)
+                investigation.conclusions.append(conclusion.akc_id)
 
-            container.study_arms[arm.akc_id] = arm
-            container.study_events[study_event.akc_id] = study_event
-            container.participants[participant.akc_id] = participant
-            container.life_events[exposure_life_event.akc_id] = exposure_life_event
-            container.life_events[specimen_collection_life_event.akc_id] = specimen_collection_life_event
-            container.immune_exposures[immune_exposure.akc_id] = immune_exposure
-
-            assay = make_iedb_assay(container, assay_row, assay_to_receptor, specimen_collection_life_event, type)
-
-            if assay is None:
-                continue
-
-            investigation.assays.append(assay.akc_id)
-            dataset = AKDataSet(
-                akc_id(),
-                data_items=assay.akc_id
-            )
-
-            assay_result = assay_row['Assay']['Qualitative Measurement'] if 'Qualitative Measurement' in assay_row['Assay'] else assay_row['Assay']['Qualitative Measure']
-
-            conclusion = Conclusion(
-                akc_id(),
-                investigations=investigation.akc_id,
-                datasets=dataset.akc_id,
-                result=assay_result,
-                data_location_type=None,
-                data_location_value=assay_row['Assay']['Location of Assay Data in Reference'],
-                organism=url_to_curie(assay_row['Host']['IRI']),
-                experiment_type=url_to_curie(assay_row['Assay']['IRI'])
-            )
-            investigation.conclusions.append(conclusion.akc_id)
-
-            container.datasets[dataset.akc_id] = dataset
-            container.conclusions[conclusion.akc_id] = conclusion
+                container.study_arms[arm.akc_id] = arm
+                container.study_events[study_event.akc_id] = study_event
+                container.participants[participant.akc_id] = participant
+                container.specimen_collections[specimen_collection_event.akc_id] = specimen_collection_event
+                container.life_events[specimen_collection_event.akc_id] = specimen_collection_event
+                container.immune_exposures[immune_exposure_event.akc_id] = immune_exposure_event
+                container.life_events[immune_exposure_event.akc_id] = immune_exposure_event
+                container.datasets[dataset.akc_id] = dataset
+                container.conclusions[conclusion.akc_id] = conclusion
 
 
 
@@ -457,20 +589,10 @@ def write_output(container, output_dir):
     os.makedirs(jsonl_folder, exist_ok=True)
     os.makedirs(tsv_folder, exist_ok=True)
 
-    container_fields = [x.name for x in dataclasses.fields(container)]
-
-    # Write to JSONL and CSV
-    for container_field in container_fields:
-        container_slot = ak_schema_view.get_slot(container_field)
-        tname = container_slot.range
-        write_jsonl(container, container_field, f'{jsonl_folder}/{tname}.jsonl')
-        write_csv(container, container_field, f'{tsv_folder}/{tname}.csv')
-
-    # CSV relationships
-    write_all_relationships(container, tsv_folder)
-    # assay relationships
-    write_relationship_csv('Assay', container.assays, 'tcr_complexes', tsv_folder)
-
+    write_all_metadata(container, jsonl_folder, tsv_folder)
+    write_all_chains(container, jsonl_folder, tsv_folder)
+    write_all_metadata_relationships(container, tsv_folder)
+    write_all_chain_relationships(container, tsv_folder)
 
 
 
@@ -483,28 +605,60 @@ def convert(tcell_path, tcr_path, bcell_path, bcr_path):
     """Convert IEDB TCR and BCR data to YAML."""
 
     print("Reading input files")
-    tcr_df = read_double_header_df(tcr_path)
-    bcr_df = read_double_header_df(bcr_path)
+    tcr_df = clean_receptor_df(read_double_header_df(tcr_path), "TCR")
+    bcr_df = clean_receptor_df(read_double_header_df(bcr_path), "BCR")
 
-    tcr_assay_df = read_double_header_df(tcell_path)
-    bcr_assay_df = read_double_header_df(bcell_path)
-
-    # many assays have no associated receptor data.
-    # For now, subset assay table to include only assays with receptors
-    tcr_assay_df = get_assay_df_rows_with_tcrs(tcr_assay_df, tcr_df)
-
+    tcr_assay_df = clean_assay_df(read_double_header_df(tcell_path), tcr_df, "TCR")
+    bcr_assay_df = clean_assay_df(read_double_header_df(bcell_path), bcr_df, "BCR")
 
     # singleton container, initially empty
     container = AIRRKnowledgeCommons(
     )
 
+    #
+    # investigations: Optional[Union[Dict[Union[str, InvestigationAkcId], Union[dict, "Investigation"]], List[Union[dict, "Investigation"]]]] = empty_dict()
+    # references: Optional[Union[Dict[Union[str, ReferenceSourceUri], Union[dict, "Reference"]], List[Union[dict, "Reference"]]]] = empty_dict()
+    # study_arms: Optional[Union[Dict[Union[str, StudyArmAkcId], Union[dict, "StudyArm"]], List[Union[dict, "StudyArm"]]]] = empty_dict()
+    # study_events: Optional[Union[Dict[Union[str, StudyEventAkcId], Union[dict, "StudyEvent"]], List[Union[dict, "StudyEvent"]]]] = empty_dict()
+    # participants: Optional[Union[Dict[Union[str, ParticipantAkcId], Union[dict, "Participant"]], List[Union[dict, "Participant"]]]] = empty_dict()
+    # life_events: Optional[Union[Dict[Union[str, LifeEventAkcId], Union[dict, "LifeEvent"]], List[Union[dict, "LifeEvent"]]]] = empty_dict()
+    # immune_exposures: Optional[Union[Dict[Union[str, ImmuneExposureAkcId], Union[dict, "ImmuneExposure"]], List[Union[dict, "ImmuneExposure"]]]] = empty_dict()
+    # assessments: Optional[Union[Dict[Union[str, AssessmentAkcId], Union[dict, "Assessment"]], List[Union[dict, "Assessment"]]]] = empty_dict()
+    # specimens: Optional[Union[Dict[Union[str, SpecimenAkcId], Union[dict, "Specimen"]], List[Union[dict, "Specimen"]]]] = empty_dict()
+    # specimen_collections: Optional[Union[Dict[Union[str, SpecimenCollectionAkcId], Union[dict, "SpecimenCollection"]], List[Union[dict, "SpecimenCollection"]]]] = empty_dict()
+    # specimen_processings: Optional[Union[Dict[Union[str, SpecimenProcessingAkcId], Union[dict, "SpecimenProcessing"]], List[Union[dict, "SpecimenProcessing"]]]] = empty_dict()
+    # assays: Optional[Union[Dict[Union[str, AssayAkcId], Union[dict, "Assay"]], List[Union[dict, "Assay"]]]] = empty_dict()
+    # datasets: Optional[Union[Dict[Union[str, AKDataSetAkcId], Union[dict, "AKDataSet"]], List[Union[dict, "AKDataSet"]]]] = empty_dict()
+    # sequence_data: Optional[Union[Dict[Union[str, SequenceDataAkcId], Union[dict, "SequenceData"]], List[Union[dict, "SequenceData"]]]] = empty_dict()
+    # transformations: Optional[Union[Dict[Union[str, DataTransformationAkcId], Union[dict, "DataTransformation"]], List[Union[dict, "DataTransformation"]]]] = empty_dict()
+    # input_output_map: Optional[Union[Union[dict, "InputOutputDataMap"], List[Union[dict, "InputOutputDataMap"]]]] = empty_list()
+    # conclusions: Optional[Union[Dict[Union[str, ConclusionAkcId], Union[dict, "Conclusion"]], List[Union[dict, "Conclusion"]]]] = empty_dict()
+    # alpha_chains: Optional[Union[Dict[Union[str, AlphaChainAkcId], Union[dict, "AlphaChain"]], List[Union[dict, "AlphaChain"]]]] = empty_dict()
+    # beta_chains: Optional[Union[Dict[Union[str, BetaChainAkcId], Union[dict, "BetaChain"]], List[Union[dict, "BetaChain"]]]] = empty_dict()
+    # ab_tcell_receptors: Optional[Union[Dict[Union[str, AlphaBetaTCRAkcId], Union[dict, "AlphaBetaTCR"]], List[Union[dict, "AlphaBetaTCR"]]]] = empty_dict()
+    # gamma_chains: Optional[Union[Dict[Union[str, GammaChainAkcId], Union[dict, "GammaChain"]], List[Union[dict, "GammaChain"]]]] = empty_dict()
+    # delta_chains: Optional[Union[Dict[Union[str, DeltaChainAkcId], Union[dict, "DeltaChain"]], List[Union[dict, "DeltaChain"]]]] = empty_dict()
+    # gd_tcell_receptors: Optional[Union[Dict[Union[str, GammaDeltaTCRAkcId], Union[dict, "GammaDeltaTCR"]], List[Union[dict, "GammaDeltaTCR"]]]] = empty_dict()
+    # heavy_chains: Optional[Union[Dict[Union[str, HeavyChainAkcId], Union[dict, "HeavyChain"]], List[Union[dict, "HeavyChain"]]]] = empty_dict()
+    # kappa_chains: Optional[Union[Dict[Union[str, KappaChainAkcId], Union[dict, "KappaChain"]], List[Union[dict, "KappaChain"]]]] = empty_dict()
+    # lambda_chains: Optional[Union[Dict[Union[str, LambdaChainAkcId], Union[dict, "LambdaChain"]], List[Union[dict, "LambdaChain"]]]] = empty_dict()
+    # bcell_receptors: Optional[Union[Dict[Union[str, BCellReceptorAkcId], Union[dict, "BCellReceptor"]], List[Union[dict, "BCellReceptor"]]]] = empty_dict()
+    # antigens: Optional[Union[Dict[Union[str, AntigenAkcId], Union[dict, "Antigen"]], List[Union[dict, "Antigen"]]]] = empty_dict()
+    # epitopes: Optional[Union[Dict[Union[str, EpitopeAkcId], Union[dict, "Epitope"]], List[Union[dict, "Epitope"]]]] = empty_dict()
+    # tcr_complexes: Optional[Union[Dict[Union[str, TCRpMHCComplexAkcId], Union[dict, "TCRpMHCComplex"]], List[Union[dict, "TCRpMHCComplex"]]]] = empty_dict()
+    # antibody_complexes: Optional[Union[Dict[Union[str, AntibodyAntigenComplexAkcId], Union[dict, "AntibodyAntigenComplex"]], List[Union[dict, "AntibodyAntigenComplex"]]]] = empty_dict()
+    # receptor_composites: Optional[Union[Dict[Union[str, ReceptorCompositeAkcId], Union[dict, "ReceptorComposite"]], List[Union[dict, "ReceptorComposite"]]]] = empty_dict()
+
     assay_to_tcr, assay_to_tcr_chain = get_receptor_objects(container, tcr_df, "TCR")
     assay_to_bcr, assay_to_bcr_chain = get_receptor_objects(container, bcr_df, "BCR")
+
+    process_epitope_antigens(container, tcr_assay_df, bcr_assay_df)
+    process_mhc(container, tcr_assay_df)
 
     process_assay(container, tcr_assay_df, assay_to_tcr, assay_to_tcr_chain, "TCR")
     process_assay(container, bcr_assay_df, assay_to_bcr, assay_to_bcr_chain, "BCR")
 
-
+    ak_container_summary(container)
     write_output(container, IEDB_TRANSFORM_DATA)
 
 
