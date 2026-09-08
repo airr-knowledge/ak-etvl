@@ -260,9 +260,14 @@ extract-irad:
 	python3 extract_irad.py $(IRAD_IMPORT_DATA)
 
 extract-vdjbase:
-	@echo "Downloading VDJbase data."
+	@echo "Downloading VDJbase reference metadata and genotypes."
 	bash download_vdjbase_data.sh
-	#python3 extract_vdjbase.py $(VDJBASE_IMPORT_DATA)
+	@echo "Downloading MADC repertoire metadata."
+	python3 extract_vdjbase.py $(VDJBASE_IMPORT_DATA) metadata-only
+
+extract-vdjbase-rearrangements:
+	@echo "Downloading MADC rearrangements (large; only needed for the chain transform)."
+	python3 extract_vdjbase.py $(VDJBASE_IMPORT_DATA)
 
 data-fixes: check-docker
 	@echo "Fixing data errors."
