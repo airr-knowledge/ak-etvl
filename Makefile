@@ -525,6 +525,7 @@ load-ontology: outside-docker
 	@bash ontology_load.sh TaxonomicSpecies
 	@bash ontology_load.sh TaxonomicSpecies ONTIE_organisms
 	@bash ontology_load.sh UberAnatomy
+	@bash ontology_load.sh UberAnatomy OBI_tissues
 	@bash ontology_load.sh Units
 
 load-iedb-data: outside-docker
