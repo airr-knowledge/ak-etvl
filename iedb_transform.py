@@ -257,9 +257,15 @@ def process_epitope_antigens(container, tcr_assay_df, bcr_assay_df):
         if pd.notna(source_molecule_iri):
             epitope_ids =  [url_to_curie(epitope_iri) for epitope_iri in cur_antigen_epitope_df["IEDB IRI"]]
 
+            # TODO: Some species do not have CURIE, need to be fixed in IEDB source data
+            # leave them blank for now
+            source_species = url_to_curie(organism_iri)
+            if source_species.startswith("https:"):
+                source_species = None
+
             antigen = Antigen(url_to_curie(source_molecule_iri),
                               source_molecule=url_to_curie(source_molecule_iri),
-                              source_species=url_to_curie(organism_iri),
+                              source_species=source_species,
                               epitopes=epitope_ids)
             container.antigens[antigen.akc_id] = antigen
 
@@ -399,7 +405,6 @@ def make_iedb_receptor_antigen_assay(container, assay_row, assay_to_receptor, sp
         assay = make_bcr_assay(assay_row,  specimen.akc_id)
 
     specimen.life_event = specimen_collection_event.akc_id
-    specimen_collection_event.specimen = specimen.akc_id
     container.specimens[specimen.akc_id] = specimen
     container.assays[assay.akc_id] = assay
 
@@ -457,6 +462,18 @@ def get_age(value, assay_id=""):
 
         if unit[-1] != "s":
             unit = unit + "s"
+
+        if unit == 'days':
+            unit = 'UO:0000033'
+        elif unit == 'weeks':
+            unit = 'UO:0000034'
+        elif unit == 'months':
+            unit = 'UO:0000035'
+        elif unit == 'years':
+            unit = 'UO:0000036'
+        else:
+            print(f"Error: could not convert unit: {unit}")
+            unit = None
 
         if is_float(age):
             return float(age), float(age), unit
