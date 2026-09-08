@@ -7,6 +7,9 @@ import airr
 from collections import defaultdict
 
 VDJBASE_IMPORT_DATA = sys.argv[1]
+# 'metadata-only' stops after writing repertoires.airr.json and skips the ~2750
+# rearrangement downloads, which only the chain transform needs.
+METADATA_ONLY = len(sys.argv) > 2 and sys.argv[2] == 'metadata-only'
 # ==================================================================================
 # API fetch for study_id and filename
 # ==================================================================================
@@ -100,6 +103,10 @@ def download_file(url_path, output_path):
 
     return r.status_code
   
+if METADATA_ONLY:
+    print(f"metadata-only: wrote repertoires.airr.json for {len(unique_studies)} studies")
+    sys.exit(0)
+
 base_url = "https://madc.vdjbase.org/airr/v1/rearrangement/"
 
 studies_with_missing_files = set()
