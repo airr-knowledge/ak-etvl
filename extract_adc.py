@@ -13,6 +13,19 @@ ADC_IMPORT_DATA = sys.argv[1]
 
 url = 'https://vdjserver.org/airr/v1/admin/adc/cache/study'
 
+
+
+# ==================================================================================
+# VDJBASE cache files
+# ==================================================================================
+vdjbase_cache_file = f"cache_lists/vdjbase_cache_list.txt"
+
+
+with open(vdjbase_cache_file) as f:
+    vdjbase_cache_list = {line.strip() for line in f if line.strip()}
+
+print(f"Total Number of Study in VDJBASE: {len(vdjbase_cache_list)}")
+
 # ==================================================================================
 # adc_import_data directory scan
 # ==================================================================================
@@ -51,7 +64,11 @@ for cache_id in downloaded_cache_dirs:
 response = requests.get(url)
 response.raise_for_status() 
 data = response.json()
-result = data["result"]
+
+# Save the cache json here for repertoire id
+with open("cache_lists/adc_cache_list.json", "w", encoding="utf-8") as f:
+    json.dump(data, f, indent=2)
+
 
 api_studies = {}
 cache_to_url = {}
@@ -75,16 +92,19 @@ for study in data["result"]:
 
         # overwrite only if new one is vdjserver and existing is not
         if repository_id == "vdjserver" and existing["repository_id"] != "vdjserver":
+            print(f"Warning: duplicate study id ({study_id}), using vdjserver ({cache_id}) versus {existing['repository_id']} repository.")
             api_studies[study_id] = {
                 "cache_id": cache_id,
                 "repository_id": repository_id,
                 "download_url": download_url,
             }
+        else:
+            print(f"Warning: duplicate study id ({study_id}), using vdjserver ({existing['cache_id']}) versus {repository_id} repository.")
 
 print(f"Total API study ids: {len(api_studies)}")
 
 # # ==================================================================================
-# # Difference in the Directory vs API cache_uuid
+# # Difference in the Directory vs API cache_uuid and VDJBASE
 # # ==================================================================================
 
 already_downloaded = []
@@ -103,10 +123,42 @@ for study_id, metadata in api_studies.items():
 local_only = downloaded_cache_dirs - api_cache_ids
 # local_only = api_studies.keys()-local_studies.keys()
 
+common_with_vdjbase = vdjbase_cache_list.intersection(api_studies.keys())
+
+
 
 print(f"Already downloaded (matched): {len(already_downloaded)}")
 print(f"Need to download: {len(needs_download)}")
 print(f"Local-only (not in API): {len(local_only)}")
+
+print()
+print(f"Total Common Study with VDJBASE: {len(common_with_vdjbase)}")
+
+output_file = Path("cache_lists/adc_cache_exclude.txt")
+# Read existing cache IDs if the file exists
+existing = set()
+if output_file.exists():
+    with output_file.open() as f:
+        existing = {line.strip() for line in f if line.strip()}
+
+if common_with_vdjbase:
+    print("\nCommon study id's with VDJBASE:\n")
+
+    with output_file.open("a") as f:
+        for study_id in common_with_vdjbase:
+            cache_id = api_studies[study_id]["cache_id"]
+
+            if cache_id not in existing:
+                f.write(f"{cache_id}\n")
+                existing.add(cache_id)
+
+            print(f"VDJBASE Study ID: {study_id}\t\tADC CACHE ID: {cache_id}")
+
+    print(f"\nProcessed {len(common_with_vdjbase)} cache IDs")
+    
+print(f"Total number of ADC cache_id's in the exclude list: {len(existing)}")
+
+print()
 
 if local_only:
     print("Local-only cache IDs:")
@@ -237,13 +289,62 @@ remaining_cache_ids = sorted( d.name for d in Path(path).iterdir() if d.is_dir()
 # Write remaining cache_ids to a text file
 # ==================================================================================
 
-output_file = "remaining_cache_ids.txt"
+output_file = "cache_lists/adc_cache_list.txt"
 
 with open(output_file, "w") as f:
     for cache_id in remaining_cache_ids:
         f.write(f"{cache_id}\n")
 
 print(f"Wrote {len(remaining_cache_ids)} cache IDs to {output_file}")
+
+# ==================================================================================
+# Create separate lists for TCR, BCR and paired_chain
+# ==================================================================================
+
+TCR_cache_ids = []
+BCR_cache_ids = []
+TCR_paired_cache_ids = []
+BCR_paired_cache_ids = []
+
+for cache_id in remaining_cache_ids:
+    repertoire_data = airr.read_airr(f"{path}/{cache_id}/repertoires.airr.json")
+
+    for rep in repertoire_data["Repertoire"]:
+        study = rep.get("study", {})
+
+        if 'contains_ig' in study.get("keywords_study"):
+            if 'contains_paired_chain' in study.get("keywords_study"):
+                BCR_paired_cache_ids.append(cache_id)
+            else:
+                BCR_cache_ids.append(cache_id)
+        elif 'contains_tr':
+            if 'contains_paired_chain' in study.get("keywords_study"):
+                TCR_paired_cache_ids.append(cache_id)
+            else:
+                TCR_cache_ids.append(cache_id)
+        else:
+            print(f"Study is missing keywords, cannot determine if TCR or BCR: {cache_id}")
+        break
+
+with open('cache_lists/adc_TCR_cache_list.txt', "w") as f:
+    for cache_id in TCR_cache_ids:
+        f.write(f"{cache_id}\n")
+print(f"Wrote {len(TCR_cache_ids)} cache IDs to adc_TCR_cache_list.txt")
+
+with open('cache_lists/adc_TCR_paired_cache_list.txt', "w") as f:
+    for cache_id in TCR_paired_cache_ids:
+        f.write(f"{cache_id}\n")
+print(f"Wrote {len(TCR_paired_cache_ids)} cache IDs to adc_TCR_paired_cache_list.txt")
+
+with open('cache_lists/adc_BCR_cache_list.txt', "w") as f:
+    for cache_id in BCR_cache_ids:
+        f.write(f"{cache_id}\n")
+print(f"Wrote {len(BCR_cache_ids)} cache IDs to adc_BCR_cache_list.txt")
+
+with open('cache_lists/adc_BCR_paired_cache_list.txt', "w") as f:
+    for cache_id in BCR_paired_cache_ids:
+        f.write(f"{cache_id}\n")
+print(f"Wrote {len(BCR_paired_cache_ids)} cache IDs to adc_BCR_paired_cache_list.txt")
 
         
 # # 13 new studies that is downloaded on 06/22/2026

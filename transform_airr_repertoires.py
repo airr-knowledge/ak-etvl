@@ -7,6 +7,7 @@ from ak_schema import (
     StudyArm,
     LifeEvent,
     ImmuneExposure,
+    SpecimenCollection,
     Specimen,
     CellIsolationProcessing,
     LibraryPreparationProcessing,
@@ -88,6 +89,8 @@ def transform_airr_repertoires(repertoire_filename, container):
                 investigation_type = 'OBI:0000066'
             elif study_type == 'NCIT:C93130': # animal
                 investigation_type = 'OBI:0003696'
+            elif study_type == 'NCIT:C48678':
+                investigation_type = 'OBI:0003696'
             else:
                 investigation_type = study_type
 
@@ -104,17 +107,9 @@ def transform_airr_repertoires(repertoire_filename, container):
 
             # documents
             if rep['study'].get('pub_ids') is not None:
-                if isinstance(rep['study']['pub_ids'], list):
-                    for r in rep['study']['pub_ids']:
-                        ref_id = r.replace(' ', '')
-                        if len(ref_id) > 0:
-                            reference = Reference(
-                                ref_id,
-                                investigations=[investigation.akc_id])
-                            container.references[reference.source_uri] = reference
-                            investigation.documents.append(reference.source_uri)
-                else:
-                    ref_id = rep['study']['pub_ids'].replace(' ', '')
+                pub_list = rep['study']['pub_ids'].split(',')
+                for r in pub_list:
+                    ref_id = r.replace(' ', '')
                     if len(ref_id) > 0:
                         reference = Reference(
                             ref_id,
@@ -173,8 +168,8 @@ def transform_airr_repertoires(repertoire_filename, container):
                 name=sub['subject_id'],
                 species=adc_ontology(sub.get('species')),
                 sex=sex,
-                age=sub.get('age_min'),
-                # age_max=sub['age_max'],
+                age_min=sub.get('age_min'),
+                age_max=sub.get('age_max'),
                 age_event=sub.get('age_event'),
                 age_unit=adc_ontology(sub.get('age_unit')),
                 race=sub.get('race'),
@@ -206,21 +201,18 @@ def transform_airr_repertoires(repertoire_filename, container):
 
                     disease_diagnosis = diag.get('disease_diagnosis')
                     if disease_diagnosis and disease_diagnosis.get('id'):
-                        le = LifeEvent(
+                        immune_exposure = ImmuneExposure(
                             akc_id(),
+                            life_event_type='OBI:0003367', # diagnosis of an organism
                             participant=participant.akc_id,
-                            life_event_type='immune exposure'
-                        )
-                        container.life_events[le.akc_id] = le
-                        ie = ImmuneExposure(
-                            akc_id(),
-                            t0_event=le.akc_id,
                             disease=adc_ontology(diag.get('disease_diagnosis')),
                             disease_stage=diag.get('disease_stage')
                         )
-                        container.immune_exposures[ie.akc_id] = ie
+                        container.life_events[immune_exposure.akc_id] = immune_exposure
+                        container.immune_exposures[immune_exposure.akc_id] = immune_exposure
+                        participant.life_events.append(immune_exposure.akc_id)
 
-            # if no study group for participant, need to add to a placeholder study arm
+            # if no study group for participant, need to add a placeholder study arm
             if arm is None:
                 placeholder_name = 'placeholder study arm'
                 arm_id = arm_ids.get(placeholder_name)
@@ -246,22 +238,24 @@ def transform_airr_repertoires(repertoire_filename, container):
                 # to one in the akc, and the other will not have a sample linked to it
                 specimen = container.specimens[specimen_id]
             else:
-                life_event = LifeEvent(
+                specimen_collection = SpecimenCollection(
                     akc_id(),
                     participant=participant.akc_id,
-                    life_event_type='specimen collection',
+                    life_event_type='OBI:0000659', # specimen collection process
                     geolocation=None,
                     t0_event=None,
                     start=None,
                     duration=None,
                     time_unit=None
                 )
-                container.life_events[life_event.akc_id] = life_event
+                container.life_events[specimen_collection.akc_id] = specimen_collection
+                container.specimen_collections[specimen_collection.akc_id] = specimen_collection
+                participant.life_events.append(specimen_collection.akc_id)
 
                 specimen = Specimen(
                     akc_id(),
                     name=sample_id,
-                    life_event=life_event.akc_id,
+                    life_event=specimen_collection.akc_id,
                     tissue=adc_ontology(s.get('tissue'))
                 )
                 sample_ids[sample_id] = specimen.akc_id

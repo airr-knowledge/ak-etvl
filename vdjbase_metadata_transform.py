@@ -5,51 +5,113 @@ import os
 from linkml_runtime.utils.schemaview import SchemaView
 import airr
 from ak_schema import AIRRKnowledgeCommons, LibraryPreparationProcessing
-from ak_schema_utils import (
-    vdjbase_cache_list,
-    write_jsonl,
-    write_csv,
-    write_all_relationships,
-    vdjbase_data_dir,
-)
+from ak_schema_utils import *
 from transform_airr_repertoires import transform_airr_repertoires
 from transform_airr_genotypes import transform_airr_genotypes
 
 ak_schema_view = SchemaView("ak-schema/project/linkml/ak_schema.yaml")
 
+# VDJbase's own metadata and genotype files live here, under VDJBASE_IMPORT_DATA
+VDJBASE_REFERENCE_DIR = 'vdjbase-2025-08-231-0001-012'
 
-def map_vdjbase_name_to_study_subject(metadata_file):
-    """Create a mapping of repertoire_id to study_subject from an AIRR metadata file.
-       This does involve reading the file again, but the overhead is pretty low and it
-       keeps this vdjbase-specific reference mapping logic out of the more general
-       transform_airr_repertoires function.
+
+def join_vdjbase_to_madc(vdjbase_repertoires, madc_repertoires):
+    """Map each VDJbase subject name (P#_I#) to the (study_id, subject_id) that the MADC
+       uses for the same person. MADC repertoire_ids carry no VDJbase name, so the two
+       repositories are joined on sample_id, the one identifier they share.
     """
 
-    data = airr.read_airr(metadata_file)
+    # index the VDJbase side: sample_id -> VDJbase subject name
+    by_sample = {}
+    by_study_sample = {}
+    subject_of = {}
+    for repertoire in vdjbase_repertoires:
+        parts = repertoire['repertoire_id'].split('_')
+        if not (len(parts) > 2 and parts[0].startswith('P') and parts[1].startswith('I')):
+            continue
+        vdjbase_subject = '_'.join(parts[0:2])
+        study = repertoire['study']['study_id']
+        for sample in repertoire.get('sample') or []:
+            sample_id = sample.get('sample_id')
+            if not sample_id:
+                continue
+            by_sample.setdefault(sample_id, set()).add(vdjbase_subject)
+            by_study_sample.setdefault((study, sample_id), set()).add(vdjbase_subject)
+            subject_of.setdefault((vdjbase_subject, sample_id), set()).add(
+                repertoire['subject']['subject_id'])
+
+    # walk the MADC repertoires and resolve each sample to a VDJbase subject
     vdjbase_name_to_study_subject = {}
 
-    for repertoire in data['Repertoire']:
-        repertoire_id = repertoire['repertoire_id']
-        repertoire_id = repertoire_id.split('_')
-        if len(repertoire_id) > 2 and repertoire_id[0].startswith('P') and repertoire_id[1].startswith('I'):
-            vdjbase_subject = '_'.join(repertoire_id[0:2])
-            study = repertoire['study']['study_id']
+    for repertoire in madc_repertoires:
+        study = repertoire['study']['study_id']
 
-            if not study:
-                continue    # Don't process repertoires that have not been deposited in an archive
+        if not study:
+            continue    # Don't process repertoires that have not been deposited in an archive
 
-            if 'BioProject: ' in study:
-                study = study.replace('BioProject: ', '')
+        if 'BioProject: ' in study:
+            study = study.replace('BioProject: ', '')
 
-            subject = repertoire['subject']['subject_id']
-            vdjbase_name_to_study_subject[vdjbase_subject] = (study, subject)
-            if vdjbase_subject == 'P27_I1':
-                print(f"Mapping VDJbase name: {vdjbase_subject} to study/subject: {study} / {subject}")
+        subject = repertoire['subject']['subject_id']
 
-        else:
-            print(f"Cannot determine VDJbase name from repertoire ID: {repertoire_id}")
+        for sample in repertoire.get('sample') or []:
+            sample_id = sample.get('sample_id')
+            if not sample_id:
+                print(f"No sample_id on MADC repertoire: {repertoire['repertoire_id']}")
+                continue
+
+            # prefer the study-scoped hit: a sample_id shared by two studies would
+            # otherwise resolve to the wrong subject
+            names = by_study_sample.get((study, sample_id)) or by_sample.get(sample_id)
+            if not names:
+                print(f"Cannot find VDJbase sample: {study} / {sample_id}")
+                continue
+
+            if len(names) > 1:
+                # a sample shared by several subjects: disambiguate on subject_id
+                names = {n for n in names if subject in subject_of.get((n, sample_id), ())}
+                if len(names) != 1:
+                    print(f"Ambiguous VDJbase sample: {study} / {sample_id}")
+                    continue
+
+            vdjbase_name = next(iter(names))
+            existing = vdjbase_name_to_study_subject.get(vdjbase_name)
+
+            if existing is None:
+                vdjbase_name_to_study_subject[vdjbase_name] = (study, subject)
+            elif existing != (study, subject):
+                # The MADC sometimes records one donor as two subjects that differ only by
+                # a suffix: P4_I2 is C4 in IGH and C4T in TRB. VDJbase numbers P#_I# per
+                # donor, so the same number means the same person, and its genotype row
+                # carries both loci. Keep the lower (study, subject) so the choice does not
+                # depend on which chain file is read first.
+                # NOTE: this still leaves the other MADC subject as a second AKC
+                # participant for the same donor, carrying no genotype. Deduplicating
+                # those is a separate job.
+                chosen = min(existing, (study, subject))
+                print(f"VDJbase name {vdjbase_name} matches two MADC subjects "
+                      f"{existing} and {(study, subject)}; VDJbase treats them as one "
+                      f"donor, using {chosen}")
+                vdjbase_name_to_study_subject[vdjbase_name] = chosen
 
     return vdjbase_name_to_study_subject
+
+
+def map_vdjbase_name_to_study_subject(metadata_file):
+    """Read VDJbase's own per-chain metadata plus the given MADC metadata file and
+       join them. See join_vdjbase_to_madc for the mapping itself.
+    """
+
+    vdjbase_repertoires = []
+    for filename in ['airrseq_metadata_IGH.json', 'airrseq_metadata_IGK.json',
+                     'airrseq_metadata_IGL.json', 'airrseq_metadata_TRB.json']:
+        path = os.path.join(VDJBASE_IMPORT_DATA, VDJBASE_REFERENCE_DIR, filename)
+        if not os.path.exists(path):
+            print(f"Cannot find VDJbase metadata file: {path}")
+            continue
+        vdjbase_repertoires.extend(airr.read_airr(path)['Repertoire'])
+
+    return join_vdjbase_to_madc(vdjbase_repertoires, airr.read_airr(metadata_file)['Repertoire'])
 
 
 def dump_studies_in_container(container):
@@ -143,26 +205,27 @@ def repertoire_transform(cache_id):
     # VDJbase should maintain a consistent mapping of VDJbase subject ID to study/subject across its datasets.
     # Warnings will be printed if any inconsistencies are found.
 
-    for filename in ['genomic_metadata_IGH.json', 'genomic_metadata_IGK.json', 'genomic_metadata_IGL.json']:
-        for vdjbase_name, (study_id, subject_id) in map_vdjbase_name_to_study_subject(vdjbase_data_dir + '/' + cache_id + '/' + filename).items():
+    # for filename in ['genomic_metadata_IGH.json', 'genomic_metadata_IGK.json', 'genomic_metadata_IGL.json']:
+    #     for vdjbase_name, (study_id, subject_id) in map_vdjbase_name_to_study_subject(VDJBASE_IMPORT_DATA + '/' + cache_id + '/' + filename).items():
+    #         if vdjbase_name in vdjbase_name_to_study_subject:
+    #             existing_study_id, existing_subject_id = vdjbase_name_to_study_subject[vdjbase_name]
+    #             if (existing_study_id, existing_subject_id) != (study_id, subject_id):
+    #                 print(f"Warning: VDJbase name: {vdjbase_name} already mapped to {existing_study_id} / {existing_subject_id}, now found mapping to {study_id} / {subject_id}")
+    #         else:
+    #             vdjbase_name_to_study_subject[vdjbase_name] = (study_id, subject_id)
+
+    #     container = transform_airr_repertoires(VDJBASE_IMPORT_DATA + '/' + cache_id + '/' + filename, container)
+
+#    for filename in ['airrseq_metadata_IGH.json', 'airrseq_metadata_IGK.json', 'airrseq_metadata_IGL.json', 'airrseq_metadata_TRB.json']:
+    for filename in ['repertoires.airr.json']:
+        for vdjbase_name, (study_id, subject_id) in map_vdjbase_name_to_study_subject(VDJBASE_IMPORT_DATA + '/' + cache_id + '/' + filename).items():
             if vdjbase_name in vdjbase_name_to_study_subject:
                 existing_study_id, existing_subject_id = vdjbase_name_to_study_subject[vdjbase_name]
                 if (existing_study_id, existing_subject_id) != (study_id, subject_id):
                     print(f"Warning: VDJbase name: {vdjbase_name} already mapped to {existing_study_id} / {existing_subject_id}, now found mapping to {study_id} / {subject_id}")
             else:
                 vdjbase_name_to_study_subject[vdjbase_name] = (study_id, subject_id)
-
-        container = transform_airr_repertoires(vdjbase_data_dir + '/' + cache_id + '/' + filename, container)
-
-    for filename in ['airrseq_metadata_IGH.json', 'airrseq_metadata_IGK.json', 'airrseq_metadata_IGL.json', 'airrseq_metadata_TRB.json']:
-        for vdjbase_name, (study_id, subject_id) in map_vdjbase_name_to_study_subject(vdjbase_data_dir + '/' + cache_id + '/' + filename).items():
-            if vdjbase_name in vdjbase_name_to_study_subject:
-                existing_study_id, existing_subject_id = vdjbase_name_to_study_subject[vdjbase_name]
-                if (existing_study_id, existing_subject_id) != (study_id, subject_id):
-                    print(f"Warning: VDJbase name: {vdjbase_name} already mapped to {existing_study_id} / {existing_subject_id}, now found mapping to {study_id} / {subject_id}")
-            else:
-                vdjbase_name_to_study_subject[vdjbase_name] = (study_id, subject_id)
-        container = transform_airr_repertoires(vdjbase_data_dir + '/' + cache_id + '/' + filename, container)
+        container = transform_airr_repertoires(VDJBASE_IMPORT_DATA + '/' + cache_id + '/' + filename, container)
 
 
     # make a mapping of VDJbase subject ID to investigation, participant
@@ -225,36 +288,24 @@ def repertoire_transform(cache_id):
 
     dump_studies_in_container(container)
 
-    container = transform_airr_genotypes(vdjbase_data_dir + '/' + cache_id + '/airrseq_all_genotypes.json', vdjbase_name_to_akc_ids, container, participant_id_to_sequencing_files)
-    container = transform_airr_genotypes(vdjbase_data_dir + '/' + cache_id + '/genomic_all_genotypes.json', vdjbase_name_to_akc_ids, container, participant_id_to_sequencing_files)
+    container = transform_airr_genotypes(os.path.join(VDJBASE_IMPORT_DATA, VDJBASE_REFERENCE_DIR, 'airrseq_all_genotypes.json'), vdjbase_name_to_akc_ids, container, participant_id_to_sequencing_files)
+#    container = transform_airr_genotypes(VDJBASE_TRANSFORM_DATA + '/' + cache_id + '/genomic_all_genotypes.json', vdjbase_name_to_akc_ids, container, participant_id_to_sequencing_files)
     
     # output data for just this cache_id
-    directory_name = f'{vdjbase_data_dir}/vdjbase_jsonl/{cache_id}'
+    json_dir = f'{VDJBASE_TRANSFORM_DATA}/vdjbase_jsonl/{cache_id}'
     try:
-        os.mkdir(directory_name)
+        os.mkdir(json_dir)
     except FileExistsError:
         pass
-    directory_name = f'{vdjbase_data_dir}/vdjbase_tsv/{cache_id}'
+    tsv_dir = f'{VDJBASE_TRANSFORM_DATA}/vdjbase_tsv/{cache_id}'
     try:
-        os.mkdir(directory_name)
+        os.mkdir(tsv_dir)
     except FileExistsError:
         pass
 
     # Write outputs
-    container_fields = [x.name for x in dataclasses.fields(container)]
-
-    # Write to JSONL and CSV
-    for container_field in container_fields:
-        if container_field in ['chains', 'ab_tcell_receptors', 'gd_tcell_receptors', 'bcell_receptors']:
-            continue
-        container_slot = ak_schema_view.get_slot(container_field)
-        tname = container_slot.range
-        write_jsonl(container, container_field, f'{vdjbase_data_dir}/vdjbase_jsonl/{cache_id}/{tname}.jsonl')
-        write_csv(container, container_field, f'{vdjbase_data_dir}/vdjbase_tsv/{cache_id}/{tname}.csv')
-
-    # CSV relationships
-    write_all_relationships(container, f'{vdjbase_data_dir}/vdjbase_tsv/{cache_id}/')
-
+    write_all_metadata(container, json_dir, tsv_dir)
+    write_all_metadata_relationships(container, tsv_dir)
 
 if __name__ == "__main__":
     for cache_id in vdjbase_cache_list:

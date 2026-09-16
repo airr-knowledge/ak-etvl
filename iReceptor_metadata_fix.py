@@ -7,16 +7,20 @@ adc_data_dir = ak_data_dir + '/vdjserver-adc-cache'
 adc_cache_dir = adc_data_dir + '/cache'
 
 ##iRecepter project list with metadata issues
-project_list = [
+old_project_list = [
     '3860335026075537901-242ac11b-0001-012', # PRJNA381394
     '5034739262512754195-242ac11b-0001-012', # PRJNA311704-001
-    '5786885556369297901-242ac11b-0001-012', # PRJNA624801
     '7094829953995379181-242ac11b-0001-012', # PRJEB1289
     '7285655350956659181-242ac11b-0001-012', # PRJNA195543
     '8434237213378080275-242ac11b-0001-012', # DOI:10.21417/AMM2022JCII
     '8498404024780320275-242ac11b-0001-012', # DOI:10.1172/JCI.insight.88242
     '7525572224111219181-242ac11b-0001-012', # PRJNA368623
     '7573504059134579181-242ac11b-0001-012', # PRJNA275625
+]
+
+project_list = [
+    'bfd29018-2a61-4e02-b69f-96985ca4638f', # DOI:10.21417/AMM2022JCII
+    'dd7b7c4d-ea8a-40a4-8c32-344c8f45ff51', # DOI:10.1172/JCI.insight.88242
 ]
 
 
@@ -38,13 +42,6 @@ for project_id in project_list:
             rep['sample'][0]['template_class'] = 'RNA'
             rep['sample'][0]['sequencing_files']['sequencing_data_id'] = None
         
-    elif project_id == '5786885556369297901-242ac11b-0001-012':
-        for rep in data['Repertoire']:
-            keywords = rep['study'].get('keywords_study', [])
-            rep['study']['keywords_study'] = ["contains_paired_chain" if kw == "has_paired_chain" else kw for kw in keywords]
-            rep['subject']['genotype'] = None
-            rep['sample'][0]['library_generation_method'] = rep['sample'][0]['library_generation_method'].strip()
-
     elif project_id == '7094829953995379181-242ac11b-0001-012':
         for rep in data['Repertoire']:
             rep['subject']['genotype'] = None
@@ -57,12 +54,12 @@ for project_id in project_list:
             rep['subject']['sex'] = None
 
     
-    elif project_id == '8434237213378080275-242ac11b-0001-012':
+    elif project_id == 'bfd29018-2a61-4e02-b69f-96985ca4638f':
         for rep in data['Repertoire']:
             rep['subject']['genotype'] = None
             rep['sample'][0]['physical_linkage'] = "none"
     
-    elif project_id == '8498404024780320275-242ac11b-0001-012':
+    elif project_id == 'dd7b7c4d-ea8a-40a4-8c32-344c8f45ff51':
         for rep in data['Repertoire']:
             mhc_set = rep["subject"]["genotype"].get("mhc_genotype_set", {})
             mhc_list = mhc_set.get("mhc_genotype_list", [])

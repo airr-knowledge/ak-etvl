@@ -57,12 +57,9 @@ The following mounts need to be defined for the docker container:
 
 The scripts assume specific subdirectories:
 
-* `/ak_data/vdjserver-adc-cache`: where to find VDJServer's ADC cache files.
-* `/ak_data/iedb`: where to find IDEB export TSV files.
-* `/ak_data/vdjbase`: where to find VDJbase export files.
-* `/ak_data/irad`: IRAD
-
-* `/ak_data/ak-data-load`: where final merged files for database loading
+* `/ak_data/data-extract`: where extract scripts put their files, each repository has their own subdirectory
+* `/ak_data/ak-transform-data`: where transformed data is placed, separated by DB version
+* `/ak_data/ak-data-load`: where final files are placed for database loading
 
 Commands for converting data need to be run within the docker container, while commands
 which load data into the database are run outside of docker (but uses docker to
