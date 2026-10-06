@@ -23,6 +23,7 @@ from ak_schema import (
 )
 from ak_schema_utils import (
     akc_id,
+    akc_hash,
     adc_ontology,
     to_datetime,
 )
@@ -56,8 +57,10 @@ def transform_airr_genotypes(genotype_filename, vdjbase_name_to_akc_ids, contain
         subject = row['subject_name']
 
         if subject not in vdjbase_name_to_akc_ids:
-            print(f"Cannot find VDJbase subject name: {subject} mapped to akc participant_ids, skipping genotype")
+            #print(f"Cannot find VDJbase subject name: {subject} mapped to akc participant_ids, skipping genotype")
             continue
+        else:
+            print(f"Found VDJbase subject name: {subject} mapped to akc participant_ids")
 
         participant_id = vdjbase_name_to_akc_ids[subject]['participant_id']
         investigation_id = vdjbase_name_to_akc_ids[subject]['investigation_id']
@@ -80,15 +83,14 @@ def transform_airr_genotypes(genotype_filename, vdjbase_name_to_akc_ids, contain
                 deleted_genes=copy.deepcopy(genotype.get('deleted_genes', list())),
                 inference_process=genotype.get('inference_process', None)
             ))
-        
-        # At the moment the GenotypeSet is not used as AIRRGenotypeData takes a class list
-        genotype_set = GenotypeSet(
-            receptor_genotype_set_id=receptor_genotype_set_id,
-            genotype_class_list=genotypes
-        )
 
+        # make consistent VDJbase CURIE ID from genotype set id
+        # this should have the effect of preventing duplicate entries
+        vdjbase_curie = 'VDJBASE_GENOTYPE:' + akc_hash(receptor_genotype_set_id)
+
+        # AKC extends the AIRR standards GenotypeSet
         genotype_data = AIRRGenotypeData(
-            akc_id(),
+            vdjbase_curie,
             data_item_types=['genotype'],
             receptor_genotype_set_id=receptor_genotype_set_id,
             genotype_class_list=genotypes
@@ -100,17 +102,26 @@ def transform_airr_genotypes(genotype_filename, vdjbase_name_to_akc_ids, contain
             akc_id(),
             data_transformation_types=['genotype_inference'],
         )
-        container['transformations'][data_transformation.akc_id] = data_transformation
 
         for recs in participant_id_to_sequencing_files[participant_id]:
             sequencing_file_id = recs['sequencing_files_id']
 
-            io_map = InputOutputDataMap(
-                data_transformation=data_transformation.akc_id,
-                has_specified_input=sequencing_file_id,
-                has_specified_output=genotype_data.akc_id,
-            )
-            container['input_output_map'].append(io_map)
+            # first check if there is an existing entry (in case we run this script multiple times)
+            found = False
+            for iomap in container['input_output_map']:
+                if iomap.has_specified_input == sequencing_file_id and iomap.has_specified_output == genotype_data.akc_id:
+                    found = True
+                    print(f"Found existing data transform for {sequencing_file_id} and {genotype_data.akc_id}")
+            if not found:
+                container['transformations'][data_transformation.akc_id] = data_transformation
+                io_map = InputOutputDataMap(
+                    data_transformation=data_transformation.akc_id,
+                    has_specified_input=sequencing_file_id,
+                    has_specified_output=genotype_data.akc_id,
+                )
+                container['input_output_map'].append(io_map)
+
+
 
     return container    
 
