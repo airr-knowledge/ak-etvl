@@ -857,18 +857,34 @@ def load_akc_objects(container, container_field, container_class, path, check_ty
             #print(line)
             x = json.loads(line)
             if check_type:
-                if x[container_field]['type'] == 'TCellReceptorEpitopeBindingAssay':
-                    y = json_loader.load_any(x[container_field], TCellReceptorEpitopeBindingAssay)
-                elif x[container_field]['type'] == 'AntibodyAntigenBindingAssay':
-                    y = json_loader.load_any(x[container_field], AntibodyAntigenBindingAssay)
+                if container_class == SpecimenProcessing:
+                    # hack for specimen processings as it missing designated type
+                    if x[container_field]['@type'] == 'LibraryPreparationProcessing':
+                        # pcr_target is not defined properly
+                        pcr_target = x[container_field]['pcr_target']
+                        del x[container_field]['pcr_target']
+                        y = json_loader.load_any(x[container_field], LibraryPreparationProcessing)
+                        y.pcr_target = pcr_target
+                    elif x[container_field]['@type'] == 'CellIsolationProcessing':
+                        y = json_loader.load_any(x[container_field], CellIsolationProcessing)
+                    else:
+                        print(f"Unknown type: {x[container_field]['@type']} for container_field: {container_field}")
+                        continue
                 else:
-                    print(f"Unknown assay type: {x['type']}")
-                    continue
+                    if x[container_field]['type'] == 'TCellReceptorEpitopeBindingAssay':
+                        y = json_loader.load_any(x[container_field], TCellReceptorEpitopeBindingAssay)
+                    elif x[container_field]['type'] == 'AntibodyAntigenBindingAssay':
+                        y = json_loader.load_any(x[container_field], AntibodyAntigenBindingAssay)
+                    else:
+                        print(f"Unknown type: {x[container_field]['type']} for container_field: {container_field}")
+                        continue
             else:
                 y = json_loader.load_any(x[container_field], container_class)
             if container_field == 'references':
                 if container[container_field].get(y.source_uri) is None:
                     container[container_field][y.source_uri] = y
+            elif container_field == 'input_output_map':
+                container[container_field].append(y)
             else:
                 if container[container_field].get(y.akc_id) is None:
                     container[container_field][y.akc_id] = y
@@ -887,7 +903,7 @@ def load_ak_container(container, path, load_type):
     load_akc_objects(container, 'specimens', Specimen, path)
     load_akc_objects(container, 'specimen_collections', SpecimenCollection, path)
     # TODO: need to handle multiple classes
-    #load_akc_objects(container, 'specimen_processings', SpecimenProcessing, path)
+    load_akc_objects(container, 'specimen_processings', SpecimenProcessing, path, True)
     load_akc_objects(container, 'datasets', AKDataSet, path)
     load_akc_objects(container, 'transformations', DataTransformation, path)
     load_akc_objects(container, 'input_output_map', InputOutputDataMap, path)
@@ -998,6 +1014,16 @@ def write_relationship_csv(class_name, class_obj, range_name, outpath, is_foreig
             if hasattr(i, range_name):
                 for p in i[range_name]:
                     f.write(i.akc_id + ',' + p + '\n')
+
+def write_metadata_jsonl(container, container_field, json_dir):
+    container_slot = ak_schema_view.get_slot(container_field)
+    tname = container_slot.range
+    write_jsonl(container, container_field, f"{json_dir}/{tname}.jsonl",)
+
+def write_metadata_csv(container, container_field, csv_dir):
+    container_slot = ak_schema_view.get_slot(container_field)
+    tname = container_slot.range
+    write_csv(container, container_field, f"{csv_dir}/{tname}.csv",)
 
 
 chain_container_fields = [
