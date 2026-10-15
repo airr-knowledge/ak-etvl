@@ -205,6 +205,12 @@ def repertoire_transform(cache_id):
     # VDJbase should maintain a consistent mapping of VDJbase subject ID to study/subject across its datasets.
     # Warnings will be printed if any inconsistencies are found.
 
+    # load AK container
+    print(f"load AK study data for id: {cache_id}")
+
+    study_data = f"{VDJBASE_TRANSFORM_DATA}/vdjbase_jsonl/{cache_id}"
+    load_ak_container(container, study_data, 'vdjbase')
+
     # for filename in ['genomic_metadata_IGH.json', 'genomic_metadata_IGK.json', 'genomic_metadata_IGL.json']:
     #     for vdjbase_name, (study_id, subject_id) in map_vdjbase_name_to_study_subject(VDJBASE_IMPORT_DATA + '/' + cache_id + '/' + filename).items():
     #         if vdjbase_name in vdjbase_name_to_study_subject:
@@ -225,7 +231,7 @@ def repertoire_transform(cache_id):
                     print(f"Warning: VDJbase name: {vdjbase_name} already mapped to {existing_study_id} / {existing_subject_id}, now found mapping to {study_id} / {subject_id}")
             else:
                 vdjbase_name_to_study_subject[vdjbase_name] = (study_id, subject_id)
-        container = transform_airr_repertoires(VDJBASE_IMPORT_DATA + '/' + cache_id + '/' + filename, container)
+        #container = transform_airr_repertoires(VDJBASE_IMPORT_DATA + '/' + cache_id + '/' + filename, container)
 
 
     # make a mapping of VDJbase subject ID to investigation, participant
@@ -304,8 +310,15 @@ def repertoire_transform(cache_id):
         pass
 
     # Write outputs
-    write_all_metadata(container, json_dir, tsv_dir)
-    write_all_metadata_relationships(container, tsv_dir)
+    # Only write the new data
+    write_metadata_jsonl(container, 'datasets', json_dir)
+    write_metadata_jsonl(container, 'transformations', json_dir)
+    write_metadata_jsonl(container, 'input_output_map', json_dir)
+    write_metadata_csv(container, 'datasets', tsv_dir)
+    write_metadata_csv(container, 'transformations', tsv_dir)
+    write_metadata_csv(container, 'input_output_map', tsv_dir)
+    #write_all_metadata(container, json_dir, tsv_dir)
+    #write_all_metadata_relationships(container, tsv_dir)
 
 if __name__ == "__main__":
     for cache_id in vdjbase_cache_list:

@@ -5,6 +5,7 @@ import click
 import csv
 
 from linkml_runtime.utils.schemaview import SchemaView
+from linkml_runtime.dumpers import yaml_dumper, json_dumper, tsv_dumper
 
 from ak_schema import *
 from ak_schema_utils import *
@@ -82,12 +83,23 @@ def create_object(output_path, path, load_type):
             if investigation.description is not None:
                 investigation.description = investigation.description.replace('\n','')
 
+            # look for genotype inference
+            if assay.sequencing_files:
+                for iomap in container['input_output_map']:
+                    if iomap.has_specified_input == assay.sequencing_files:
+                        dataset = container['datasets'].get(iomap.has_specified_output)
+                        if dataset and DataItemTypeEnum('genotype') in dataset.data_item_types:
+                            print("found genotype")
+                            participant['genotype_set'] = json.loads(json_dumper.dumps(dataset))
+                            #print(participant)
+
             experiment.specimen = specimen
             experiment.participant = participant
             experiment.investigation = investigation
 
             # remove relations
             d = dataclasses.asdict(experiment)
+            #print(d)
             del d['investigation']['participants']
             del d['investigation']['assays']
             del d['investigation']['simulations']
