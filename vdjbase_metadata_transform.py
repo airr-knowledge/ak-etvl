@@ -271,7 +271,7 @@ def repertoire_transform(cache_id):
             specimen = container['specimens'][assay.specimen]
             life_event = container['life_events'][specimen.life_event]
             participant_id = life_event.participant
-            sequencing_files_id = assay.sequencing_files
+            sequencing_files_id = assay.sequence_files
             targets = []
 
             for processing_id in assay.specimen_processing:

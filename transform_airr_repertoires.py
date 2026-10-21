@@ -324,7 +324,7 @@ def transform_airr_repertoires(repertoire_filename, container):
                 sequencing_kit=s.get('sequencing_kit'),
                 sequencing_facility=s.get('sequencing_facility'),
                 total_reads_passing_qc_filter=s.get('total_reads_passing_qc_filter'),
-                sequencing_files=seq_files.akc_id
+                sequence_files=seq_files.akc_id
             )
             container.assays[assay.akc_id] = assay
 

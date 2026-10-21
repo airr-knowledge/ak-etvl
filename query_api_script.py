@@ -84,9 +84,9 @@ def create_object(output_path, path, load_type):
                 investigation.description = investigation.description.replace('\n','')
 
             # look for genotype inference
-            if assay.sequencing_files:
+            if assay.sequence_files:
                 for iomap in container['input_output_map']:
-                    if iomap.has_specified_input == assay.sequencing_files:
+                    if iomap.has_specified_input == assay.sequence_files:
                         dataset = container['datasets'].get(iomap.has_specified_output)
                         if dataset and DataItemTypeEnum('genotype') in dataset.data_item_types:
                             print("found genotype")
