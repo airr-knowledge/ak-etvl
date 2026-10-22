@@ -10,6 +10,7 @@ from ak_schema import (
     SpecimenCollection,
     Specimen,
     CellIsolationProcessing,
+    PCRTarget,
     LibraryPreparationProcessing,
     AIRRSequencingData,
     AIRRSequencingAssay,
@@ -292,7 +293,11 @@ def transform_airr_repertoires(repertoire_filename, container):
                 physical_linkage=s.get('physical_linkage')
             )
             for t in s.get('pcr_target'):
-                lib_proc.pcr_target.append(t.get('pcr_target_locus'))
+                pt = PCRTarget(
+                    pcr_target_locus=t.get('pcr_target_locus'), 
+                    forward_pcr_primer_target_location=t.get('forward_pcr_primer_target_location'),
+                    reverse_pcr_primer_target_location=t.get('reverse_pcr_primer_target_location'))
+                lib_proc.pcr_target.append(pt)
             container.specimen_processings[lib_proc.akc_id] = lib_proc
 
             f = s['sequencing_files']

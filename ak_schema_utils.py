@@ -18,6 +18,7 @@ from linkml_runtime.linkml_model.meta import EnumDefinition, PermissibleValue, S
 from linkml_runtime.dumpers import yaml_dumper, json_dumper, tsv_dumper
 from linkml_runtime.loaders import json_loader, yaml_loader
 
+import ak_schema
 from ak_schema import *
 
 from linkml.validator import Validator, validate
@@ -857,27 +858,8 @@ def load_akc_objects(container, container_field, container_class, path, check_ty
             #print(line)
             x = json.loads(line)
             if check_type:
-                if container_class == SpecimenProcessing:
-                    # hack for specimen processings as it missing designated type
-                    if x[container_field]['@type'] == 'LibraryPreparationProcessing':
-                        # pcr_target is not defined properly
-                        pcr_target = x[container_field]['pcr_target']
-                        del x[container_field]['pcr_target']
-                        y = json_loader.load_any(x[container_field], LibraryPreparationProcessing)
-                        y.pcr_target = pcr_target
-                    elif x[container_field]['@type'] == 'CellIsolationProcessing':
-                        y = json_loader.load_any(x[container_field], CellIsolationProcessing)
-                    else:
-                        print(f"Unknown type: {x[container_field]['@type']} for container_field: {container_field}")
-                        continue
-                else:
-                    if x[container_field]['type'] == 'TCellReceptorEpitopeBindingAssay':
-                        y = json_loader.load_any(x[container_field], TCellReceptorEpitopeBindingAssay)
-                    elif x[container_field]['type'] == 'AntibodyAntigenBindingAssay':
-                        y = json_loader.load_any(x[container_field], AntibodyAntigenBindingAssay)
-                    else:
-                        print(f"Unknown type: {x[container_field]['type']} for container_field: {container_field}")
-                        continue
+                # use designated type to load class
+                y = json_loader.load_any(x[container_field], getattr(ak_schema, x[container_field]['type'], None))
             else:
                 y = json_loader.load_any(x[container_field], container_class)
             if container_field == 'references':
