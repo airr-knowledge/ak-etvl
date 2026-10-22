@@ -110,15 +110,13 @@ help:
 	@echo "make extract-adc        -- Extract data from VDJServer's ADC cache"
 	@echo "make extract-irad       -- Extract data from IRAD"
 	@echo "make extract-vdjbase    -- Extract data from VDJbase"
-	@echo "make data-fixes         -- Fix unresolved errors in repository data"
 	@echo "------------------------------------------------------------"
 	@echo ""
 	@echo "Ontology workflow"
 	@echo "  (run outside docker)"
 	@echo "------------------------------------------------------------"
-	@echo "make ak-ontology        -- Build AK ontology"
-	@echo "make ak-ontology-utsw   -- Build AK ontology (using UTSW proxy config)"
-	@echo "make ontology-export    -- Generate ontology export files"
+	@echo "make ontology-export       -- Generate ontology export files"
+	@echo "make ontology-export-utsw  -- Generate ontology export files (using UTSW proxy config)"
 	@echo "------------------------------------------------------------"
 	@echo ""
 	@echo "Data Transform workflow"
@@ -267,10 +265,6 @@ extract-vdjbase:
 extract-vdjbase-rearrangements:
 	@echo "Downloading MADC rearrangements (large; only needed for the chain transform)."
 	python3 extract_vdjbase.py $(VDJBASE_IMPORT_DATA)
-
-data-fixes: check-docker
-	@echo "Fixing data errors."
-	python3 iReceptor_metadata_fix.py
 
 #
 # Data transform
@@ -479,17 +473,13 @@ vdjbase-transform-genotype: ak_schema.py | $(VDJBASE_TRANSFORM_DATA)/vdjbase_tsv
 # Ontology exports and loads
 #
 
-.PHONY: ak-ontology
-ak-ontology: outside-docker
-	cd ak-ontology/src/ontology; sh run.sh make
-
-.PHONY: ak-ontology
-ak-ontology-utsw: outside-docker
-	cd ak-ontology/src/ontology; cp run.sh.conf.utsw run.sh.conf; sh run.sh make
-
 .PHONY: ontology-export
 ontology-export: outside-docker
 	cd ak-ontology/src/ontology; sh run.sh make all_exports
+
+.PHONY: ontology-export-utsw
+ontology-export-utsw: outside-docker
+	cd ak-ontology/src/ontology; cp run.sh.conf.utsw run.sh.conf; sh run.sh make all_exports
 
 .PHONY: ontology-copy
 ontology-copy: check-docker
