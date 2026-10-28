@@ -251,8 +251,8 @@ def process_epitope_antigens(container, tcr_assay_df, bcr_assay_df):
         epitope = make_epitope(container, epitope_row)
         container.epitopes[epitope.akc_id] = epitope
 
-    # Note: ONLY make antigens when the source molecule exists (do not make antigen if only species is known)
-    # this means for a small fraction of epitopes with no known molecule, the species information gets lost due to not being linked to an antigen
+    # Split into two groups:
+    # Group 1: epitopes where some kind of antigen source molecule or molecule parent is available
     antigen_df = epitope_df[(epitope_df["Source Molecule IRI"].notna()) | epitope_df["Molecule Parent IRI"].notna()]
 
     for current_iris, cur_antigen_epitope_df in antigen_df.groupby(["Source Molecule IRI", "Molecule Parent IRI",
@@ -273,6 +273,19 @@ def process_epitope_antigens(container, tcr_assay_df, bcr_assay_df):
                           source_species=cur_antigen_epitope_df["Species"].iloc[0],
                           source_species_iri=url_to_curie(species_iri),
                           epitopes=epitope_ids)
+        container.antigens[antigen.akc_id] = antigen
+
+    # Group 2: epitopes without source molecule or molecule parent, these get an 'empty' antigen (optionally with species info)
+    # Note: these epitopes are NEVER shared across multiple antigens, as it cannot be determined they came from the same source
+    epitopes_without_antigens = epitope_df[(epitope_df["Source Molecule IRI"].isna()) & epitope_df["Molecule Parent IRI"].isna()]
+
+    for idx, row in epitopes_without_antigens.iterrows():
+        antigen = Antigen(akc_id(),
+                          source_organism=row["Source Organism"],
+                          source_organism_iri=url_to_curie(row["Source Organism IRI"]),
+                          source_species=row["Species"],
+                          source_species_iri=url_to_curie(row["Species IRI"]),
+                          epitopes=[url_to_curie(row["IEDB IRI"])])
         container.antigens[antigen.akc_id] = antigen
 
 
