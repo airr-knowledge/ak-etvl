@@ -60,6 +60,27 @@ def clean_receptor_df(receptor_df, receptor_type):
 
     return receptor_df
 
+def infer_participant_ids(tcr_assay_df, tcr_df):
+    participant_inferred_id = tcr_df[[("Epitope", "IEDB IRI"), ("Reference", "IEDB IRI"), ("Assay", "IEDB IDs")]].drop_duplicates()
+
+    participant_inferred_id[("Participant", "Inferred ID")] = participant_inferred_id[("Reference", "IEDB IRI")] + "_" + \
+                                                              participant_inferred_id[("Epitope", "IEDB IRI")] + "_assays=" + \
+                                                              participant_inferred_id[("Assay", "IEDB IDs")]
+
+
+    participant_inferred_id[("Assay", "IEDB IDs")] = participant_inferred_id[("Assay", "IEDB IDs")].str.split(", ")
+    participant_inferred_id = participant_inferred_id.explode(("Assay", "IEDB IDs"))
+
+    participant_inferred_id[("Assay ID", "IEDB IRI")] = 'http://www.iedb.org/assay/' + participant_inferred_id[("Assay", "IEDB IDs")]
+    participant_inferred_id[("Reference", "IEDB IRI")] = participant_inferred_id[("Reference", "IEDB IRI")].str.replace("https:", "http:")
+    participant_inferred_id[("Epitope", "IEDB IRI")] = participant_inferred_id[("Epitope", "IEDB IRI")].str.replace("https:", "http:")
+    participant_inferred_id.drop(columns=[("Assay", "IEDB IDs")], inplace=True)
+
+    keys = [("Reference", "IEDB IRI"), ("Epitope", "IEDB IRI"), ("Assay ID", "IEDB IRI")]
+    tcr_assay_df = tcr_assay_df.merge(participant_inferred_id, on=keys, how="left")
+
+    return tcr_assay_df
+
 
 def get_assay_ids(receptor_df):
     assay_ids = receptor_df[("Assay", "IEDB IDs")]
@@ -451,7 +472,7 @@ def is_float(s):
         return False
 
 
-def get_age(value, assay_id=""):
+def get_age(value, assay_ids=""):
     if pd.isnull(value):
         return None, None, None
 
@@ -491,17 +512,20 @@ def get_age(value, assay_id=""):
                 return float(age_min), float(age_max), unit
         assert False
     except (AssertionError, ValueError):
-        print(f"Error: could not standardize age for assay {assay_id} into a single age and unit: {value}")
+        print(f"Error: could not standardize age for assay(s) {assay_ids} into a single age and unit: {value}")
 
     return None, None, None
 
-def get_participant(assay_row, arm_akc_id):
-    age_min, age_max, age_unit = get_age(assay_row[("Host", "Age")], assay_row[("Assay ID", "IEDB IRI")])
+def get_participant(participant_df, arm_akc_id):
+    assay_ids = ", ".join(participant_df["Assay ID"]["IEDB IRI"].unique())
+    host_row = participant_df["Host"].drop_duplicates().iloc[0]
+
+    age_min, age_max, age_unit = get_age(host_row["Age"], assay_ids)
 
     return Participant(
         akc_id(),
-        species=url_to_curie(assay_row[("Host", "IRI")]), # todo for mouse: could be species or strain
-        sex=sex_to_curie(assay_row[("Host", "Sex")]),
+        species=url_to_curie(host_row["IRI"]), # todo for mouse: could be species or strain
+        sex=sex_to_curie(host_row["Sex"]),
         age_min=age_min,
         age_max=age_max,
         age_unit=age_unit,
@@ -561,37 +585,37 @@ def process_assay(container, assay_df, assay_to_receptor, assay_to_chain, type):
         container.investigations[investigation.akc_id] = investigation
         container.references[reference.source_uri] = reference
 
-        for idx, assay_row in ref_assay_df.iterrows():
-            # todo deal with fields that can have multiple values (e.g. see assay_df["1st in vivo Process"]["Disease Stage"].unique()
-
+        for current_participant, ref_participant_assay_df in ref_assay_df.groupby(("Participant", "Inferred ID")):
             arm = StudyArm(akc_id(), investigation=investigation.akc_id)
-            study_event = StudyEvent(akc_id(), study_arms=[arm.akc_id])
-            participant = get_participant(assay_row, arm.akc_id)
+            participant = get_participant(ref_participant_assay_df, arm.akc_id)
 
-            immune_exposure_event = get_immune_exposure(assay_row, participant.akc_id)
-            specimen_collection_event = get_specimen_collection_life_event(participant.akc_id, study_event.akc_id)
-            # todo set specimen_collection_event.specimen_akc_id is now None, because there is a circular reference between the two
+            for idx, assay_row in ref_participant_assay_df.iterrows():
+                # todo deal with fields that can have multiple values (e.g. see assay_df["1st in vivo Process"]["Disease Stage"].unique()
+                study_event = StudyEvent(akc_id(), study_arms=[arm.akc_id])
+                immune_exposure_event = get_immune_exposure(assay_row, participant.akc_id)
+                specimen_collection_event = get_specimen_collection_life_event(participant.akc_id, study_event.akc_id)
+                # todo set specimen_collection_event.specimen_akc_id is now None, because there is a circular reference between the two
 
-            assay = make_iedb_receptor_antigen_assay(container, assay_row, assay_to_receptor, specimen_collection_event, type)
+                assay = make_iedb_receptor_antigen_assay(container, assay_row, assay_to_receptor, specimen_collection_event, type)
 
-            if assay is not None:
-                dataset = get_dataset(assay)
-                assessment = make_assessment(container, assay_row, specimen_collection_event.akc_id)
-                conclusion = get_conclusion(investigation.akc_id, dataset.akc_id, assessment.measurement_value, assay_row)
+                if assay is not None:
+                    dataset = get_dataset(assay)
+                    assessment = make_assessment(container, assay_row, specimen_collection_event.akc_id)
+                    conclusion = get_conclusion(investigation.akc_id, dataset.akc_id, assessment.measurement_value, assay_row)
 
-                investigation.participants.append(participant.akc_id)
-                investigation.assays.append(assay.akc_id)
-                investigation.conclusions.append(conclusion.akc_id)
+                    investigation.participants.append(participant.akc_id)
+                    investigation.assays.append(assay.akc_id)
+                    investigation.conclusions.append(conclusion.akc_id)
 
-                container.study_arms[arm.akc_id] = arm
-                container.study_events[study_event.akc_id] = study_event
-                container.participants[participant.akc_id] = participant
-                container.specimen_collections[specimen_collection_event.akc_id] = specimen_collection_event
-                container.life_events[specimen_collection_event.akc_id] = specimen_collection_event
-                container.immune_exposures[immune_exposure_event.akc_id] = immune_exposure_event
-                container.life_events[immune_exposure_event.akc_id] = immune_exposure_event
-                container.datasets[dataset.akc_id] = dataset
-                container.conclusions[conclusion.akc_id] = conclusion
+                    container.study_arms[arm.akc_id] = arm
+                    container.study_events[study_event.akc_id] = study_event
+                    container.participants[participant.akc_id] = participant
+                    container.specimen_collections[specimen_collection_event.akc_id] = specimen_collection_event
+                    container.life_events[specimen_collection_event.akc_id] = specimen_collection_event
+                    container.immune_exposures[immune_exposure_event.akc_id] = immune_exposure_event
+                    container.life_events[immune_exposure_event.akc_id] = immune_exposure_event
+                    container.datasets[dataset.akc_id] = dataset
+                    container.conclusions[conclusion.akc_id] = conclusion
 
 
 
@@ -627,6 +651,14 @@ def convert(tcell_path, tcr_path, bcell_path, bcr_path):
 
     tcr_assay_df = clean_assay_df(read_double_header_df(tcell_path), tcr_df, "TCR")
     bcr_assay_df = clean_assay_df(read_double_header_df(bcell_path), bcr_df, "BCR")
+
+    tcr_assay_df = infer_participant_ids(tcr_assay_df, tcr_df)
+    bcr_assay_df = infer_participant_ids(bcr_assay_df, bcr_df)
+
+    tcr_assay_df.to_csv("/Users/lscheffer/PycharmProjects/ak-etvl/inferred_participant_id/tcr_assay_df.csv")
+    bcr_assay_df.to_csv("/Users/lscheffer/PycharmProjects/ak-etvl/inferred_participant_id/bcr_assay_df.csv")
+
+    exit()
 
     # singleton container, initially empty
     container = AIRRKnowledgeCommons(
@@ -665,6 +697,10 @@ def convert(tcell_path, tcr_path, bcell_path, bcr_path):
     # tcr_complexes: Optional[Union[Dict[Union[str, TCRpMHCComplexAkcId], Union[dict, "TCRpMHCComplex"]], List[Union[dict, "TCRpMHCComplex"]]]] = empty_dict()
     # antibody_complexes: Optional[Union[Dict[Union[str, AntibodyAntigenComplexAkcId], Union[dict, "AntibodyAntigenComplex"]], List[Union[dict, "AntibodyAntigenComplex"]]]] = empty_dict()
     # receptor_composites: Optional[Union[Dict[Union[str, ReceptorCompositeAkcId], Union[dict, "ReceptorComposite"]], List[Union[dict, "ReceptorComposite"]]]] = empty_dict()
+
+
+
+    # participants.update(get_participant_objects(bcr_assay_df, bcr_df["Assay"]["IEDB IDs"]))
 
     assay_to_tcr, assay_to_tcr_chain = get_receptor_objects(container, tcr_df, "TCR")
     assay_to_bcr, assay_to_bcr_chain = get_receptor_objects(container, bcr_df, "BCR")
