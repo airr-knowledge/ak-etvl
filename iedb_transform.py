@@ -241,7 +241,9 @@ def make_epitope(container, epitope_row):
 def process_epitope_antigens(container, tcr_assay_df, bcr_assay_df):
     print(f'Processing antigens with epitopes')
 
-    keep_cols = ["IEDB IRI", "Object Type", "Name", "Modified residues", "Modifications", "Source Molecule IRI", "Species IRI"]
+    keep_cols = ["IEDB IRI", "Object Type", "Name", "Modified residues", "Modifications",
+                 "Source Molecule", "Source Molecule IRI", "Molecule Parent", "Molecule Parent IRI",
+                 "Species", "Species IRI", "Source Organism", "Source Organism IRI"]
 
     epitope_df = pd.concat([tcr_assay_df["Epitope"], bcr_assay_df["Epitope"]])[keep_cols].drop_duplicates()
 
@@ -249,25 +251,43 @@ def process_epitope_antigens(container, tcr_assay_df, bcr_assay_df):
         epitope = make_epitope(container, epitope_row)
         container.epitopes[epitope.akc_id] = epitope
 
-    antigen_df = epitope_df[epitope_df["Source Molecule IRI"].notna()]
+    # Split into two groups:
+    # Group 1: epitopes where some kind of antigen source molecule or molecule parent is available
+    antigen_df = epitope_df[(epitope_df["Source Molecule IRI"].notna()) | epitope_df["Molecule Parent IRI"].notna()]
 
-    for current_iris, cur_antigen_epitope_df in antigen_df.groupby(["Source Molecule IRI", "Species IRI"]):
-        source_molecule_iri, organism_iri = current_iris
+    for current_iris, cur_antigen_epitope_df in antigen_df.groupby(["Source Molecule IRI", "Molecule Parent IRI",
+                                                                     "Source Organism IRI", "Species IRI"], dropna=False):
+        source_molecule_iri, molecule_parent_iri, organism_iri, species_iri = current_iris
 
-        if pd.notna(source_molecule_iri):
-            epitope_ids =  [url_to_curie(epitope_iri) for epitope_iri in cur_antigen_epitope_df["IEDB IRI"]]
+        antigen_iri = source_molecule_iri if pd.notna(source_molecule_iri) else molecule_parent_iri
 
-            # TODO: Some species do not have CURIE, need to be fixed in IEDB source data
-            # leave them blank for now
-            source_species = url_to_curie(organism_iri)
-            if source_species.startswith("https:"):
-                source_species = None
+        epitope_ids = [url_to_curie(epitope_iri) for epitope_iri in cur_antigen_epitope_df["IEDB IRI"]]
 
-            antigen = Antigen(url_to_curie(source_molecule_iri),
-                              source_molecule=url_to_curie(source_molecule_iri),
-                              source_species=source_species,
-                              epitopes=epitope_ids)
-            container.antigens[antigen.akc_id] = antigen
+        antigen = Antigen(url_to_curie(antigen_iri),
+                          source_molecule=cur_antigen_epitope_df["Source Molecule"].iloc[0],
+                          source_molecule_iri=url_to_curie(source_molecule_iri),
+                          parent_molecule=cur_antigen_epitope_df["Molecule Parent"].iloc[0],
+                          parent_molecule_iri=url_to_curie(molecule_parent_iri),
+                          source_organism=cur_antigen_epitope_df["Source Organism"].iloc[0],
+                          source_organism_iri=url_to_curie(organism_iri),
+                          source_species=cur_antigen_epitope_df["Species"].iloc[0],
+                          source_species_iri=url_to_curie(species_iri),
+                          epitopes=epitope_ids)
+        container.antigens[antigen.akc_id] = antigen
+
+    # Group 2: epitopes without source molecule or molecule parent, these get an 'empty' antigen (optionally with species info)
+    # Note: these epitopes are NEVER shared across multiple antigens, as it cannot be determined they came from the same source
+    epitopes_without_antigens = epitope_df[(epitope_df["Source Molecule IRI"].isna()) & epitope_df["Molecule Parent IRI"].isna()]
+
+    for idx, row in epitopes_without_antigens.iterrows():
+        antigen = Antigen(akc_id(),
+                          source_organism=row["Source Organism"],
+                          source_organism_iri=url_to_curie(row["Source Organism IRI"]),
+                          source_species=row["Species"],
+                          source_species_iri=url_to_curie(row["Species IRI"]),
+                          epitopes=[url_to_curie(row["IEDB IRI"])])
+        container.antigens[antigen.akc_id] = antigen
+
 
 def process_mhc(container, tcr_assay_df):
     mhc_df = tcr_assay_df["MHC Restriction"].drop_duplicates()
