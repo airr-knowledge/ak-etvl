@@ -658,8 +658,6 @@ def convert(tcell_path, tcr_path, bcell_path, bcr_path):
     tcr_assay_df.to_csv("/Users/lscheffer/PycharmProjects/ak-etvl/inferred_participant_id/tcr_assay_df.csv")
     bcr_assay_df.to_csv("/Users/lscheffer/PycharmProjects/ak-etvl/inferred_participant_id/bcr_assay_df.csv")
 
-    exit()
-
     # singleton container, initially empty
     container = AIRRKnowledgeCommons(
     )
