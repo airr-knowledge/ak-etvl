@@ -18,15 +18,16 @@ from ak_schema import (
 )
 from ak_schema_utils import (
     akc_id,
+    akc_hash_id,
     adc_ontology,
     to_datetime,
 )
 
 
-def transform_airr_repertoires(repertoire_filename, container):
+def transform_airr_repertoires(repertoire_filename, container, repertoire_prefix):
     """Transform ADC repertoire metadata to AK objects.
        
-       The code will handle multiple studies in a sinmgle repertoire file,
+       The code will handle multiple studies in a single repertoire file,
        and will merge data into an existing container, creating new objects
        only as needed. This will allow VDJbase repertoires to be merged into
        existing data from the ADC, or vice versa.
@@ -318,9 +319,12 @@ def transform_airr_repertoires(repertoire_filename, container):
             if s.get('sequencing_run_date') is not None:
                 sequencing_run_date = parse(s.get('sequencing_run_date'))
 
+            # we keep the original repertoire_id though make it a CURIE
+            # then hash it for the assay akc_id which should keep it constant across transform runs
+            curie_rep_id = repertoire_prefix + ':' + rep['repertoire_id']
             assay = AIRRSequencingAssay(
-                akc_id(),
-                repertoire_id=rep['repertoire_id'],
+                akc_hash_id(curie_rep_id),
+                repertoire_id=curie_rep_id,
                 specimen=specimen.akc_id,
                 specimen_processing=[cell_proc.akc_id, lib_proc.akc_id],
                 sequencing_run_id=s.get('sequencing_run_id'),

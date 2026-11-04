@@ -107,6 +107,10 @@ def akc_id():
     """Returns a new AKC ID."""
     return 'AKC:' + str(uuid.uuid4())
 
+def akc_hash_id(s):
+    """Returns an AKC ID based upon data hash, allows for reproducible AKC IDs."""
+    return 'AKC:' + akc_hash(s)
+
 def url_to_curie(input, verbose=False):
     """Convert a URL to a CURIE."""
     if input is None:

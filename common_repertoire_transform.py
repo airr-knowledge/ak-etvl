@@ -30,13 +30,14 @@ class TransformConfig:
     cache_list: set
     import_dir: str
     transform_dir: str
+    prefix: str
 
 ADC = TransformConfig(
     name="adc",
     cache_list=adc_cache_list,
     import_dir=ADC_IMPORT_DATA,
     transform_dir=ADC_TRANSFORM_DATA,
-    
+    prefix="ADC_VDJSERVER"
 )
 
 VDJBASE = TransformConfig(
@@ -44,6 +45,7 @@ VDJBASE = TransformConfig(
     cache_list=vdjbase_cache_list,
     import_dir=VDJBASE_IMPORT_DATA,
     transform_dir=VDJBASE_TRANSFORM_DATA,
+    prefix="ADC_VDJBASE"
 )
 
 VDJSERVER_JOBS = TransformConfig(
@@ -51,6 +53,7 @@ VDJSERVER_JOBS = TransformConfig(
     cache_list=vdjserver_jobs_list,
     import_dir=VDJSERVER_JOBS_IMPORT_DATA,
     transform_dir=VDJSERVER_JOBS_TRANSFORM_DATA,
+    prefix="ADC_VDJSERVER"
 )
 
 
@@ -73,7 +76,7 @@ def repertoire_transform(source, cache_id):
 
     study = cache_id
     
-    container = transform_airr_repertoires(f"{config.import_dir}/{study}/repertoires.airr.json", AIRRKnowledgeCommons(),)
+    container = transform_airr_repertoires(f"{config.import_dir}/{study}/repertoires.airr.json", AIRRKnowledgeCommons(), config.prefix)
     
     # output data for just this study
 
