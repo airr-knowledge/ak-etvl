@@ -47,12 +47,29 @@ VDJBASE = TransformConfig(
     tsv_suffix=".tsv.gz",
 )
 
+VDJSERVER_JOBS = TransformConfig(
+    name="vdjserver-jobs",
+    cache_list=vdjserver_jobs_list,
+    import_dir=VDJSERVER_JOBS_IMPORT_DATA,
+    transform_dir=VDJSERVER_JOBS_TRANSFORM_DATA,
+    tsv_suffix=".igblast.makedb.airr.tsv.gz",
+)
+
 @click.command()
-@click.argument("source", type=click.Choice(["adc", "vdjbase"]))
+@click.argument("source", type=click.Choice(["adc", "vdjbase", "vdjserver-jobs"]))
 @click.argument('cache_id')
 
 def receptor_integrate(source, cache_id):
-    config = ADC if source == "adc" else VDJBASE
+    if source == "adc":
+        config = ADC 
+    elif source == "vdjbase":
+        config = VDJBASE
+    elif source == "vdjserver-jobs":
+        config = VDJSERVER_JOBS
+    else:
+        print("Please select from [adc, vdjbase, vdjserver-jobs]")
+        exit(1)
+    
     """Convert ADC rearrangements to AK chains and receptors."""
 
     fields = [ 'productive', 'junction', 'junction_aa', 'cdr1_aa', 'cdr2_aa', 'complete_vdj', 'sequence', 'sequence_aa', 'locus', 'v_call', 'j_call', 'duplicate_count', 'cell_id' ]

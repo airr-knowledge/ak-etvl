@@ -35,6 +35,8 @@ from adc_study_list import read_list_from_file
 
 adc_cache_list = read_list_from_file(cache_name='adc')
 vdjbase_cache_list = read_list_from_file(cache_name='vdjbase')
+vdjserver_jobs_list= read_list_from_file(cache_name='vdjserver-jobs')
+
 
 # for access to linkml metadata for the AK schema
 ak_schema_view = SchemaView("ak-schema/project/linkml/ak_schema.yaml")
@@ -79,6 +81,16 @@ if not IRAD_IMPORT_DATA:
 IRAD_TRANSFORM_DATA = os.environ.get('IRAD_TRANSFORM_DATA')
 if not IRAD_TRANSFORM_DATA:
     print("IRAD_TRANSFORM_DATA is not defined.")
+
+
+## VDJserver JOBS directories
+VDJSERVER_JOBS_IMPORT_DATA = os.environ.get('VDJSERVER_JOBS_IMPORT_DATA')
+if not VDJSERVER_JOBS_IMPORT_DATA:
+    print("VDJSERVER_JOBS_IMPORT_DATA is not defined.")
+
+VDJSERVER_JOBS_TRANSFORM_DATA = os.environ.get('VDJSERVER_JOBS_TRANSFORM_DATA')
+if not VDJSERVER_JOBS_TRANSFORM_DATA:
+    print("VDJSERVER_JOBS_TRANSFORM_DATA is not defined.")
 
 
 # load germlines
