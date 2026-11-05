@@ -54,7 +54,7 @@ VDJSERVER_JOBS = TransformConfig(
     cache_list=vdjserver_jobs_list,
     import_dir=VDJSERVER_JOBS_IMPORT_DATA,
     transform_dir=VDJSERVER_JOBS_TRANSFORM_DATA,
-    tsv_suffix=".igblast.makedb.airr.tsv.gz",
+    tsv_suffix=".igblast.airr.tsv.gz",
     prefix="ADC_VDJSERVER"
 )
 
