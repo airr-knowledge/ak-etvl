@@ -76,6 +76,10 @@ def repertoire_transform(source, cache_id):
 
     study = cache_id
     
+    if study not in config.cache_list:
+        print(f"Given id: {study} is not in the study list")
+        sys.exit(1)
+
     container = transform_airr_repertoires(f"{config.import_dir}/{study}/repertoires.airr.json", AIRRKnowledgeCommons(), config.prefix)
     
     # output data for just this study

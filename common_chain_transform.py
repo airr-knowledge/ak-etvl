@@ -82,7 +82,7 @@ def receptor_integrate(source, cache_id):
     annotation_types = ['int', 'int', 'int', 'int', 'bool']
 
     if cache_id not in config.cache_list:
-        print(f"Given cache id: {cache_id} is not in the study list")
+        print(f"Given id: {cache_id} is not in the study list")
         sys.exit(1)
 
     study = cache_id
