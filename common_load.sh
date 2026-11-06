@@ -14,12 +14,16 @@ AIRRKB_IMPORT="${AIRRKB_LOAD}/${IMPORT_DIR}"
 
 docker run -v ${AIRRKB_IMPORT}:/ak_data --network ak-db-network -it postgres:16 psql ${PG_AK_CONN} -c "DROP TABLE IF EXISTS tmp_table;"
 
-TABLE_NAMES=(AlphaChain BetaChain AlphaBetaTCR GammaChain DeltaChain GammaDeltaTCR Antigen Epitope MajorHistocompatibilityComplex TCRpMHCComplex Antigen_epitopes \
-    HeavyChain KappaChain LambdaChain BCellReceptor AntibodyAntigenComplex \
+TABLE_NAMES=(CanonicalAlphaChain CanonicalBetaChain CanonicalGammaChain CanonicalDeltaChain \
+    AlphaChain BetaChain AlphaBetaTCR GammaChain DeltaChain GammaDeltaTCR \
+    Antigen Epitope MajorHistocompatibilityComplex Antigen_epitopes \
+    AlphaBetaTCRpMHCComplex GammaDeltaTCRpMHCComplex \
+    CanonicalHeavyChain CanonicalKappaChain CanonicalLambdaChain \
+    HeavyChain KappaChain LambdaChain HeavyKappaBCR HeavyLambdaBCR \
+    HeavyKappaBCRAntigenComplex HeavyLambdaBCRAntigenComplex \
     Investigation StudyArm Participant Reference StudyEvent LifeEvent ImmuneExposure SpecimenCollection Specimen SequenceData Assay AKDataSet Conclusion \
     Investigation_assays Investigation_participants Investigation_documents Investigation_conclusions \
-    ReceptorComposite PairedReceptorComposite AlphaBetaReceptorComposite PairedAlphaBetaReceptorComposite GammaDeltaReceptorComposite PairedGammaDeltaReceptorComposite BCellReceptorComposite PairedBCellReceptorComposite \
-    Assay_receptor_composites)
+    Assay_ab_tcell_complexes Assay_gd_tcell_complexes Assay_hk_bcell_complexes Assay_hl_bcell_complexes)
 count=0
 for tname in "${TABLE_NAMES[@]}"; do
     file="${tname}.csv"

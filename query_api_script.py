@@ -84,9 +84,9 @@ def create_object(output_path, path, load_type):
                 investigation.description = investigation.description.replace('\n','')
 
             # look for genotype inference
-            if assay.sequencing_files:
+            if assay.sequence_files:
                 for iomap in container['input_output_map']:
-                    if iomap.has_specified_input == assay.sequencing_files:
+                    if iomap.has_specified_input == assay.sequence_files:
                         dataset = container['datasets'].get(iomap.has_specified_output)
                         if dataset and DataItemTypeEnum('genotype') in dataset.data_item_types:
                             print("found genotype")
@@ -142,16 +142,40 @@ CONFIGS = {
         "transform_dir": VDJBASE_TRANSFORM_DATA,
         "subdir": "vdjbase_jsonl",
     },
+    "vdjserver-jobs": {
+        "transform_dir": VDJSERVER_JOBS_TRANSFORM_DATA,
+        "subdir": "vdjserver-jobs_jsonl",
+    },
 }
 
 # Query ADC/VDJBASE
 @cli.command(name="query")
-@click.argument("source", type=click.Choice(["adc", "vdjbase"]))
-@click.option("--cache-id", required=True)
-def query(source, cache_id):
+@click.argument("source", type=click.Choice(["adc", "vdjbase", "vdjserver-jobs"]))
+@click.option("--cache-id", default=None)
+@click.option("--job-id", default=None)
+# def query(source, cache_id, job_id):
+#     config = CONFIGS[source]
+    
+#     path = f"{config['transform_dir']}/{config['subdir']}/{cache_id}"
+#     create_object(f"{path}/QueryAssay.jsonl", path, source)
+#     print(f"Wrote query object data to {path}/QueryAssay.jsonl")
+
+def query(source, cache_id, job_id):
+
+    if source in ("adc", "vdjbase"):
+        if not cache_id:
+            raise click.UsageError( f"--cache-id is required for source '{source}'")
+        identifier = cache_id
+    elif source == "vdjserver-jobs":
+        if not job_id:
+            raise click.UsageError("--job-id is required for source 'vdjserver-jobs'")
+        identifier = job_id
+    else:
+        print("Please choose from [adc, vdjbase, vdjserver-jobs]")
+        
     config = CONFIGS[source]
     
-    path = f"{config['transform_dir']}/{config['subdir']}/{cache_id}"
+    path = f"{config['transform_dir']}/{config['subdir']}/{identifier}"
     create_object(f"{path}/QueryAssay.jsonl", path, source)
     print(f"Wrote query object data to {path}/QueryAssay.jsonl")
 

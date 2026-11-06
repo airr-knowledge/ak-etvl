@@ -29,6 +29,7 @@ class TransformConfig:
     import_dir: str
     transform_dir: str
     tsv_suffix: str
+    prefix: str
     
 ADC = TransformConfig(
     name="adc",
@@ -36,7 +37,7 @@ ADC = TransformConfig(
     import_dir=ADC_IMPORT_DATA,
     transform_dir=ADC_TRANSFORM_DATA,
     tsv_suffix=".airr.tsv.gz",
-    
+    prefix="ADC_VDJSERVER"
 )
 
 VDJBASE = TransformConfig(
@@ -45,14 +46,33 @@ VDJBASE = TransformConfig(
     import_dir=VDJBASE_IMPORT_DATA,
     transform_dir=VDJBASE_TRANSFORM_DATA,
     tsv_suffix=".tsv.gz",
+    prefix="ADC_VDJBASE"
+)
+
+VDJSERVER_JOBS = TransformConfig(
+    name="vdjserver-jobs",
+    cache_list=vdjserver_jobs_list,
+    import_dir=VDJSERVER_JOBS_IMPORT_DATA,
+    transform_dir=VDJSERVER_JOBS_TRANSFORM_DATA,
+    tsv_suffix=".igblast.airr.tsv.gz",
+    prefix="ADC_VDJSERVER"
 )
 
 @click.command()
-@click.argument("source", type=click.Choice(["adc", "vdjbase"]))
+@click.argument("source", type=click.Choice(["adc", "vdjbase", "vdjserver-jobs"]))
 @click.argument('cache_id')
 
 def receptor_integrate(source, cache_id):
-    config = ADC if source == "adc" else VDJBASE
+    if source == "adc":
+        config = ADC 
+    elif source == "vdjbase":
+        config = VDJBASE
+    elif source == "vdjserver-jobs":
+        config = VDJSERVER_JOBS
+    else:
+        print("Please select from [adc, vdjbase, vdjserver-jobs]")
+        exit(1)
+    
     """Convert ADC rearrangements to AK chains and receptors."""
 
     fields = [ 'productive', 'junction', 'junction_aa', 'cdr1_aa', 'cdr2_aa', 'complete_vdj', 'sequence', 'sequence_aa', 'locus', 'v_call', 'j_call', 'duplicate_count', 'cell_id' ]
@@ -62,7 +82,7 @@ def receptor_integrate(source, cache_id):
     annotation_types = ['int', 'int', 'int', 'int', 'bool']
 
     if cache_id not in config.cache_list:
-        print(f"Given cache id: {cache_id} is not in the study list")
+        print(f"Given id: {cache_id} is not in the study list")
         sys.exit(1)
 
     study = cache_id
@@ -102,8 +122,9 @@ def receptor_integrate(source, cache_id):
         print('Processing repertoire:', rep['repertoire_id'], 'for study id:', rep['study']['study_id'])
 
         # link to AK assay
-        # TODO: need to handle multiple
-        assay_akc_id = assay_by_rep_id[rep['repertoire_id']]
+        # repertoire ID is a CURIE in AK
+        curie_rep_id = f"{config.prefix}:{rep['repertoire_id']}"
+        assay_akc_id = assay_by_rep_id[curie_rep_id]
         print(f"AKC assay id: {assay_akc_id}")
 
         paired_chain = False
@@ -254,7 +275,9 @@ def receptor_integrate(source, cache_id):
 
             if not paired_chain:
                 receptor = make_receptor(container, species, [chain, None])
-                make_complex(container, receptor, None, None, None, [ assay_akc_id ])
+                make_complex(container, receptor[0], None, None, None, [ assay_akc_id ])
+                if receptor[1] is not None:
+                    make_complex(container, receptor[1], None, None, None, [ assay_akc_id ])
 
             # gather chains by cell_id
             if row.get('cell_id') is not None and len(row['cell_id']) != 0:
@@ -286,7 +309,9 @@ def receptor_integrate(source, cache_id):
                 else: # 2 chains, obvious case
                     dist[1] += 1
                     receptor = make_receptor(container, species, cell_id[c])
-                    make_complex(container, receptor, None, None, None, [ assay_akc_id ])
+                    make_complex(container, receptor[0], None, None, None, [ assay_akc_id ])
+                    if receptor[1] is not None:
+                        make_complex(container, receptor[1], None, None, None, [ assay_akc_id ])
 
             print('cell_id distribution:', dist)
 

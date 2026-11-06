@@ -10,6 +10,7 @@ from ak_schema import (
     SpecimenCollection,
     Specimen,
     CellIsolationProcessing,
+    PCRTarget,
     LibraryPreparationProcessing,
     AIRRSequencingData,
     AIRRSequencingAssay,
@@ -17,15 +18,16 @@ from ak_schema import (
 )
 from ak_schema_utils import (
     akc_id,
+    akc_hash_id,
     adc_ontology,
     to_datetime,
 )
 
 
-def transform_airr_repertoires(repertoire_filename, container):
+def transform_airr_repertoires(repertoire_filename, container, repertoire_prefix):
     """Transform ADC repertoire metadata to AK objects.
        
-       The code will handle multiple studies in a sinmgle repertoire file,
+       The code will handle multiple studies in a single repertoire file,
        and will merge data into an existing container, creating new objects
        only as needed. This will allow VDJbase repertoires to be merged into
        existing data from the ADC, or vice versa.
@@ -292,7 +294,11 @@ def transform_airr_repertoires(repertoire_filename, container):
                 physical_linkage=s.get('physical_linkage')
             )
             for t in s.get('pcr_target'):
-                lib_proc.pcr_target.append(t.get('pcr_target_locus'))
+                pt = PCRTarget(
+                    pcr_target_locus=t.get('pcr_target_locus'), 
+                    forward_pcr_primer_target_location=t.get('forward_pcr_primer_target_location'),
+                    reverse_pcr_primer_target_location=t.get('reverse_pcr_primer_target_location'))
+                lib_proc.pcr_target.append(pt)
             container.specimen_processings[lib_proc.akc_id] = lib_proc
 
             f = s['sequencing_files']
@@ -313,9 +319,12 @@ def transform_airr_repertoires(repertoire_filename, container):
             if s.get('sequencing_run_date') is not None:
                 sequencing_run_date = parse(s.get('sequencing_run_date'))
 
+            # we keep the original repertoire_id though make it a CURIE
+            # then hash it for the assay akc_id which should keep it constant across transform runs
+            curie_rep_id = repertoire_prefix + ':' + rep['repertoire_id']
             assay = AIRRSequencingAssay(
-                akc_id(),
-                repertoire_id=rep['repertoire_id'],
+                akc_hash_id(curie_rep_id),
+                repertoire_id=curie_rep_id,
                 specimen=specimen.akc_id,
                 specimen_processing=[cell_proc.akc_id, lib_proc.akc_id],
                 sequencing_run_id=s.get('sequencing_run_id'),
@@ -324,7 +333,7 @@ def transform_airr_repertoires(repertoire_filename, container):
                 sequencing_kit=s.get('sequencing_kit'),
                 sequencing_facility=s.get('sequencing_facility'),
                 total_reads_passing_qc_filter=s.get('total_reads_passing_qc_filter'),
-                sequencing_files=seq_files.akc_id
+                sequence_files=seq_files.akc_id
             )
             container.assays[assay.akc_id] = assay
 

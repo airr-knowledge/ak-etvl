@@ -569,6 +569,7 @@ def process_assay(container, assay_df, assay_to_receptor, assay_to_chain, type):
             participant = get_participant(assay_row, arm.akc_id)
 
             immune_exposure_event = get_immune_exposure(assay_row, participant.akc_id)
+            participant.life_events.append(immune_exposure_event.akc_id)
             specimen_collection_event = get_specimen_collection_life_event(participant.akc_id, study_event.akc_id)
             # todo set specimen_collection_event.specimen_akc_id is now None, because there is a circular reference between the two
 

@@ -30,13 +30,14 @@ class TransformConfig:
     cache_list: set
     import_dir: str
     transform_dir: str
+    prefix: str
 
 ADC = TransformConfig(
     name="adc",
     cache_list=adc_cache_list,
     import_dir=ADC_IMPORT_DATA,
     transform_dir=ADC_TRANSFORM_DATA,
-    
+    prefix="ADC_VDJSERVER"
 )
 
 VDJBASE = TransformConfig(
@@ -44,23 +45,42 @@ VDJBASE = TransformConfig(
     cache_list=vdjbase_cache_list,
     import_dir=VDJBASE_IMPORT_DATA,
     transform_dir=VDJBASE_TRANSFORM_DATA,
+    prefix="ADC_VDJBASE"
 )
 
+VDJSERVER_JOBS = TransformConfig(
+    name="vdjserver-jobs",
+    cache_list=vdjserver_jobs_list,
+    import_dir=VDJSERVER_JOBS_IMPORT_DATA,
+    transform_dir=VDJSERVER_JOBS_TRANSFORM_DATA,
+    prefix="ADC_VDJSERVER"
+)
+
+
+
 @click.command()
-@click.argument("source", type=click.Choice(["adc", "vdjbase"]))
+@click.argument("source", type=click.Choice(["adc", "vdjbase", "vdjserver-jobs"]))
 @click.argument("cache_id")
 def repertoire_transform(source, cache_id):
     print(source, cache_id)
 
-    config = ADC if source == "adc" else VDJBASE
-
-    if cache_id not in config.cache_list:
-        print(f"Given cache id: {cache_id} is not in the study list")
-        sys.exit(1)
+    if source == "adc":
+        config = ADC 
+    elif source == "vdjbase":
+        config = VDJBASE
+    elif source == "vdjserver-jobs":
+        config = VDJSERVER_JOBS
+    else:
+        print("Please select from [adc, vdjbase, vdjserver-jobs]")
+        exit(1)
 
     study = cache_id
     
-    container = transform_airr_repertoires(f"{config.import_dir}/{study}/repertoires.airr.json", AIRRKnowledgeCommons(),)
+    if study not in config.cache_list:
+        print(f"Given id: {study} is not in the study list")
+        sys.exit(1)
+
+    container = transform_airr_repertoires(f"{config.import_dir}/{study}/repertoires.airr.json", AIRRKnowledgeCommons(), config.prefix)
     
     # output data for just this study
 
