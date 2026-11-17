@@ -861,8 +861,9 @@ def load_akc_objects(container, container_field, container_class, path, check_ty
                     # hack for specimen processings as it missing designated type
                     if x[container_field]['@type'] == 'LibraryPreparationProcessing':
                         # pcr_target is not defined properly
-                        pcr_target = x[container_field]['pcr_target']
-                        del x[container_field]['pcr_target']
+                        pcr_target = x[container_field].get('pcr_target')
+                        if pcr_target:
+                            del x[container_field]['pcr_target']
                         y = json_loader.load_any(x[container_field], LibraryPreparationProcessing)
                         y.pcr_target = pcr_target
                     elif x[container_field]['@type'] == 'CellIsolationProcessing':
