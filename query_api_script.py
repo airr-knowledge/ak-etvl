@@ -31,6 +31,18 @@ with open('ak-ontology/src/ontology/exports/ONTIE_organisms.csv', mode='r', newl
         taxon[row['term_id']] = row['term_label']
 print(f"Loaded ONTIE organisms ontology")
 
+doid = {}
+with open('ak-ontology/src/ontology/exports/Diseases.csv', mode='r', newline='') as file:
+    reader = csv.DictReader(file)
+    for row in reader:
+        doid[row['term_id']] = row['term_label']
+print(f"Loaded DOID ontology")
+with open('ak-ontology/src/ontology/exports/ONTIE_Diseases.csv', mode='r', newline='') as file:
+    reader = csv.DictReader(file)
+    for row in reader:
+        doid[row['term_id']] = row['term_label']
+print(f"Loaded ONTIE diseases ontology")
+
 pato = {}
 with open('ak-ontology/src/ontology/exports/PhenotypeAndTraits.csv', mode='r', newline='') as file:
     reader = csv.DictReader(file)
@@ -59,6 +71,23 @@ def create_object(output_path, path, load_type):
     load_ak_container(container, path, load_type)
     print(f"LOADED AK CONTAINER WITH {load_type.upper()} DATA")
 
+    # TODO: missed in V3 but should be fixed in V4
+    if load_type == 'iedb':
+        pe = {}
+        # loop through life events and collect for each participant
+        for life_event_id in container["life_events"]:
+            life_event = container["life_events"][life_event_id]
+            participant_akc_id = life_event.participant
+            if pe.get(participant_akc_id) is None:
+                pe[participant_akc_id] = {}
+            if pe[participant_akc_id].get(life_event_id) is None:
+                pe[participant_akc_id][life_event_id] = container["life_events"][life_event_id]
+        for participant_akc_id in pe:
+            participant = container["participants"][participant_akc_id]
+            participant.life_events = []
+            for life_event_id in pe[participant_akc_id]:
+                participant.life_events.append(life_event_id)
+
     with open(output_path, "w") as f:
         for assay_id, assay in container["assays"].items():
 
@@ -84,7 +113,7 @@ def create_object(output_path, path, load_type):
                 investigation.description = investigation.description.replace('\n','')
 
             # look for genotype inference
-            if assay.sequence_files:
+            if hasattr(assay, 'sequencing_files') and assay.sequencing_files:
                 for iomap in container['input_output_map']:
                     if iomap.has_specified_input == assay.sequence_files:
                         dataset = container['datasets'].get(iomap.has_specified_output)
@@ -107,6 +136,8 @@ def create_object(output_path, path, load_type):
             del d['specimen_processing']
 
             # hack in ontology labels
+            if d.get('assay_type') is not None:
+                d['assay_type'] = { "term_id": d['assay_type'], "term_label": obi[d['assay_type']] }
             if d['specimen']['tissue'] is not None:
                 if uberon.get(d['specimen']['tissue']):
                     d['specimen']['tissue'] = { 'term_id': d['specimen']['tissue'], 'term_label': uberon[d['specimen']['tissue']] }
@@ -123,6 +154,20 @@ def create_object(output_path, path, load_type):
                 d['participant']['age_unit'] = { 'term_id': d['participant']['age_unit'], 'term_label': unit[d['participant']['age_unit']] }
             if d['investigation']['investigation_type'] is not None:
                 d['investigation']['investigation_type'] = { 'term_id': d['investigation']['investigation_type'], 'term_label': obi[d['investigation']['investigation_type']] }
+
+            for life_event_id in d['life_events']:
+                life_event = d['life_events'][life_event_id]
+                if life_event.get('life_event_type') is not None:
+                    life_event['life_event_type'] = { 'term_id': life_event['life_event_type'], 'term_label': obi[life_event['life_event_type']] }
+                if life_event.get('disease') is not None:
+                    life_event['disease'] = { 'term_id': life_event['disease'], 'term_label': doid[life_event['disease']] }
+                if life_event.get('exposure_material') is not None:
+                    if taxon.get(life_event['exposure_material']) is not None:
+                        life_event['exposure_material'] = { 'term_id': life_event['exposure_material'], 'term_label': taxon[life_event['exposure_material']] }
+                    else:
+                        print(f"unhandled exposure_material: {life_event['exposure_material']}")
+                        life_event['exposure_material'] = { 'term_id': life_event['exposure_material'], 'term_label': "" }
+                        
 
             f.write(json.dumps(d) + "\n")
 
