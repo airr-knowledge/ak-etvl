@@ -334,7 +334,6 @@ def chain_is_empty(chain):
             chain.j_call is None and
             chain.cdr1_aa is None and
             chain.cdr2_aa is None and
-            chain.cdr3_aa is None and
             chain.junction_aa is None):
         return True
     return False
@@ -361,16 +360,16 @@ def make_canonical_chain(container, chain):
 
     # multiple V/J calls?
     # take first one, which should match to inferred sequence
-    v_calls = [item.strip() for item in chain.v_call.split(",")]
-    j_calls = [item.strip() for item in chain.j_call.split(",")]
-    if len(v_calls) > 1:
-        v_call = v_calls[0]
-    else:
-        v_call = chain.v_call
-    if len(j_calls) > 1:
-        j_call = j_calls[0]
-    else:
-        j_call = chain.j_call
+    v_call = chain.v_call
+    if v_call:
+        v_calls = [item.strip() for item in chain.v_call.split(",")]
+        if len(v_calls) > 1:
+            v_call = v_calls[0]
+    j_call = chain.j_call
+    if j_call:
+        j_calls = [item.strip() for item in chain.j_call.split(",")]
+        if len(j_calls) > 1:
+            j_call = j_calls[0]
 
     if canonical_chain:
         canonical_chain.species = chain.species
